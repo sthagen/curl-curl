@@ -37,6 +37,8 @@
 #include "transfer.h"
 #include "speedcheck.h"
 #include "select.h"
+#include "multiif.h"
+#include "warnless.h"
 
 /* The last 3 #include files should be in this order */
 #include "curl_printf.h"
@@ -230,14 +232,40 @@ static ssize_t wscp_recv(struct connectdata *conn, int sockindex,
 static ssize_t wsftp_send(struct connectdata *conn, int sockindex,
                           const void *mem, size_t len, CURLcode *err)
 {
-  ssize_t nwrite = 0;
+  struct ssh_conn *sshc = &conn->proto.sshc;
+  word32 offset[2];
+  int rc;
   (void)sockindex;
-  (void)conn;
-  (void)mem;
-  (void)len;
-  (void)err;
 
-  return nwrite;
+  offset[0] =  (word32)sshc->offset&0xFFFFFFFF;
+  offset[1] =  (word32)(sshc->offset>>32)&0xFFFFFFFF;
+
+  rc = wolfSSH_SFTP_SendWritePacket(sshc->ssh_session, sshc->handle,
+                                    sshc->handleSz,
+                                    &offset[0],
+                                    (byte *)mem, (word32)len);
+
+  if(rc == WS_FATAL_ERROR)
+    rc = wolfSSH_get_error(sshc->ssh_session);
+  if(rc == WS_WANT_READ) {
+    conn->waitfor = KEEP_RECV;
+    *err = CURLE_AGAIN;
+    return -1;
+  }
+  else if(rc == WS_WANT_WRITE) {
+    conn->waitfor = KEEP_SEND;
+    *err = CURLE_AGAIN;
+    return -1;
+  }
+  if(rc < 0) {
+    failf(conn->data, "wolfSSH_SFTP_SendWritePacket returned %d\n", rc);
+    return -1;
+  }
+  DEBUGASSERT(rc == (int)len);
+  infof(conn->data, "sent %zd bytes SFTP from offset %zd\n",
+        len, sshc->offset);
+  sshc->offset += len;
+  return (ssize_t)rc;
 }
 
 /*
@@ -278,6 +306,7 @@ static ssize_t wsftp_recv(struct connectdata *conn, int sockindex,
     failf(conn->data, "wolfSSH_SFTP_SendReadPacket returned %d\n", rc);
     return -1;
   }
+  sshc->offset += len;
 
   return (ssize_t)rc;
 }
@@ -516,6 +545,153 @@ static CURLcode wssh_statemach_act(struct connectdata *conn, bool *block)
           state(conn, SSH_SFTP_DOWNLOAD_INIT);
       }
       break;
+    case SSH_SFTP_UPLOAD_INIT: {
+      word32 flags;
+      WS_SFTP_FILEATRB createattrs;
+      if(data->state.resume_from) {
+        WS_SFTP_FILEATRB attrs;
+        if(data->state.resume_from < 0) {
+          rc = wolfSSH_SFTP_STAT(sshc->ssh_session, sftp_scp->path,
+                                 &attrs);
+          if(rc != WS_SUCCESS)
+            break;
+
+          if(rc) {
+            data->state.resume_from = 0;
+          }
+          else {
+            curl_off_t size = ((curl_off_t)attrs.sz[1] << 32) | attrs.sz[0];
+            if(size < 0) {
+              failf(data, "Bad file size (%" CURL_FORMAT_CURL_OFF_T ")", size);
+              return CURLE_BAD_DOWNLOAD_RESUME;
+            }
+            data->state.resume_from = size;
+          }
+        }
+      }
+
+      if(data->set.ftp_append)
+        /* Try to open for append, but create if nonexisting */
+        flags = WOLFSSH_FXF_WRITE|WOLFSSH_FXF_CREAT|WOLFSSH_FXF_APPEND;
+      else if(data->state.resume_from > 0)
+        /* If we have restart position then open for append */
+        flags = WOLFSSH_FXF_WRITE|WOLFSSH_FXF_APPEND;
+      else
+        /* Clear file before writing (normal behaviour) */
+        flags = WOLFSSH_FXF_WRITE|WOLFSSH_FXF_CREAT|WOLFSSH_FXF_TRUNC;
+
+      memset(&createattrs, 0, sizeof(createattrs));
+      createattrs.per = (word32)data->set.new_file_perms;
+      sshc->handleSz = sizeof(sshc->handle);
+      rc = wolfSSH_SFTP_Open(sshc->ssh_session, sftp_scp->path,
+                             flags, &createattrs,
+                             sshc->handle, &sshc->handleSz);
+      if(rc == WS_FATAL_ERROR)
+        rc = wolfSSH_get_error(sshc->ssh_session);
+      if(rc == WS_WANT_READ) {
+        *block = TRUE;
+        conn->waitfor = KEEP_RECV;
+        return CURLE_OK;
+      }
+      else if(rc == WS_WANT_WRITE) {
+        *block = TRUE;
+        conn->waitfor = KEEP_SEND;
+        return CURLE_OK;
+      }
+      else if(rc == WS_SUCCESS) {
+        infof(data, "wolfssh SFTP open succeeded!\n");
+      }
+      else {
+        failf(data, "wolfssh SFTP upload open failed: %d", rc);
+        return CURLE_SSH;
+      }
+      state(conn, SSH_SFTP_DOWNLOAD_STAT);
+
+      /* If we have a restart point then we need to seek to the correct
+         position. */
+      if(data->state.resume_from > 0) {
+        /* Let's read off the proper amount of bytes from the input. */
+        int seekerr = CURL_SEEKFUNC_OK;
+        if(conn->seek_func) {
+          Curl_set_in_callback(data, true);
+          seekerr = conn->seek_func(conn->seek_client, data->state.resume_from,
+                                    SEEK_SET);
+          Curl_set_in_callback(data, false);
+        }
+
+        if(seekerr != CURL_SEEKFUNC_OK) {
+          curl_off_t passed = 0;
+
+          if(seekerr != CURL_SEEKFUNC_CANTSEEK) {
+            failf(data, "Could not seek stream");
+            return CURLE_FTP_COULDNT_USE_REST;
+          }
+          /* seekerr == CURL_SEEKFUNC_CANTSEEK (can't seek to offset) */
+          do {
+            size_t readthisamountnow =
+              (data->state.resume_from - passed > data->set.buffer_size) ?
+              (size_t)data->set.buffer_size :
+              curlx_sotouz(data->state.resume_from - passed);
+
+            size_t actuallyread;
+            Curl_set_in_callback(data, true);
+            actuallyread = data->state.fread_func(data->state.buffer, 1,
+                                                  readthisamountnow,
+                                                  data->state.in);
+            Curl_set_in_callback(data, false);
+
+            passed += actuallyread;
+            if((actuallyread == 0) || (actuallyread > readthisamountnow)) {
+              /* this checks for greater-than only to make sure that the
+                 CURL_READFUNC_ABORT return code still aborts */
+              failf(data, "Failed to read data");
+              return CURLE_FTP_COULDNT_USE_REST;
+            }
+          } while(passed < data->state.resume_from);
+        }
+
+        /* now, decrease the size of the read */
+        if(data->state.infilesize > 0) {
+          data->state.infilesize -= data->state.resume_from;
+          data->req.size = data->state.infilesize;
+          Curl_pgrsSetUploadSize(data, data->state.infilesize);
+        }
+
+        sshc->offset += data->state.resume_from;
+      }
+      if(data->state.infilesize > 0) {
+        data->req.size = data->state.infilesize;
+        Curl_pgrsSetUploadSize(data, data->state.infilesize);
+      }
+      /* upload data */
+      Curl_setup_transfer(data, -1, -1, FALSE, FIRSTSOCKET);
+
+      /* not set by Curl_setup_transfer to preserve keepon bits */
+      conn->sockfd = conn->writesockfd;
+
+      if(result) {
+        state(conn, SSH_SFTP_CLOSE);
+        sshc->actualcode = result;
+      }
+      else {
+        /* store this original bitmask setup to use later on if we can't
+           figure out a "real" bitmask */
+        sshc->orig_waitfor = data->req.keepon;
+
+        /* we want to use the _sending_ function even when the socket turns
+           out readable as the underlying libssh2 sftp send function will deal
+           with both accordingly */
+        conn->cselect_bits = CURL_CSELECT_OUT;
+
+        /* since we don't really wait for anything at this point, we want the
+           state machine to move on as soon as possible so we set a very short
+           timeout here */
+        Curl_expire(data, 0, EXPIRE_RUN_NOW);
+
+        state(conn, SSH_STOP);
+      }
+      break;
+    }
     case SSH_SFTP_DOWNLOAD_INIT:
       sshc->handleSz = sizeof(sshc->handle);
       rc = wolfSSH_SFTP_Open(sshc->ssh_session, sftp_scp->path,
