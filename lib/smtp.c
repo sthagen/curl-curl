@@ -29,6 +29,7 @@
  * RFC5321 SMTP protocol
  * RFC5890 Internationalized Domain Names for Applications (IDNA)
  * RFC6531 SMTP Extension for Internationalized Email
+ * RFC6532 Internationalized Email Headers
  * RFC6749 OAuth 2.0 Authorization Framework
  * RFC8314 Use of TLS for Email Submission and Access
  * Draft   SMTP URL Interface   <draft-earhart-url-smtp-00.txt>
@@ -486,6 +487,12 @@ static CURLcode smtp_perform_command(struct connectdata *conn)
   struct SMTP *smtp = data->req.protop;
 
   if(smtp->rcpt) {
+    /* We notify the server we are sending UTF-8 data if a) it supports the
+       SMTPUTF8 extension and b) The mailbox contains UTF-8 charaacters, in
+       either the local address or host name parts. This is regardless of
+       whether the host name is encoded using IDN ACE */
+    bool utf8 = FALSE;
+
     if((!smtp->custom) || (!smtp->custom[0])) {
       char *address = NULL;
       struct hostname host = { NULL, NULL, NULL, NULL };
@@ -497,20 +504,34 @@ static CURLcode smtp_perform_command(struct connectdata *conn)
       if(result)
         return result;
 
+      /* Establish whether we should report SMTPUTF8 to the server for this
+         mailbox as per RFC-6531 sect. 3.1 point 6 */
+      utf8 = (conn->proto.smtpc.utf8_supported) &&
+             ((host.encalloc) || (!Curl_is_ASCII_name(address)) ||
+              (!Curl_is_ASCII_name(host.name)));
+
       /* Send the VRFY command (Note: The host name part may be absent when the
          host is a local system) */
-      result = Curl_pp_sendf(&conn->proto.smtpc.pp, "VRFY %s%s%s",
+      result = Curl_pp_sendf(&conn->proto.smtpc.pp, "VRFY %s%s%s%s",
                              address,
                              host.name ? "@" : "",
-                             host.name ? host.name : "");
+                             host.name ? host.name : "",
+                             utf8 ? " SMTPUTF8" : "");
 
       Curl_free_idnconverted_hostname(&host);
       free(address);
     }
-    else
+    else {
+      /* Establish whether we should report that we support SMTPUTF8 for EXPN
+         commands to the server as per RFC-6531 sect. 3.1 point 6 */
+      utf8 = (conn->proto.smtpc.utf8_supported) &&
+             (!strcmp(smtp->custom, "EXPN"));
+
       /* Send the custom recipient based command such as the EXPN command */
-      result = Curl_pp_sendf(&conn->proto.smtpc.pp, "%s %s", smtp->custom,
-                             smtp->rcpt->data);
+      result = Curl_pp_sendf(&conn->proto.smtpc.pp, "%s %s%s", smtp->custom,
+                             smtp->rcpt->data,
+                             utf8 ? " SMTPUTF8" : "");
+    }
   }
   else
     /* Send the non-recipient based command such as HELP */
@@ -538,11 +559,14 @@ static CURLcode smtp_perform_mail(struct connectdata *conn)
   CURLcode result = CURLE_OK;
   struct Curl_easy *data = conn->data;
 
+  /* We notify the server we are sending UTF-8 data if a) it supports the
+     SMTPUTF8 extension and b) The mailbox contains UTF-8 charaacters, in
+     either the local address or host name parts. This is regardless of
+     whether the host name is encoded using IDN ACE */
+  bool utf8 = FALSE;
+
   /* Calculate the FROM parameter */
-  if(!data->set.str[STRING_MAIL_FROM])
-    /* Null reverse-path, RFC-5321, sect. 3.6.3 */
-    from = strdup("<>");
-  else {
+  if(data->set.str[STRING_MAIL_FROM]) {
     char *address = NULL;
     struct hostname host = { NULL, NULL, NULL, NULL };
 
@@ -552,6 +576,12 @@ static CURLcode smtp_perform_mail(struct connectdata *conn)
                                 &address, &host);
     if(result)
       return result;
+
+    /* Establish whether we should report SMTPUTF8 to the server for this
+       mailbox as per RFC-6531 sect. 3.1 point 4 and sect. 3.4 */
+    utf8 = (conn->proto.smtpc.utf8_supported) &&
+           ((host.encalloc) || (!Curl_is_ASCII_name(address)) ||
+            (!Curl_is_ASCII_name(host.name)));
 
     if(host.name) {
       from = aprintf("<%s@%s>", address, host.name);
@@ -565,6 +595,9 @@ static CURLcode smtp_perform_mail(struct connectdata *conn)
 
     free(address);
   }
+  else
+    /* Null reverse-path, RFC-5321, sect. 3.6.3 */
+    from = strdup("<>");
 
   if(!from)
     return CURLE_OUT_OF_MEMORY;
@@ -581,6 +614,13 @@ static CURLcode smtp_perform_mail(struct connectdata *conn)
                                   &address, &host);
       if(result)
         return result;
+
+      /* Establish whether we should report SMTPUTF8 to the server for this
+         mailbox as per RFC-6531 sect. 3.1 point 4 and sect. 3.4 */
+      if((!utf8) && (conn->proto.smtpc.utf8_supported) &&
+         ((host.encalloc) || (!Curl_is_ASCII_name(address)) ||
+          (!Curl_is_ASCII_name(host.name))))
+        utf8 = TRUE;
 
       if(host.name) {
         from = aprintf("<%s@%s>", address, host.name);
@@ -650,14 +690,33 @@ static CURLcode smtp_perform_mail(struct connectdata *conn)
     }
   }
 
+  /* If the mailboxes in the FROM and AUTH parameters don't include a UTF-8
+     based address then quickly scan through the recipient list and check if
+     any there do, as we need to correctly identify our support for SMTPUTF8
+     in the envelope, as per RFC-6531 sect. 3.4 */
+  if(conn->proto.smtpc.utf8_supported && !utf8) {
+    struct SMTP *smtp = data->req.protop;
+    struct curl_slist *rcpt = smtp->rcpt;
+
+    while(rcpt && !utf8) {
+      /* Does the host name contain non-ASCII characters? */
+      if(!Curl_is_ASCII_name(rcpt->data))
+        utf8 = TRUE;
+
+      rcpt = rcpt->next;
+    }
+  }
+
   /* Send the MAIL command */
   result = Curl_pp_sendf(&conn->proto.smtpc.pp,
-                         "MAIL FROM:%s%s%s%s%s",
-                         from,                 /* Mandatory */
-                         auth ? " AUTH=" : "", /* Optional (on AUTH support) */
-                         auth ? auth : "",
-                         size ? " SIZE=" : "", /* Optional (on SIZE support) */
-                         size ? size : "");
+                         "MAIL FROM:%s%s%s%s%s%s",
+                         from,                 /* Mandatory                 */
+                         auth ? " AUTH=" : "", /* Optional on AUTH support  */
+                         auth ? auth : "",     /*                           */
+                         size ? " SIZE=" : "", /* Optional on SIZE support  */
+                         size ? size : "",     /*                           */
+                         utf8 ? " SMTPUTF8"    /* Internationalised mailbox */
+                               : "");          /* included in our envelope  */
 
   free(from);
   free(auth);
@@ -801,6 +860,10 @@ static CURLcode smtp_state_ehlo_resp(struct connectdata *conn, int smtpcode,
     /* Does the server support the SIZE capability? */
     else if(len >= 4 && !memcmp(line, "SIZE", 4))
       smtpc->size_supported = TRUE;
+
+    /* Does the server support the UTF-8 capability? */
+    else if(len >= 8 && !memcmp(line, "SMTPUTF8", 8))
+      smtpc->utf8_supported = TRUE;
 
     /* Does the server support authentication? */
     else if(len >= 5 && !memcmp(line, "AUTH ", 5)) {
@@ -1672,6 +1735,10 @@ static CURLcode smtp_parse_custom_request(struct connectdata *conn)
  *
  * Notes:
  *
+ * Should a UTF-8 host name require conversion to IDN ACE and we cannot honor
+ * that convertion then we shall return success. This allow the caller to send
+ * the data to the server as a U-label (as per RFC-6531 sect. 3.2).
+ *
  * If an mailbox '@' seperator cannot be located then the mailbox is considered
  * to be either a local mailbox or an invalid mailbox (depending on what the
  * calling function deems it to be) then the input will simply be returned in
@@ -1699,14 +1766,12 @@ static CURLcode smtp_parse_address(struct connectdata *conn, const char *fqma,
     *host->name = '\0';
     host->name = host->name + 1;
 
-    /* Convert the host name to IDN ACE */
-    result = Curl_idnconvert_hostname(conn, host);
-    if(result) {
-      free(dup);
-      host->name = NULL;
+    /* Attempt to convert the host name to IDN ACE */
+    (void) Curl_idnconvert_hostname(conn, host);
 
-      return result;
-    }
+    /* If Curl_idnconvert_hostname() fails then we shall attempt to continue
+       and send the host name using UTF-8 rather than as 7-bit ACE (which is
+       our preference) */
   }
   else
     host->name = NULL;
