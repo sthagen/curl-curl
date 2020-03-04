@@ -35,8 +35,11 @@ sub appveyor_check_environment {
 
 sub appveyor_create_test_result {
     my ($testnum, $testname)=@_;
+    $testname =~ s/\\/\\\\/g;
+    $testname =~ s/\'/\\\'/g;
+    $testname =~ s/\"/\\\"/g;
     my $appveyor_baseurl="$ENV{'APPVEYOR_API_URL'}";
-    my $appveyor_result=`curl --silent \\
+    my $appveyor_result=`curl --silent --noproxy "*" \\
     --header "Content-Type: application/json" \\
     --data "
         {
@@ -63,7 +66,11 @@ sub appveyor_update_test_result {
     my $appveyor_duration = sprintf("%.0f", ($stop-$start)*1000);
     my $appveyor_outcome;
     my $appveyor_category;
-    if($error < 0) {
+    if($error == 2) {
+        $appveyor_outcome = 'Ignored';
+        $appveyor_category = 'Warning';
+    }
+    elsif($error < 0) {
         $appveyor_outcome = 'NotRunnable';
         $appveyor_category = 'Warning';
     }
@@ -76,7 +83,7 @@ sub appveyor_update_test_result {
         $appveyor_category = 'Error';
     }
     my $appveyor_baseurl="$ENV{'APPVEYOR_API_URL'}";
-    my $appveyor_result=`curl --silent --request PUT \\
+    my $appveyor_result=`curl --silent --noproxy "*" --request PUT \\
     --header "Content-Type: application/json" \\
     --data "
         {
@@ -90,11 +97,11 @@ sub appveyor_update_test_result {
     "$appveyor_baseurl/api/tests"`;
     print $appveyor_result;
     if($appveyor_category eq 'Error') {
-        $appveyor_result=`curl --silent \\
+        $appveyor_result=`curl --silent --noproxy "*" \\
         --header "Content-Type: application/json" \\
         --data "
             {
-                'message': '$testname',
+                'message': '$testname $appveyor_outcome',
                 'category': '$appveyor_category',
                 'details': 'Test $testnum $appveyor_outcome'
             }
