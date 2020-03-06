@@ -973,15 +973,28 @@ void curl_easy_reset(struct Curl_easy *data)
  */
 CURLcode curl_easy_pause(struct Curl_easy *data, int action)
 {
-  struct SingleRequest *k = &data->req;
+  struct SingleRequest *k;
   CURLcode result = CURLE_OK;
+  int oldstate;
+  int newstate;
 
-  /* first switch off both pause bits */
-  int newstate = k->keepon &~ (KEEP_RECV_PAUSE| KEEP_SEND_PAUSE);
+  if(!GOOD_EASY_HANDLE(data) || !data->conn)
+    /* crazy input, don't continue */
+    return CURLE_BAD_FUNCTION_ARGUMENT;
 
-  /* set the new desired pause bits */
-  newstate |= ((action & CURLPAUSE_RECV)?KEEP_RECV_PAUSE:0) |
+  k = &data->req;
+  oldstate = k->keepon & (KEEP_RECV_PAUSE| KEEP_SEND_PAUSE);
+
+  /* first switch off both pause bits then set the new pause bits */
+  newstate = (k->keepon &~ (KEEP_RECV_PAUSE| KEEP_SEND_PAUSE)) |
+    ((action & CURLPAUSE_RECV)?KEEP_RECV_PAUSE:0) |
     ((action & CURLPAUSE_SEND)?KEEP_SEND_PAUSE:0);
+
+  if((newstate & (KEEP_RECV_PAUSE| KEEP_SEND_PAUSE)) == oldstate) {
+    /* Not changing any pause state, return */
+    DEBUGF(infof(data, "pause: no change, early return\n"));
+    return CURLE_OK;
+  }
 
   /* put it back in the keepon */
   k->keepon = newstate;
@@ -1033,7 +1046,6 @@ CURLcode curl_easy_pause(struct Curl_easy *data, int action)
      to have this handle checked soon */
   if((newstate & (KEEP_RECV_PAUSE|KEEP_SEND_PAUSE)) !=
      (KEEP_RECV_PAUSE|KEEP_SEND_PAUSE)) {
-    data->state.drain++;
     Curl_expire(data, 0, EXPIRE_RUN_NOW); /* get this handle going again */
     if(data->multi)
       Curl_update_timer(data->multi);
