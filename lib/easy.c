@@ -83,8 +83,6 @@
 #include "curl_memory.h"
 #include "memdebug.h"
 
-void Curl_version_init(void);
-
 /* true globals -- for curl_global_init() and curl_global_cleanup() */
 static unsigned int  initialized;
 static long          init_flags;
@@ -200,8 +198,6 @@ static CURLcode global_init(long flags, bool memoryfuncs)
 #endif
 
   init_flags = flags;
-
-  Curl_version_init();
 
   return CURLE_OK;
 
@@ -887,6 +883,17 @@ struct Curl_easy *curl_easy_duphandle(struct Curl_easy *data)
                              data->state.resolver))
     goto fail;
 
+#ifdef USE_ARES
+  if(Curl_set_dns_servers(outcurl, data->set.str[STRING_DNS_SERVERS]))
+    goto fail;
+  if(Curl_set_dns_interface(outcurl, data->set.str[STRING_DNS_INTERFACE]))
+    goto fail;
+  if(Curl_set_dns_local_ip4(outcurl, data->set.str[STRING_DNS_LOCAL_IP4]))
+    goto fail;
+  if(Curl_set_dns_local_ip6(outcurl, data->set.str[STRING_DNS_LOCAL_IP6]))
+    goto fail;
+#endif /* USE_ARES */
+
   Curl_convert_setup(outcurl);
 
   Curl_initinfo(outcurl);
@@ -1047,6 +1054,10 @@ CURLcode curl_easy_pause(struct Curl_easy *data, int action)
   if((newstate & (KEEP_RECV_PAUSE|KEEP_SEND_PAUSE)) !=
      (KEEP_RECV_PAUSE|KEEP_SEND_PAUSE)) {
     Curl_expire(data, 0, EXPIRE_RUN_NOW); /* get this handle going again */
+
+    /* force a recv/send check of this connection, as the data might've been
+       read off the socket already */
+    data->conn->cselect_bits = CURL_CSELECT_IN | CURL_CSELECT_OUT;
     if(data->multi)
       Curl_update_timer(data->multi);
   }
