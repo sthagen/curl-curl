@@ -1,6 +1,15 @@
 name: CI
 
-on: [push, pull_request]
+on:
+  # Trigger the workflow on push or pull requests, but only for the
+  # master branch
+  push:
+    branches:
+    - master
+    - '*/ci'
+  pull_request:
+    branches:
+    - master
 
 jobs:
   autotools:
@@ -14,7 +23,7 @@ jobs:
           install: nghttp2
         - name: debug
           install: nghttp2
-          configure: --enable-debug --enable-werror --without-brotli
+          configure: --enable-debug --enable-werror --without-brotli --enable-mqtt
         - name: libssh2
           install: nghttp2 libssh2
           configure: --enable-debug --with-libssh2

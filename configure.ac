@@ -637,6 +637,22 @@ AC_HELP_STRING([--disable-gopher],[Disable Gopher support]),
        AC_MSG_RESULT(yes)
 )
 
+AC_MSG_CHECKING([whether to support mqtt])
+AC_ARG_ENABLE(mqtt,
+AC_HELP_STRING([--enable-mqtt],[Enable MQTT support])
+AC_HELP_STRING([--disable-mqtt],[Disable MQTT support]),
+[ case "$enableval" in
+  no)
+       AC_MSG_RESULT(no)
+       ;;
+  *)   AC_MSG_RESULT(yes)
+       experimental="$experimental MQTT"
+       AC_DEFINE(CURL_ENABLE_MQTT, 1, [to enable MQTT])
+       AC_SUBST(CURL_ENABLE_MQTT, [1])
+       ;;
+  esac ],
+       AC_MSG_RESULT(no)
+)
 
 dnl **********************************************************************
 dnl Check for built-in manual
@@ -1554,7 +1570,7 @@ AC_HELP_STRING([--without-secure-transport], [disable Apple OS native SSL/TLS]),
 AC_MSG_CHECKING([whether to enable Secure Transport])
 if test -z "$ssl_backends" -o "x$OPT_SECURETRANSPORT" != xno; then
   if test "x$OPT_SECURETRANSPORT" != "xno" &&
-     test -d "/System/Library/Frameworks/Security.framework"; then
+     (test "x$cross_compiling" != "xno" || test -d "/System/Library/Frameworks/Security.framework"); then
     AC_MSG_RESULT(yes)
     AC_DEFINE(USE_SECTRANSP, 1, [enable Secure Transport])
     AC_SUBST(USE_SECTRANSP, [1])
@@ -4842,6 +4858,9 @@ if test "x$CURL_DISABLE_TFTP" != "x1"; then
 fi
 if test "x$CURL_DISABLE_GOPHER" != "x1"; then
   SUPPORT_PROTOCOLS="$SUPPORT_PROTOCOLS GOPHER"
+fi
+if test "x$CURL_ENABLE_MQTT" = "x1"; then
+  SUPPORT_PROTOCOLS="$SUPPORT_PROTOCOLS MQTT"
 fi
 if test "x$CURL_DISABLE_POP3" != "x1"; then
   SUPPORT_PROTOCOLS="$SUPPORT_PROTOCOLS POP3"

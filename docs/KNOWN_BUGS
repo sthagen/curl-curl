@@ -48,7 +48,6 @@ problems may have been fixed or changed somewhat since this was written!
  4.5 Improve --data-urlencode space encoding
 
  5. Build and portability issues
- 5.1 USE_UNIX_SOCKETS on Windows
  5.2 curl-config --libs contains private details
  5.3 curl compiled on OSX 10.13 failed to run on OSX 10.10
  5.4 Cannot compile against a static build of OpenLDAP
@@ -102,6 +101,7 @@ problems may have been fixed or changed somewhat since this was written!
  11.7 signal-based resolver timeouts
  11.8 DoH leaks memory after followlocation
  11.9 DoH doesn't inherit all transfer options
+ 11.10 Blocking socket operations in non-blocking API
 
  12. LDAP and OpenLDAP
  12.1 OpenLDAP hangs after returning results
@@ -360,13 +360,6 @@ problems may have been fixed or changed somewhat since this was written!
  See https://github.com/curl/curl/issues/3229
 
 5. Build and portability issues
-
-5.1 USE_UNIX_SOCKETS on Windows
-
- Due to incorrect CMake checks for the presence of the feature, it will never
- be enabled for windows in a cmake build.
-
- See https://github.com/curl/curl/issues/4040
 
 5.2 curl-config --libs contains private details
 
@@ -723,6 +716,10 @@ problems may have been fixed or changed somewhat since this was written!
 11.9 DoH doesn't inherit all transfer options
 
  https://github.com/curl/curl/issues/4578
+
+11.10 Blocking socket operations in non-blocking API
+
+ The list of blocking socket operations is in TODO section "More non-blocking".
 
 12. LDAP and OpenLDAP
 
