@@ -124,37 +124,40 @@ my $base = 8990; # base port number
 my $minport;     # minimum used port number
 my $maxport;     # maximum used port number
 
-my $MQTTPORT="[not running]"; # MQTT server port
-my $HTTPPORT;            # HTTP server port
-my $HTTP6PORT;           # HTTP IPv6 server port
-my $HTTPSPORT;           # HTTPS (stunnel) server port
-my $FTPPORT;             # FTP server port
-my $FTP2PORT;            # FTP server 2 port
-my $FTPSPORT;            # FTPS (stunnel) server port
-my $FTP6PORT;            # FTP IPv6 server port
-my $TFTPPORT;            # TFTP
-my $TFTP6PORT;           # TFTP
-my $SSHPORT;             # SCP/SFTP
-my $SOCKSPORT;           # SOCKS4/5 port
-my $POP3PORT;            # POP3
-my $POP36PORT;           # POP3 IPv6 server port
-my $IMAPPORT;            # IMAP
-my $IMAP6PORT;           # IMAP IPv6 server port
-my $SMTPPORT;            # SMTP
-my $SMTP6PORT;           # SMTP IPv6 server port
-my $RTSPPORT;            # RTSP
-my $RTSP6PORT;           # RTSP IPv6 server port
-my $GOPHERPORT;          # Gopher
-my $GOPHER6PORT;         # Gopher IPv6 server port
-my $HTTPTLSPORT;         # HTTP TLS (non-stunnel) server port
-my $HTTPTLS6PORT;        # HTTP TLS (non-stunnel) IPv6 server port
-my $HTTPPROXYPORT;       # HTTP proxy port, when using CONNECT
+my $noport="[not running]";
+
+my $NOLISTENPORT=47;     # port number we use for a local non-listening service
+my $MQTTPORT=$noport;    # MQTT server port
+my $HTTPPORT=$noport;    # HTTP server port
+my $HTTP6PORT=$noport;   # HTTP IPv6 server port
+my $HTTPSPORT=$noport;   # HTTPS (stunnel) server port
+my $FTPPORT=$noport;     # FTP server port
+my $FTP2PORT=$noport;    # FTP server 2 port
+my $FTPSPORT=$noport;    # FTPS (stunnel) server port
+my $FTP6PORT=$noport;    # FTP IPv6 server port
+my $TFTPPORT=$noport;    # TFTP
+my $TFTP6PORT=$noport;   # TFTP
+my $SSHPORT=$noport;     # SCP/SFTP
+my $SOCKSPORT=$noport;   # SOCKS4/5 port
+my $POP3PORT=$noport;    # POP3
+my $POP36PORT=$noport;   # POP3 IPv6 server port
+my $IMAPPORT=$noport;    # IMAP
+my $IMAP6PORT=$noport;   # IMAP IPv6 server port
+my $SMTPPORT=$noport;    # SMTP
+my $SMTP6PORT=$noport;   # SMTP IPv6 server port
+my $RTSPPORT=$noport;    # RTSP
+my $RTSP6PORT=$noport;   # RTSP IPv6 server port
+my $GOPHERPORT=$noport;  # Gopher
+my $GOPHER6PORT=$noport; # Gopher IPv6 server port
+my $HTTPTLSPORT=$noport; # HTTP TLS (non-stunnel) server port
+my $HTTPTLS6PORT=$noport; # HTTP TLS (non-stunnel) IPv6 server port
+my $HTTPPROXYPORT=$noport; # HTTP proxy port, when using CONNECT
+my $HTTP2PORT=$noport;   # HTTP/2 server port
+my $DICTPORT=$noport;    # DICT server port
+my $SMBPORT=$noport;     # SMB server port
+my $SMBSPORT=$noport;    # SMBS server port
+my $NEGTELNETPORT=$noport; # TELNET server port with negotiation
 my $HTTPUNIXPATH;        # HTTP server Unix domain socket path
-my $HTTP2PORT;           # HTTP/2 server port
-my $DICTPORT;            # DICT server port
-my $SMBPORT;             # SMB server port
-my $SMBSPORT;            # SMBS server port
-my $NEGTELNETPORT;       # TELNET server port with negotiation
 
 my $SSHSRVMD5 = "[uninitialized]"; # MD5 of ssh server public key
 
@@ -173,7 +176,7 @@ my $SERVERIN="$LOGDIR/server.input"; # what curl sent the server
 my $SERVER2IN="$LOGDIR/server2.input"; # what curl sent the second server
 my $PROXYIN="$LOGDIR/proxy.input"; # what curl sent the proxy
 my $CURLLOG="commands.log"; # all command lines run
-my $FTPDCMD="$LOGDIR/ftpserver.cmd"; # copy ftp server instructions here
+my $FTPDCMD="$LOGDIR/ftpserver.cmd"; # copy server instructions here
 my $SERVERLOGS_LOCK="$LOGDIR/serverlogs.lock"; # server logs advisor read lock
 my $CURLCONFIG="../curl-config"; # curl-config from current build
 
@@ -1938,7 +1941,6 @@ sub runftpsserver {
 #
 sub runtftpserver {
     my ($id, $verbose, $ipv6) = @_;
-    my $port = $TFTPPORT;
     my $ip = $HOSTIP;
     my $proto = 'tftp';
     my $ipvnum = 4;
@@ -1952,13 +1954,13 @@ sub runtftpserver {
     if($ipv6) {
         # if IPv6, use a different setup
         $ipvnum = 6;
-        $port = $TFTP6PORT;
         $ip = $HOST6IP;
     }
 
     $server = servername_id($proto, $ipvnum, $idnum);
 
     $pidfile = $serverpidfile{$server};
+    my $portfile = $serverportfile{$server};
 
     # don't retry if the server doesn't work
     if ($doesntrun{$pidfile}) {
@@ -1976,9 +1978,11 @@ sub runtftpserver {
     $logfile = server_logfilename($LOGDIR, $proto, $ipvnum, $idnum);
 
     $flags .= "--verbose " if($debugprotocol);
-    $flags .= "--pidfile \"$pidfile\" --logfile \"$logfile\" ";
+    $flags .= "--pidfile \"$pidfile\" ".
+        "--portfile \"$portfile\" ".
+        "--logfile \"$logfile\" ";
     $flags .= "--id $idnum " if($idnum > 1);
-    $flags .= "--ipv$ipvnum --port $port --srcdir \"$srcdir\"";
+    $flags .= "--ipv$ipvnum --port 0 --srcdir \"$srcdir\"";
 
     my $cmd = "$perl $srcdir/tftpserver.pl $flags";
     my ($tftppid, $pid2) = startnew($cmd, $pidfile, 15, 0);
@@ -1991,6 +1995,8 @@ sub runtftpserver {
         $doesntrun{$pidfile} = 1;
         return (0,0);
     }
+
+    my $port = pidfromfile($portfile);
 
     # Server is up. Verify that we can speak to it.
     my $pid3 = verifyserver($proto, $ipvnum, $idnum, $ip, $port);
@@ -2005,12 +2011,12 @@ sub runtftpserver {
     $pid2 = $pid3;
 
     if($verbose) {
-        logmsg "RUN: $srvrname server is now running PID $tftppid\n";
+        logmsg "RUN: $srvrname server on PID $tftppid port $port\n";
     }
 
     sleep(1);
 
-    return ($pid2, $tftppid);
+    return ($pid2, $tftppid, $port);
 }
 
 
@@ -2019,7 +2025,6 @@ sub runtftpserver {
 #
 sub runrtspserver {
     my ($verbose, $ipv6) = @_;
-    my $port = $RTSPPORT;
     my $ip = $HOSTIP;
     my $proto = 'rtsp';
     my $ipvnum = 4;
@@ -2033,13 +2038,13 @@ sub runrtspserver {
     if($ipv6) {
         # if IPv6, use a different setup
         $ipvnum = 6;
-        $port = $RTSP6PORT;
         $ip = $HOST6IP;
     }
 
     $server = servername_id($proto, $ipvnum, $idnum);
 
     $pidfile = $serverpidfile{$server};
+    my $portfile = $serverportfile{$server};
 
     # don't retry if the server doesn't work
     if ($doesntrun{$pidfile}) {
@@ -2057,9 +2062,11 @@ sub runrtspserver {
     $logfile = server_logfilename($LOGDIR, $proto, $ipvnum, $idnum);
 
     $flags .= "--verbose " if($debugprotocol);
-    $flags .= "--pidfile \"$pidfile\" --logfile \"$logfile\" ";
+    $flags .= "--pidfile \"$pidfile\" ".
+         "--portfile \"$portfile\" ".
+        "--logfile \"$logfile\" ";
     $flags .= "--id $idnum " if($idnum > 1);
-    $flags .= "--ipv$ipvnum --port $port --srcdir \"$srcdir\"";
+    $flags .= "--ipv$ipvnum --port 0 --srcdir \"$srcdir\"";
 
     my $cmd = "$perl $srcdir/rtspserver.pl $flags";
     my ($rtsppid, $pid2) = startnew($cmd, $pidfile, 15, 0);
@@ -2072,6 +2079,8 @@ sub runrtspserver {
         $doesntrun{$pidfile} = 1;
         return (0,0);
     }
+
+    my $port = pidfromfile($portfile);
 
     # Server is up. Verify that we can speak to it.
     my $pid3 = verifyserver($proto, $ipvnum, $idnum, $ip, $port);
@@ -2086,12 +2095,12 @@ sub runrtspserver {
     $pid2 = $pid3;
 
     if($verbose) {
-        logmsg "RUN: $srvrname server is now running PID $rtsppid\n";
+        logmsg "RUN: $srvrname server PID $rtsppid port $port\n";
     }
 
     sleep(1);
 
-    return ($rtsppid, $pid2);
+    return ($rtsppid, $pid2, $port);
 }
 
 
@@ -2272,7 +2281,6 @@ sub runmqttserver {
 sub runsocksserver {
     my ($id, $verbose, $ipv6) = @_;
     my $ip=$HOSTIP;
-    my $port = $SOCKSPORT;
     my $proto = 'socks';
     my $ipvnum = 4;
     my $idnum = ($id && ($id =~ /^(\d+)$/) && ($id > 1)) ? $id : 1;
@@ -2285,6 +2293,7 @@ sub runsocksserver {
     $server = servername_id($proto, $ipvnum, $idnum);
 
     $pidfile = $serverpidfile{$server};
+    my $portfile = $serverportfile{$server};
 
     # don't retry if the server doesn't work
     if ($doesntrun{$pidfile}) {
@@ -2303,8 +2312,9 @@ sub runsocksserver {
 
     # start our socks server, get commands from the FTP cmd file
     my $cmd="server/socksd".exe_ext('SRV').
-        " --port $port ".
+        " --port 0 ".
         " --pidfile $pidfile".
+        " --portfile $portfile".
         " --backend $HOSTIP".
         " --config $FTPDCMD";
     my ($sockspid, $pid2) = startnew($cmd, $pidfile, 30, 0);
@@ -2317,11 +2327,13 @@ sub runsocksserver {
         return (0,0);
     }
 
+    my $port = pidfromfile($portfile);
+
     if($verbose) {
         logmsg "RUN: $srvrname server is now running PID $pid2\n";
     }
 
-    return ($pid2, $sockspid);
+    return ($pid2, $sockspid, $port);
 }
 
 #######################################################################
@@ -3145,20 +3157,11 @@ sub checksystem {
 
     if($verbose) {
         logmsg "* Ports: ";
-        logmsg sprintf("RTSP/%d ", $RTSPPORT);
         if($stunnel) {
             logmsg sprintf("FTPS/%d ", $FTPSPORT);
             logmsg sprintf("HTTPS/%d ", $HTTPSPORT);
         }
-        logmsg sprintf("TFTP/%d ", $TFTPPORT);
-        if($http_ipv6) {
-            logmsg sprintf("RTSP-IPv6/%d ", $RTSP6PORT);
-        }
-        if($tftp_ipv6) {
-            logmsg sprintf("TFTP-IPv6/%d ", $TFTP6PORT);
-        }
         logmsg sprintf("\n*   SSH/%d ", $SSHPORT);
-        logmsg sprintf("SOCKS/%d ", $SOCKSPORT);
         if($httptlssrv) {
             logmsg sprintf("HTTPTLS/%d ", $HTTPTLSPORT);
             if($has_ipv6) {
@@ -3226,6 +3229,7 @@ sub subVariables {
     $$thing =~ s/${prefix}SMBPORT/$SMBPORT/g;
     $$thing =~ s/${prefix}SMBSPORT/$SMBSPORT/g;
     $$thing =~ s/${prefix}NEGTELNETPORT/$NEGTELNETPORT/g;
+    $$thing =~ s/${prefix}NOLISTENPORT/$NOLISTENPORT/g;
 
     # server Unix domain socket paths
     $$thing =~ s/${prefix}HTTPUNIXPATH/$HTTPUNIXPATH/g;
@@ -3673,10 +3677,9 @@ sub singletest {
     unlink($SERVER2IN);
     unlink($PROXYIN);
 
-    if(@ftpservercmd) {
-        # write the instructions to file
-        writearray($FTPDCMD, \@ftpservercmd);
-    }
+    push @ftpservercmd, "Testnum $testnum\n";
+    # write the instructions to file
+    writearray($FTPDCMD, \@ftpservercmd);
 
     # get the command line options to use
     my @blaha;
@@ -4026,9 +4029,6 @@ sub singletest {
             unlink($pidfile) if(-f $pidfile);
         }
     }
-
-    # remove the test server commands file after each test
-    unlink($FTPDCMD) if(-f $FTPDCMD);
 
     # run the postcheck command
     my @postcheck= getpart("client", "postcheck");
@@ -4717,7 +4717,7 @@ sub startservers {
                 stopserver('rtsp');
             }
             if(!$run{'rtsp'}) {
-                ($pid, $pid2) = runrtspserver($verbose);
+                ($pid, $pid2, $RTSPPORT) = runrtspserver($verbose);
                 if($pid <= 0) {
                     return "failed starting RTSP server";
                 }
@@ -4731,7 +4731,7 @@ sub startservers {
                 stopserver('rtsp-ipv6');
             }
             if(!$run{'rtsp-ipv6'}) {
-                ($pid, $pid2) = runrtspserver($verbose, "ipv6");
+                ($pid, $pid2, $RTSP6PORT) = runrtspserver($verbose, "ipv6");
                 if($pid <= 0) {
                     return "failed starting RTSP-IPv6 server";
                 }
@@ -4850,7 +4850,8 @@ sub startservers {
                 stopserver('tftp');
             }
             if(!$run{'tftp'}) {
-                ($pid, $pid2) = runtftpserver("", $verbose);
+                ($pid, $pid2, $TFTPPORT) =
+                    runtftpserver("", $verbose);
                 if($pid <= 0) {
                     return "failed starting TFTP server";
                 }
@@ -4864,7 +4865,8 @@ sub startservers {
                 stopserver('tftp-ipv6');
             }
             if(!$run{'tftp-ipv6'}) {
-                ($pid, $pid2) = runtftpserver("", $verbose, "ipv6");
+                ($pid, $pid2, $TFTP6PORT) =
+                    runtftpserver("", $verbose, "ipv6");
                 if($pid <= 0) {
                     return "failed starting TFTP-IPv6 server";
                 }
@@ -4884,7 +4886,7 @@ sub startservers {
         }
         elsif($what eq "socks4" || $what eq "socks5" ) {
             if(!$run{'socks'}) {
-                ($pid, $pid2) = runsocksserver("", $verbose);
+                ($pid, $pid2, $SOCKSPORT) = runsocksserver("", $verbose);
                 if($pid <= 0) {
                     return "failed starting socks server";
                 }
@@ -5442,12 +5444,7 @@ if ($gdbthis) {
 $minport         = $base; # original base port number
 $HTTPSPORT       = $base++; # HTTPS (stunnel) server port
 $FTPSPORT        = $base++; # FTPS (stunnel) server port
-$TFTPPORT        = $base++; # TFTP (UDP) port
-$TFTP6PORT       = $base++; # TFTP IPv6 (UDP) port
 $SSHPORT         = $base++; # SSH (SCP/SFTP) port
-$SOCKSPORT       = $base++; # SOCKS port
-$RTSPPORT        = $base++; # RTSP server port
-$RTSP6PORT       = $base++; # RTSP IPv6 server port
 $HTTPTLSPORT     = $base++; # HTTP TLS (non-stunnel) server port
 $HTTPTLS6PORT    = $base++; # HTTP TLS (non-stunnel) IPv6 server port
 $HTTP2PORT       = $base++; # HTTP/2 port
@@ -5455,7 +5452,7 @@ $DICTPORT        = $base++; # DICT port
 $SMBPORT         = $base++; # SMB port
 $SMBSPORT        = $base++; # SMBS port
 $NEGTELNETPORT   = $base++; # TELNET port with negotiation
-$HTTPUNIXPATH    = 'http.sock'; # HTTP server Unix domain socket path
+$HTTPUNIXPATH    = "http$$.sock"; # HTTP server Unix domain socket path
 
 $maxport         = $base-1; # updated base port number
 
