@@ -34,6 +34,7 @@
 #include "multiif.h"
 #include "connect.h"
 #include "strerror.h"
+#include "vquic.h"
 
 /* The last 3 #include files should be in this order */
 #include "curl_printf.h"
@@ -63,7 +64,6 @@ static CURLcode http_request(struct connectdata *conn, const void *mem,
                              size_t len);
 static Curl_recv h3_stream_recv;
 static Curl_send h3_stream_send;
-
 
 static int quiche_getsock(struct connectdata *conn, curl_socket_t *socks)
 {
@@ -198,6 +198,17 @@ CURLcode Curl_quic_connect(struct connectdata *conn, curl_socket_t sockfd,
     failf(data, "can't create quiche connection");
     return CURLE_OUT_OF_MEMORY;
   }
+
+  /* Known to not work on Windows */
+#if !defined(WIN32) && defined(HAVE_QUICHE_CONN_SET_QLOG_FD)
+  {
+    int qfd;
+    (void)Curl_qlogdir(data, qs->scid, sizeof(qs->scid), &qfd);
+    if(qfd != -1)
+      quiche_conn_set_qlog_fd(qs->conn, qfd,
+                              "qlog title", "curl qlog");
+  }
+#endif
 
   result = flush_egress(conn, sockfd, qs);
   if(result)

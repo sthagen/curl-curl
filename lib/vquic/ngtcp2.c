@@ -38,6 +38,8 @@
 #include "strcase.h"
 #include "connect.h"
 #include "strerror.h"
+#include "dynbuf.h"
+#include "vquic.h"
 
 /* The last 3 #include files should be in this order */
 #include "curl_printf.h"
@@ -159,9 +161,25 @@ static int setup_initial_crypto_context(struct quicsocket *qs)
   return 0;
 }
 
-static void quic_settings(ngtcp2_settings *s,
-                          uint64_t stream_buffer_size)
+static void qlog_callback(void *user_data, const void *data, size_t datalen)
 {
+  struct quicsocket *qs = (struct quicsocket *)user_data;
+  if(qs->qlogfd != -1) {
+    ssize_t rc = write(qs->qlogfd, data, datalen);
+    if(rc == -1) {
+      /* on write error, stop further write attempts */
+      close(qs->qlogfd);
+      qs->qlogfd = -1;
+    }
+  }
+
+}
+
+static void quic_settings(struct quicsocket *qs,
+                          uint64_t stream_buffer_size,
+                          ngtcp2_cid *dcid)
+{
+  ngtcp2_settings *s = &qs->settings;
   ngtcp2_settings_default(s);
 #ifdef DEBUG_NGTCP2
   s->log_printf = quic_printf;
@@ -176,6 +194,10 @@ static void quic_settings(ngtcp2_settings *s,
   s->transport_params.initial_max_streams_bidi = 1;
   s->transport_params.initial_max_streams_uni = 3;
   s->transport_params.max_idle_timeout = QUIC_IDLE_TIMEOUT;
+  if(qs->qlogfd != -1) {
+    s->qlog.write = qlog_callback;
+    s->qlog.odcid = *dcid;
+  }
 }
 
 static FILE *keylog_file; /* not thread-safe */
@@ -824,6 +846,7 @@ CURLcode Curl_quic_connect(struct connectdata *conn,
   struct quicsocket *qs = &conn->hequic[sockindex];
   char ipbuf[40];
   long port;
+  int qfd;
 #ifdef USE_OPENSSL
   uint8_t paramsbuf[64];
   ngtcp2_transport_params params;
@@ -863,7 +886,9 @@ CURLcode Curl_quic_connect(struct connectdata *conn,
   if(result)
     return result;
 
-  quic_settings(&qs->settings, data->set.buffer_size);
+  (void)Curl_qlogdir(data, qs->scid.data, NGTCP2_MAX_CIDLEN, &qfd);
+  qs->qlogfd = qfd; /* -1 if failure above */
+  quic_settings(qs, data->set.buffer_size, &qs->dcid);
 
   qs->local_addrlen = sizeof(qs->local_addr);
   rv = getsockname(sockfd, (struct sockaddr *)&qs->local_addr,
@@ -949,6 +974,8 @@ static CURLcode ng_disconnect(struct connectdata *conn,
   int i;
   struct quicsocket *qs = &conn->hequic[0];
   (void)dead_connection;
+  if(qs->qlogfd != -1)
+    close(qs->qlogfd);
   if(qs->ssl)
 #ifdef USE_OPENSSL
     SSL_free(qs->ssl);
@@ -1018,57 +1045,12 @@ static int cb_h3_stream_close(nghttp3_conn *conn, int64_t stream_id,
   return 0;
 }
 
-/* Minimum size of the overflow buffer */
-#define OVERFLOWSIZE 1024
-
-/*
- * allocate_overflow() ensures that there is room for incoming data in the
- * overflow buffer, growing it to accommodate the new data if necessary. We
- * may need to use the overflow buffer because we can't precisely limit the
- * amount of HTTP/3 header data we receive using QUIC flow control mechanisms.
- */
-static CURLcode allocate_overflow(struct Curl_easy *data,
-                                  struct HTTP *stream,
-                                  size_t length)
-{
-  size_t maxleft;
-  size_t newsize;
-  /* length can be arbitrarily large, so take care not to overflow newsize */
-  maxleft = CURL_MAX_READ_SIZE - stream->overflow_buflen;
-  if(length > maxleft) {
-    /* The reason to have a max limit for this is to avoid the risk of a bad
-       server feeding libcurl with a highly compressed list of headers that
-       will cause our overflow buffer to grow too large */
-    failf(data, "Rejected %zu bytes of overflow data (max is %d)!",
-          stream->overflow_buflen + length, CURL_MAX_READ_SIZE);
-    return CURLE_OUT_OF_MEMORY;
-  }
-  newsize = stream->overflow_buflen + length;
-  if(newsize > stream->overflow_bufsize) {
-    /* We enlarge the overflow buffer as it is too small */
-    char *newbuff;
-    newsize = CURLMAX(newsize * 3 / 2, stream->overflow_bufsize*2);
-    newsize = CURLMIN(CURLMAX(OVERFLOWSIZE, newsize), CURL_MAX_READ_SIZE);
-    newbuff = realloc(stream->overflow_buf, newsize);
-    if(!newbuff) {
-      failf(data, "Failed to alloc memory for overflow buffer!");
-      return CURLE_OUT_OF_MEMORY;
-    }
-    stream->overflow_buf = newbuff;
-    stream->overflow_bufsize = newsize;
-    infof(data, "Grew HTTP/3 overflow buffer to %zu bytes\n", newsize);
-  }
-  return CURLE_OK;
-}
-
 /*
  * write_data() copies data to the stream's receive buffer. If not enough
  * space is available in the receive buffer, it copies the rest to the
  * stream's overflow buffer.
  */
-static CURLcode write_data(struct Curl_easy *data,
-                           struct HTTP *stream,
-                           const void *mem, size_t memlen)
+static CURLcode write_data(struct HTTP *stream, const void *mem, size_t memlen)
 {
   CURLcode result = CURLE_OK;
   const char *buf = mem;
@@ -1076,10 +1058,6 @@ static CURLcode write_data(struct Curl_easy *data,
   /* copy as much as possible to the receive buffer */
   if(stream->len) {
     size_t len = CURLMIN(ncopy, stream->len);
-#if 0 /* extra debugging of incoming h3 data */
-    fprintf(stderr, "!! Copies %zd bytes to %p (total %zd)\n",
-            len, stream->mem, stream->memlen);
-#endif
     memcpy(stream->mem, buf, len);
     stream->len -= len;
     stream->memlen += len;
@@ -1088,26 +1066,8 @@ static CURLcode write_data(struct Curl_easy *data,
     ncopy -= len;
   }
   /* copy the rest to the overflow buffer */
-  if(ncopy) {
-    result = allocate_overflow(data, stream, ncopy);
-    if(result) {
-      return result;
-    }
-#if 0 /* extra debugging of incoming h3 data */
-    fprintf(stderr, "!! Copies %zd overflow bytes to %p (total %zd)\n",
-            ncopy, stream->overflow_buf, stream->overflow_buflen);
-#endif
-    memcpy(stream->overflow_buf + stream->overflow_buflen, buf, ncopy);
-    stream->overflow_buflen += ncopy;
-  }
-#if 0 /* extra debugging of incoming h3 data */
-  {
-    size_t i;
-    for(i = 0; i < memlen; i++) {
-      fprintf(stderr, "!! data[%d]: %02x '%c'\n", i, buf[i], buf[i]);
-    }
-  }
-#endif
+  if(ncopy)
+    result = Curl_dyn_addn(&stream->overflow, buf, ncopy);
   return result;
 }
 
@@ -1120,7 +1080,7 @@ static int cb_h3_recv_data(nghttp3_conn *conn, int64_t stream_id,
   CURLcode result = CURLE_OK;
   (void)conn;
 
-  result = write_data(data, stream, buf, buflen);
+  result = write_data(stream, buf, buflen);
   if(result) {
     return -1;
   }
@@ -1183,7 +1143,7 @@ static int cb_h3_end_headers(nghttp3_conn *conn, int64_t stream_id,
 
   /* add a CRLF only if we've received some headers */
   if(stream->firstheader) {
-    result = write_data(data, stream, "\r\n", 2);
+    result = write_data(stream, "\r\n", 2);
     if(result) {
       return -1;
     }
@@ -1214,26 +1174,26 @@ static int cb_h3_recv_header(nghttp3_conn *conn, int64_t stream_id,
     int status = decode_status_code(h3val.base, h3val.len);
     DEBUGASSERT(status != -1);
     ncopy = msnprintf(line, sizeof(line), "HTTP/3 %03d \r\n", status);
-    result = write_data(data, stream, line, ncopy);
+    result = write_data(stream, line, ncopy);
     if(result) {
       return -1;
     }
   }
   else {
     /* store as a HTTP1-style header */
-    result = write_data(data, stream, h3name.base, h3name.len);
+    result = write_data(stream, h3name.base, h3name.len);
     if(result) {
       return -1;
     }
-    result = write_data(data, stream, ": ", 2);
+    result = write_data(stream, ": ", 2);
     if(result) {
       return -1;
     }
-    result = write_data(data, stream, h3val.base, h3val.len);
+    result = write_data(stream, h3val.base, h3val.len);
     if(result) {
       return -1;
     }
-    result = write_data(data, stream, "\r\n", 2);
+    result = write_data(stream, "\r\n", 2);
     if(result) {
       return -1;
     }
@@ -1341,15 +1301,16 @@ static Curl_send ngh3_stream_send;
 
 static size_t drain_overflow_buffer(struct HTTP *stream)
 {
-  size_t ncopy = CURLMIN(stream->overflow_buflen, stream->len);
+  size_t overlen = Curl_dyn_len(&stream->overflow);
+  size_t ncopy = CURLMIN(overlen, stream->len);
   if(ncopy > 0) {
-    memcpy(stream->mem, stream->overflow_buf, ncopy);
+    memcpy(stream->mem, Curl_dyn_ptr(&stream->overflow), ncopy);
     stream->len -= ncopy;
     stream->mem += ncopy;
     stream->memlen += ncopy;
-    stream->overflow_buflen -= ncopy;
-    memmove(stream->overflow_buf, stream->overflow_buf + ncopy,
-            stream->overflow_buflen);
+    if(ncopy != overlen)
+      /* make the buffer only keep the tail */
+      (void)Curl_dyn_tail(&stream->overflow, overlen - ncopy);
   }
   return ncopy;
 }
@@ -1528,6 +1489,7 @@ static CURLcode http_request(struct connectdata *conn, const void *mem,
 
   stream->stream3_id = stream3_id;
   stream->h3req = TRUE; /* senf off! */
+  Curl_dyn_init(&stream->overflow, CURL_MAX_READ_SIZE);
 
   /* Calculate number of headers contained in [mem, mem + len). Assumes a
      correctly generated HTTP header field block. */
@@ -2032,7 +1994,7 @@ void Curl_quic_done(struct Curl_easy *data, bool premature)
   if(data->conn->handler == &Curl_handler_http3) {
     /* only for HTTP/3 transfers */
     struct HTTP *stream = data->req.protop;
-    Curl_safefree(stream->overflow_buf);
+    Curl_dyn_free(&stream->overflow);
   }
 }
 
@@ -2047,7 +2009,7 @@ bool Curl_quic_data_pending(const struct Curl_easy *data)
      there's no more data coming on the socket, we need to keep reading
      until the overflow buffer is empty. */
   const struct HTTP *stream = data->req.protop;
-  return stream->overflow_buflen > 0;
+  return Curl_dyn_len(&stream->overflow) > 0;
 }
 
 #endif
