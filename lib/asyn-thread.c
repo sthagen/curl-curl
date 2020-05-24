@@ -158,7 +158,7 @@ static bool init_resolve_thread(struct connectdata *conn,
 
 /* Data for synchronization between resolver thread and its parent */
 struct thread_sync_data {
-  curl_mutex_t * mtx;
+  curl_mutex_t *mtx;
   int done;
 
   char *hostname;        /* hostname to resolve, Curl_async.hostname
@@ -169,7 +169,7 @@ struct thread_sync_data {
   curl_socket_t sock_pair[2]; /* socket pair */
 #endif
   int sock_error;
-  Curl_addrinfo *res;
+  struct Curl_addrinfo *res;
 #ifdef HAVE_GETADDRINFO
   struct addrinfo hints;
 #endif
@@ -190,7 +190,7 @@ static struct thread_sync_data *conn_thread_sync_data(struct connectdata *conn)
 
 /* Destroy resolver thread synchronization data */
 static
-void destroy_thread_sync_data(struct thread_sync_data * tsd)
+void destroy_thread_sync_data(struct thread_sync_data *tsd)
 {
   if(tsd->mtx) {
     Curl_mutex_destroy(tsd->mtx);
@@ -216,7 +216,7 @@ void destroy_thread_sync_data(struct thread_sync_data * tsd)
 
 /* Initialize resolver thread synchronization data */
 static
-int init_thread_sync_data(struct thread_data * td,
+int init_thread_sync_data(struct thread_data *td,
                            const char *hostname,
                            int port,
                            const struct addrinfo *hints)
@@ -690,10 +690,10 @@ int Curl_resolver_getsock(struct connectdata *conn,
 /*
  * Curl_getaddrinfo() - for platforms without getaddrinfo
  */
-Curl_addrinfo *Curl_resolver_getaddrinfo(struct connectdata *conn,
-                                         const char *hostname,
-                                         int port,
-                                         int *waitp)
+struct Curl_addrinfo *Curl_resolver_getaddrinfo(struct connectdata *conn,
+                                                const char *hostname,
+                                                int port,
+                                                int *waitp)
 {
   struct Curl_easy *data = conn->data;
   struct resdata *reslv = (struct resdata *)data->state.resolver;
@@ -718,10 +718,10 @@ Curl_addrinfo *Curl_resolver_getaddrinfo(struct connectdata *conn,
 /*
  * Curl_resolver_getaddrinfo() - for getaddrinfo
  */
-Curl_addrinfo *Curl_resolver_getaddrinfo(struct connectdata *conn,
-                                         const char *hostname,
-                                         int port,
-                                         int *waitp)
+struct Curl_addrinfo *Curl_resolver_getaddrinfo(struct connectdata *conn,
+                                                const char *hostname,
+                                                int port,
+                                                int *waitp)
 {
   struct addrinfo hints;
   int pf = PF_INET;

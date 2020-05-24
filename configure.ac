@@ -1744,6 +1744,8 @@ if test -z "$ssl_backends" -o "x$OPT_SSL" != xno &&
        # only set this if pkg-config wasn't used
        CPPFLAGS="$CLEANCPPFLAGS -I$PREFIX_OPENSSL/include/openssl -I$PREFIX_OPENSSL/include"
      fi
+     # Linking previously failed, try extra paths from --with-ssl or pkg-config.
+     # Use a different function name to avoid reusing the earlier cached result.
      AC_CHECK_LIB(crypto, HMAC_Init_ex,[
        HAVECRYPTO="yes"
        LIBS="-lcrypto $LIBS"], [
@@ -1765,6 +1767,7 @@ if test -z "$ssl_backends" -o "x$OPT_SSL" != xno &&
        [
          AC_MSG_RESULT(no)
          dnl ok, so what about both -ldl and -lpthread?
+         dnl This may be necessary for static libraries.
 
          AC_MSG_CHECKING([OpenSSL linking with -ldl and -lpthread])
          LIBS="$CLEANLIBS -lcrypto -ldl -lpthread"
@@ -4312,9 +4315,17 @@ if test "$want_pthreads" != "no"; then
   AC_CHECK_HEADER(pthread.h,
     [ AC_DEFINE(HAVE_PTHREAD_H, 1, [if you have <pthread.h>])
       save_CFLAGS="$CFLAGS"
+      dnl When statically linking against boringssl, -lpthread is added to LIBS.
+      dnl Make sure to that this does not pass the check below, we really want
+      dnl -pthread in CFLAGS as recommended for GCC. This also ensures that
+      dnl lib1541 and lib1565 tests are built with these options. Otherwise
+      dnl they fail the build since tests/libtest/Makefile.am clears LIBS.
+      save_LIBS="$LIBS"
 
-      dnl first check for function without lib
+      LIBS=
+      dnl Check for libc variants without a separate pthread lib like bionic
       AC_CHECK_FUNC(pthread_create, [USE_THREADS_POSIX=1] )
+      LIBS="$save_LIBS"
 
       dnl on HPUX, life is more complicated...
       case $host in
@@ -4727,6 +4738,13 @@ dnl to let curl-config output the static libraries correctly
 ENABLE_STATIC="$enable_static"
 AC_SUBST(ENABLE_STATIC)
 
+dnl merge the pkg-config Libs.private field into Libs when static-only
+if test "x$enable_shared" = "xno"; then
+  LIBCURL_NO_SHARED=$LIBCURL_LIBS
+else
+  LIBCURL_NO_SHARED=
+fi
+AC_SUBST(LIBCURL_NO_SHARED)
 
 dnl
 dnl For keeping supported features and protocols also in pkg-config file
@@ -4900,7 +4918,6 @@ if test "x$USE_LIBSSH" = "x1"; then
   SUPPORT_PROTOCOLS="$SUPPORT_PROTOCOLS SFTP"
 fi
 if test "x$USE_WOLFSSH" = "x1"; then
-  SUPPORT_PROTOCOLS="$SUPPORT_PROTOCOLS SCP"
   SUPPORT_PROTOCOLS="$SUPPORT_PROTOCOLS SFTP"
 fi
 if test "x$CURL_DISABLE_RTSP" != "x1"; then

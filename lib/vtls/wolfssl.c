@@ -120,7 +120,7 @@ wolfssl_connect_step1(struct connectdata *conn,
 {
   char *ciphers;
   struct Curl_easy *data = conn->data;
-  struct ssl_connect_data* connssl = &conn->ssl[sockindex];
+  struct ssl_connect_data *connssl = &conn->ssl[sockindex];
   struct ssl_backend_data *backend = connssl->backend;
   SSL_METHOD* req_method = NULL;
   curl_socket_t sockfd = conn->sock[sockindex];
@@ -423,7 +423,7 @@ wolfssl_connect_step2(struct connectdata *conn,
 {
   int ret = -1;
   struct Curl_easy *data = conn->data;
-  struct ssl_connect_data* connssl = &conn->ssl[sockindex];
+  struct ssl_connect_data *connssl = &conn->ssl[sockindex];
   struct ssl_backend_data *backend = connssl->backend;
   const char * const hostname = SSL_IS_PROXY() ? conn->http_proxy.host.name :
     conn->host.name;
@@ -511,8 +511,8 @@ wolfssl_connect_step2(struct connectdata *conn,
     X509 *x509;
     const char *x509_der;
     int x509_der_len;
-    curl_X509certificate x509_parsed;
-    curl_asn1Element *pubkey;
+    struct Curl_X509certificate x509_parsed;
+    struct Curl_asn1Element *pubkey;
     CURLcode result;
 
     x509 = SSL_get_peer_certificate(backend->handle);
@@ -760,7 +760,7 @@ static void Curl_wolfssl_cleanup(void)
 }
 
 
-static bool Curl_wolfssl_data_pending(const struct connectdata* conn,
+static bool Curl_wolfssl_data_pending(const struct connectdata *conn,
                                       int connindex)
 {
   const struct ssl_connect_data *connssl = &conn->ssl[connindex];

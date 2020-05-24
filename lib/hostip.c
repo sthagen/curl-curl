@@ -120,7 +120,7 @@ static void freednsentry(void *freethis);
 /*
  * Return # of addresses in a Curl_addrinfo struct
  */
-int Curl_num_addresses(const Curl_addrinfo *addr)
+int Curl_num_addresses(const struct Curl_addrinfo *addr)
 {
   int i = 0;
   while(addr) {
@@ -131,39 +131,36 @@ int Curl_num_addresses(const Curl_addrinfo *addr)
 }
 
 /*
- * Curl_printable_address() returns a printable version of the 1st address
+ * Curl_printable_address() stores a printable version of the 1st address
  * given in the 'ai' argument. The result will be stored in the buf that is
  * bufsize bytes big.
  *
- * If the conversion fails, it returns NULL.
+ * If the conversion fails, the target buffer is empty.
  */
-const char *
-Curl_printable_address(const Curl_addrinfo *ai, char *buf, size_t bufsize)
+void Curl_printable_address(const struct Curl_addrinfo *ai, char *buf,
+                            size_t bufsize)
 {
-  const struct sockaddr_in *sa4;
-  const struct in_addr *ipaddr4;
-#ifdef ENABLE_IPV6
-  const struct sockaddr_in6 *sa6;
-  const struct in6_addr *ipaddr6;
-#endif
+  DEBUGASSERT(bufsize);
+  buf[0] = 0;
 
   switch(ai->ai_family) {
-    case AF_INET:
-      sa4 = (const void *)ai->ai_addr;
-      ipaddr4 = &sa4->sin_addr;
-      return Curl_inet_ntop(ai->ai_family, (const void *)ipaddr4, buf,
-                            bufsize);
-#ifdef ENABLE_IPV6
-    case AF_INET6:
-      sa6 = (const void *)ai->ai_addr;
-      ipaddr6 = &sa6->sin6_addr;
-      return Curl_inet_ntop(ai->ai_family, (const void *)ipaddr6, buf,
-                            bufsize);
-#endif
-    default:
-      break;
+  case AF_INET: {
+    const struct sockaddr_in *sa4 = (const void *)ai->ai_addr;
+    const struct in_addr *ipaddr4 = &sa4->sin_addr;
+    (void)Curl_inet_ntop(ai->ai_family, (const void *)ipaddr4, buf, bufsize);
+    break;
   }
-  return NULL;
+#ifdef ENABLE_IPV6
+  case AF_INET6: {
+    const struct sockaddr_in6 *sa6 = (const void *)ai->ai_addr;
+    const struct in6_addr *ipaddr6 = &sa6->sin6_addr;
+    (void)Curl_inet_ntop(ai->ai_family, (const void *)ipaddr6, buf, bufsize);
+    break;
+  }
+#endif
+  default:
+    break;
+  }
 }
 
 /*
@@ -337,7 +334,7 @@ Curl_fetch_addr(struct connectdata *conn,
 
 #ifndef CURL_DISABLE_SHUFFLE_DNS
 UNITTEST CURLcode Curl_shuffle_addr(struct Curl_easy *data,
-                                    Curl_addrinfo **addr);
+                                    struct Curl_addrinfo **addr);
 /*
  * Curl_shuffle_addr() shuffles the order of addresses in a 'Curl_addrinfo'
  * struct by re-linking its linked list.
@@ -351,13 +348,13 @@ UNITTEST CURLcode Curl_shuffle_addr(struct Curl_easy *data,
  * @unittest: 1608
  */
 UNITTEST CURLcode Curl_shuffle_addr(struct Curl_easy *data,
-                                    Curl_addrinfo **addr)
+                                    struct Curl_addrinfo **addr)
 {
   CURLcode result = CURLE_OK;
   const int num_addrs = Curl_num_addresses(*addr);
 
   if(num_addrs > 1) {
-    Curl_addrinfo **nodes;
+    struct Curl_addrinfo **nodes;
     infof(data, "Shuffling %i addresses", num_addrs);
 
     nodes = malloc(num_addrs*sizeof(*nodes));
@@ -376,7 +373,7 @@ UNITTEST CURLcode Curl_shuffle_addr(struct Curl_easy *data,
       if(rnd) {
         /* Fisher-Yates shuffle */
         if(Curl_rand(data, (unsigned char *)rnd, rnd_size) == CURLE_OK) {
-          Curl_addrinfo *swap_tmp;
+          struct Curl_addrinfo *swap_tmp;
           for(i = num_addrs - 1; i > 0; i--) {
             swap_tmp = nodes[rnd[i] % (i + 1)];
             nodes[rnd[i] % (i + 1)] = nodes[i];
@@ -415,7 +412,7 @@ UNITTEST CURLcode Curl_shuffle_addr(struct Curl_easy *data,
  */
 struct Curl_dns_entry *
 Curl_cache_addr(struct Curl_easy *data,
-                Curl_addrinfo *addr,
+                struct Curl_addrinfo *addr,
                 const char *hostname,
                 int port)
 {
@@ -513,7 +510,7 @@ enum resolve_t Curl_resolv(struct connectdata *conn,
   if(!dns) {
     /* The entry was not in the cache. Resolve it to IP address */
 
-    Curl_addrinfo *addr = NULL;
+    struct Curl_addrinfo *addr = NULL;
     int respwait = 0;
 #ifndef USE_RESOLVE_ON_IPS
     struct in_addr in;
@@ -890,7 +887,7 @@ CURLcode Curl_loadhostpairs(struct Curl_easy *data)
     }
     else {
       struct Curl_dns_entry *dns;
-      Curl_addrinfo *head = NULL, *tail = NULL;
+      struct Curl_addrinfo *head = NULL, *tail = NULL;
       size_t entry_len;
       char address[64];
 #if !defined(CURL_DISABLE_VERBOSE_STRINGS)
@@ -924,7 +921,7 @@ CURLcode Curl_loadhostpairs(struct Curl_easy *data)
 
       while(*end_ptr) {
         size_t alen;
-        Curl_addrinfo *ai;
+        struct Curl_addrinfo *ai;
 
         addr_begin = end_ptr + 1;
         addr_end = strchr(addr_begin, ',');

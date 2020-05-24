@@ -142,17 +142,19 @@ static unsigned int get_protocol_family(unsigned int protocol);
 
 
 /*
- * Protocol table.
+ * Protocol table. Schemes (roughly) in 2019 popularity order:
+ *
+ * HTTPS, HTTP, FTP, FTPS, SFTP, FILE, SCP, SMTP, LDAP, IMAPS, TELNET, IMAP,
+ * LDAPS, SMTPS, TFTP, SMB, POP3, GOPHER POP3S, RTSP, RTMP, SMBS, DICT
  */
-
 static const struct Curl_handler * const protocols[] = {
-
-#ifndef CURL_DISABLE_HTTP
-  &Curl_handler_http,
-#endif
 
 #if defined(USE_SSL) && !defined(CURL_DISABLE_HTTP)
   &Curl_handler_https,
+#endif
+
+#ifndef CURL_DISABLE_HTTP
+  &Curl_handler_http,
 #endif
 
 #ifndef CURL_DISABLE_FTP
@@ -163,12 +165,23 @@ static const struct Curl_handler * const protocols[] = {
   &Curl_handler_ftps,
 #endif
 
-#ifndef CURL_DISABLE_TELNET
-  &Curl_handler_telnet,
+#if defined(USE_SSH)
+  &Curl_handler_sftp,
 #endif
 
-#ifndef CURL_DISABLE_DICT
-  &Curl_handler_dict,
+#ifndef CURL_DISABLE_FILE
+  &Curl_handler_file,
+#endif
+
+#if defined(USE_SSH) && !defined(USE_WOLFSSH)
+  &Curl_handler_scp,
+#endif
+
+#ifndef CURL_DISABLE_SMTP
+  &Curl_handler_smtp,
+#ifdef USE_SSL
+  &Curl_handler_smtps,
+#endif
 #endif
 
 #ifndef CURL_DISABLE_LDAP
@@ -180,27 +193,19 @@ static const struct Curl_handler * const protocols[] = {
 #endif
 #endif
 
-#ifndef CURL_DISABLE_FILE
-  &Curl_handler_file,
-#endif
-
-#ifndef CURL_DISABLE_TFTP
-  &Curl_handler_tftp,
-#endif
-
-#if defined(USE_SSH) && !defined(USE_WOLFSSH)
-  &Curl_handler_scp,
-#endif
-
-#if defined(USE_SSH)
-  &Curl_handler_sftp,
-#endif
-
 #ifndef CURL_DISABLE_IMAP
   &Curl_handler_imap,
 #ifdef USE_SSL
   &Curl_handler_imaps,
 #endif
+#endif
+
+#ifndef CURL_DISABLE_TELNET
+  &Curl_handler_telnet,
+#endif
+
+#ifndef CURL_DISABLE_TFTP
+  &Curl_handler_tftp,
 #endif
 
 #ifndef CURL_DISABLE_POP3
@@ -219,23 +224,16 @@ static const struct Curl_handler * const protocols[] = {
 #endif
 #endif
 
-#ifndef CURL_DISABLE_SMTP
-  &Curl_handler_smtp,
-#ifdef USE_SSL
-  &Curl_handler_smtps,
-#endif
-#endif
-
 #ifndef CURL_DISABLE_RTSP
   &Curl_handler_rtsp,
 #endif
 
-#ifndef CURL_DISABLE_GOPHER
-  &Curl_handler_gopher,
-#endif
-
 #ifdef CURL_ENABLE_MQTT
   &Curl_handler_mqtt,
+#endif
+
+#ifndef CURL_DISABLE_GOPHER
+  &Curl_handler_gopher,
 #endif
 
 #ifdef USE_LIBRTMP
@@ -245,6 +243,10 @@ static const struct Curl_handler * const protocols[] = {
   &Curl_handler_rtmpte,
   &Curl_handler_rtmps,
   &Curl_handler_rtmpts,
+#endif
+
+#ifndef CURL_DISABLE_DICT
+  &Curl_handler_dict,
 #endif
 
   (struct Curl_handler *) NULL
@@ -279,8 +281,14 @@ void Curl_freeset(struct Curl_easy *data)
 {
   /* Free all dynamic strings stored in the data->set substructure. */
   enum dupstring i;
+  enum dupblob j;
+
   for(i = (enum dupstring)0; i < STRING_LAST; i++) {
     Curl_safefree(data->set.str[i]);
+  }
+
+  for(j = (enum dupblob)0; j < BLOB_LAST; j++) {
+    Curl_safefree(data->set.blobs[j]);
   }
 
   if(data->change.referer_alloc) {
@@ -863,8 +871,8 @@ static int IsMultiplexingPossible(const struct Curl_easy *handle,
 
 #ifndef CURL_DISABLE_PROXY
 static bool
-proxy_info_matches(const struct proxy_info* data,
-                   const struct proxy_info* needle)
+proxy_info_matches(const struct proxy_info *data,
+                   const struct proxy_info *needle)
 {
   if((data->proxytype == needle->proxytype) &&
      (data->port == needle->port) &&
@@ -875,8 +883,8 @@ proxy_info_matches(const struct proxy_info* data,
 }
 
 static bool
-socks_proxy_info_matches(const struct proxy_info* data,
-                         const struct proxy_info* needle)
+socks_proxy_info_matches(const struct proxy_info *data,
+                         const struct proxy_info *needle)
 {
   if(!proxy_info_matches(data, needle))
     return FALSE;
@@ -2000,7 +2008,7 @@ static CURLcode setup_range(struct Curl_easy *data)
  */
 static CURLcode setup_connection_internals(struct connectdata *conn)
 {
-  const struct Curl_handler * p;
+  const struct Curl_handler *p;
   CURLcode result;
 
   /* Perform setup complement if some. */
@@ -2584,6 +2592,12 @@ CURLcode Curl_parse_login_details(const char *login, const size_t len,
   size_t plen;
   size_t olen;
 
+  /* the input length check is because this is called directcly from setopt
+     and isn't going through the regular string length check */
+  size_t llen = strlen(login);
+  if(llen > CURL_MAX_INPUT_LENGTH)
+    return CURLE_BAD_FUNCTION_ARGUMENT;
+
   /* Attempt to find the password separator */
   if(passwdp) {
     psep = strchr(login, ':');
@@ -2780,12 +2794,14 @@ static CURLcode override_login(struct Curl_easy *data,
 
   /* for updated strings, we update them in the URL */
   if(user_changed) {
-    uc = curl_url_set(data->state.uh, CURLUPART_USER, *userp, 0);
+    uc = curl_url_set(data->state.uh, CURLUPART_USER, *userp,
+                      CURLU_URLENCODE);
     if(uc)
       return Curl_uc_to_curlcode(uc);
   }
   if(passwd_changed) {
-    uc = curl_url_set(data->state.uh, CURLUPART_PASSWORD, *passwdp, 0);
+    uc = curl_url_set(data->state.uh, CURLUPART_PASSWORD, *passwdp,
+                      CURLU_URLENCODE);
     if(uc)
       return Curl_uc_to_curlcode(uc);
   }
@@ -3606,6 +3622,12 @@ static CURLcode create_conn(struct Curl_easy *data,
   data->set.ssl.password = data->set.str[STRING_TLSAUTH_PASSWORD_ORIG];
   data->set.proxy_ssl.password = data->set.str[STRING_TLSAUTH_PASSWORD_PROXY];
 #endif
+
+  data->set.ssl.cert_blob = data->set.blobs[BLOB_CERT_ORIG];
+  data->set.proxy_ssl.cert_blob = data->set.blobs[BLOB_CERT_PROXY];
+  data->set.ssl.key_blob = data->set.blobs[BLOB_KEY_ORIG];
+  data->set.proxy_ssl.key_blob = data->set.blobs[BLOB_KEY_PROXY];
+  data->set.ssl.issuercert_blob = data->set.blobs[BLOB_SSL_ISSUERCERT_ORIG];
 
   if(!Curl_clone_primary_ssl_config(&data->set.ssl.primary,
      &conn->ssl_config)) {
