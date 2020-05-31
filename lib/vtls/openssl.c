@@ -41,6 +41,7 @@
 #include "slist.h"
 #include "select.h"
 #include "vtls.h"
+#include "keylog.h"
 #include "strcase.h"
 #include "hostcheck.h"
 #include "multiif.h"
@@ -212,24 +213,14 @@
   "ALL:!EXPORT:!EXPORT40:!EXPORT56:!aNULL:!LOW:!RC4:@STRENGTH"
 #endif
 
-#define ENABLE_SSLKEYLOGFILE
-
-#ifdef ENABLE_SSLKEYLOGFILE
-struct ssl_tap_state {
-  int master_key_length;
-  unsigned char master_key[SSL_MAX_MASTER_KEY_LENGTH];
-  unsigned char client_random[SSL3_RANDOM_SIZE];
-};
-#endif /* ENABLE_SSLKEYLOGFILE */
-
 struct ssl_backend_data {
   /* these ones requires specific SSL-types */
   SSL_CTX* ctx;
   SSL*     handle;
   X509*    server_cert;
-#ifdef ENABLE_SSLKEYLOGFILE
-  /* tap_state holds the last seen master key if we're logging them */
-  struct ssl_tap_state tap_state;
+#ifndef HAVE_KEYLOG_CALLBACK
+  /* Set to true once a valid keylog entry has been created to avoid dupes. */
+  bool     keylog_done;
 #endif
 };
 
@@ -241,57 +232,27 @@ struct ssl_backend_data {
  */
 #define RAND_LOAD_LENGTH 1024
 
-#ifdef ENABLE_SSLKEYLOGFILE
-/* The fp for the open SSLKEYLOGFILE, or NULL if not open */
-static FILE *keylog_file_fp;
-
 #ifdef HAVE_KEYLOG_CALLBACK
 static void ossl_keylog_callback(const SSL *ssl, const char *line)
 {
   (void)ssl;
 
-  /* Using fputs here instead of fprintf since libcurl's fprintf replacement
-     may not be thread-safe. */
-  if(keylog_file_fp && line && *line) {
-    char stackbuf[256];
-    char *buf;
-    size_t linelen = strlen(line);
-
-    if(linelen <= sizeof(stackbuf) - 2)
-      buf = stackbuf;
-    else {
-      buf = malloc(linelen + 2);
-      if(!buf)
-        return;
-    }
-    memcpy(buf, line, linelen);
-    buf[linelen] = '\n';
-    buf[linelen + 1] = '\0';
-
-    fputs(buf, keylog_file_fp);
-    if(buf != stackbuf)
-      free(buf);
-  }
+  Curl_tls_keylog_write_line(line);
 }
 #else
-#define KEYLOG_PREFIX      "CLIENT_RANDOM "
-#define KEYLOG_PREFIX_LEN  (sizeof(KEYLOG_PREFIX) - 1)
 /*
- * tap_ssl_key is called by libcurl to make the CLIENT_RANDOMs if the OpenSSL
- * being used doesn't have native support for doing that.
+ * ossl_log_tls12_secret is called by libcurl to make the CLIENT_RANDOMs if the
+ * OpenSSL being used doesn't have native support for doing that.
  */
-static void tap_ssl_key(const SSL *ssl, struct ssl_tap_state *state)
+static void
+ossl_log_tls12_secret(const SSL *ssl, bool *keylog_done)
 {
-  const char *hex = "0123456789ABCDEF";
-  int pos, i;
-  char line[KEYLOG_PREFIX_LEN + 2 * SSL3_RANDOM_SIZE + 1 +
-            2 * SSL_MAX_MASTER_KEY_LENGTH + 1 + 1];
   const SSL_SESSION *session = SSL_get_session(ssl);
   unsigned char client_random[SSL3_RANDOM_SIZE];
   unsigned char master_key[SSL_MAX_MASTER_KEY_LENGTH];
   int master_key_length = 0;
 
-  if(!session || !keylog_file_fp)
+  if(!session || *keylog_done)
     return;
 
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L && \
@@ -310,44 +271,17 @@ static void tap_ssl_key(const SSL *ssl, struct ssl_tap_state *state)
   }
 #endif
 
+  /* The handshake has not progressed sufficiently yet, or this is a TLS 1.3
+   * session (when curl was built with older OpenSSL headers and running with
+   * newer OpenSSL runtime libraries). */
   if(master_key_length <= 0)
     return;
 
-  /* Skip writing keys if there is no key or it did not change. */
-  if(state->master_key_length == master_key_length &&
-     !memcmp(state->master_key, master_key, master_key_length) &&
-     !memcmp(state->client_random, client_random, SSL3_RANDOM_SIZE)) {
-    return;
-  }
-
-  state->master_key_length = master_key_length;
-  memcpy(state->master_key, master_key, master_key_length);
-  memcpy(state->client_random, client_random, SSL3_RANDOM_SIZE);
-
-  memcpy(line, KEYLOG_PREFIX, KEYLOG_PREFIX_LEN);
-  pos = KEYLOG_PREFIX_LEN;
-
-  /* Client Random for SSLv3/TLS */
-  for(i = 0; i < SSL3_RANDOM_SIZE; i++) {
-    line[pos++] = hex[client_random[i] >> 4];
-    line[pos++] = hex[client_random[i] & 0xF];
-  }
-  line[pos++] = ' ';
-
-  /* Master Secret (size is at most SSL_MAX_MASTER_KEY_LENGTH) */
-  for(i = 0; i < master_key_length; i++) {
-    line[pos++] = hex[master_key[i] >> 4];
-    line[pos++] = hex[master_key[i] & 0xF];
-  }
-  line[pos++] = '\n';
-  line[pos] = '\0';
-
-  /* Using fputs here instead of fprintf since libcurl's fprintf replacement
-     may not be thread-safe. */
-  fputs(line, keylog_file_fp);
+  *keylog_done = true;
+  Curl_tls_keylog_write("CLIENT_RANDOM", client_random,
+                        master_key, master_key_length);
 }
 #endif /* !HAVE_KEYLOG_CALLBACK */
-#endif /* ENABLE_SSLKEYLOGFILE */
 
 static const char *SSL_ERROR_to_str(int err)
 {
@@ -1163,10 +1097,6 @@ static int x509_name_oneline(X509_NAME *a, char *buf, size_t size)
  */
 static int Curl_ossl_init(void)
 {
-#ifdef ENABLE_SSLKEYLOGFILE
-  char *keylog_file_name;
-#endif
-
   OPENSSL_load_builtin_modules();
 
 #ifdef USE_OPENSSL_ENGINE
@@ -1199,26 +1129,7 @@ static int Curl_ossl_init(void)
   OpenSSL_add_all_algorithms();
 #endif
 
-#ifdef ENABLE_SSLKEYLOGFILE
-  if(!keylog_file_fp) {
-    keylog_file_name = curl_getenv("SSLKEYLOGFILE");
-    if(keylog_file_name) {
-      keylog_file_fp = fopen(keylog_file_name, FOPEN_APPENDTEXT);
-      if(keylog_file_fp) {
-#ifdef WIN32
-        if(setvbuf(keylog_file_fp, NULL, _IONBF, 0))
-#else
-        if(setvbuf(keylog_file_fp, NULL, _IOLBF, 4096))
-#endif
-        {
-          fclose(keylog_file_fp);
-          keylog_file_fp = NULL;
-        }
-      }
-      Curl_safefree(keylog_file_name);
-    }
-  }
-#endif
+  Curl_tls_keylog_open();
 
   /* Initialize the extra data indexes */
   if(ossl_get_ssl_conn_index() < 0 || ossl_get_ssl_sockindex_index() < 0)
@@ -1261,12 +1172,7 @@ static void Curl_ossl_cleanup(void)
 #endif
 #endif
 
-#ifdef ENABLE_SSLKEYLOGFILE
-  if(keylog_file_fp) {
-    fclose(keylog_file_fp);
-    keylog_file_fp = NULL;
-  }
-#endif
+  Curl_tls_keylog_close();
 }
 
 /*
@@ -1433,7 +1339,9 @@ static void ossl_close(struct ssl_connect_data *connssl)
 static void Curl_ossl_close(struct connectdata *conn, int sockindex)
 {
   ossl_close(&conn->ssl[sockindex]);
+#ifndef CURL_DISABLE_PROXY
   ossl_close(&conn->proxy_ssl[sockindex]);
+#endif
 }
 
 /*
@@ -1660,10 +1568,16 @@ static CURLcode verifyhost(struct connectdata *conn, X509 *server_cert)
   CURLcode result = CURLE_OK;
   bool dNSName = FALSE; /* if a dNSName field exists in the cert */
   bool iPAddress = FALSE; /* if a iPAddress field exists in the cert */
-  const char * const hostname = SSL_IS_PROXY() ? conn->http_proxy.host.name :
-    conn->host.name;
+#ifndef CURL_DISABLE_PROXY
+  const char * const hostname = SSL_IS_PROXY() ?
+    conn->http_proxy.host.name : conn->host.name;
   const char * const dispname = SSL_IS_PROXY() ?
     conn->http_proxy.host.dispname : conn->host.dispname;
+#else
+  /* disabled proxy support */
+  const char * const hostname = conn->host.name;
+  const char * const dispname = conn->host.dispname;
+#endif
 
 #ifdef ENABLE_IPV6
   if(conn->bits.ipv6_ip &&
@@ -2542,16 +2456,25 @@ static CURLcode ossl_connect_step1(struct connectdata *conn, int sockindex)
 
 #ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
   bool sni;
+#ifndef CURL_DISABLE_PROXY
   const char * const hostname = SSL_IS_PROXY() ? conn->http_proxy.host.name :
     conn->host.name;
+#else
+  const char * const hostname = conn->host.name;
+#endif
+
 #ifdef ENABLE_IPV6
   struct in6_addr addr;
 #else
   struct in_addr addr;
 #endif
 #endif
+#ifndef CURL_DISABLE_PROXY
   long * const certverifyresult = SSL_IS_PROXY() ?
     &data->set.proxy_ssl.certverifyresult : &data->set.ssl.certverifyresult;
+#else
+  long * const certverifyresult = &data->set.ssl.certverifyresult;
+#endif
   const long int ssl_version = SSL_CONN_CONFIG(version);
 #ifdef USE_TLS_SRP
   const enum CURL_TLSAUTH ssl_authtype = SSL_SET_OPTION(authtype);
@@ -2779,8 +2702,11 @@ static CURLcode ossl_connect_step1(struct connectdata *conn, int sockindex)
     unsigned char protocols[128];
 
 #ifdef USE_NGHTTP2
-    if(data->set.httpversion >= CURL_HTTP_VERSION_2 &&
-       (!SSL_IS_PROXY() || !conn->bits.tunnel_proxy)) {
+    if(data->set.httpversion >= CURL_HTTP_VERSION_2
+#ifndef CURL_DISABLE_PROXY
+       && (!SSL_IS_PROXY() || !conn->bits.tunnel_proxy)
+#endif
+      ) {
       protocols[cur++] = NGHTTP2_PROTO_VERSION_ID_LEN;
 
       memcpy(&protocols[cur], NGHTTP2_PROTO_VERSION_ID,
@@ -3159,8 +3085,8 @@ static CURLcode ossl_connect_step1(struct connectdata *conn, int sockindex)
                      verifypeer ? SSL_VERIFY_PEER : SSL_VERIFY_NONE, NULL);
 
   /* Enable logging of secrets to the file specified in env SSLKEYLOGFILE. */
-#if defined(ENABLE_SSLKEYLOGFILE) && defined(HAVE_KEYLOG_CALLBACK)
-  if(keylog_file_fp) {
+#ifdef HAVE_KEYLOG_CALLBACK
+  if(Curl_tls_keylog_enabled()) {
     SSL_CTX_set_keylog_callback(backend->ctx, ossl_keylog_callback);
   }
 #endif
@@ -3247,6 +3173,7 @@ static CURLcode ossl_connect_step1(struct connectdata *conn, int sockindex)
     Curl_ssl_sessionid_unlock(conn);
   }
 
+#ifndef CURL_DISABLE_PROXY
   if(conn->proxy_ssl[sockindex].use) {
     BIO *const bio = BIO_new(BIO_f_ssl());
     SSL *handle = conn->proxy_ssl[sockindex].backend->handle;
@@ -3256,7 +3183,9 @@ static CURLcode ossl_connect_step1(struct connectdata *conn, int sockindex)
     BIO_set_ssl(bio, handle, FALSE);
     SSL_set_bio(backend->handle, bio, bio);
   }
-  else if(!SSL_set_fd(backend->handle, (int)sockfd)) {
+  else
+#endif
+    if(!SSL_set_fd(backend->handle, (int)sockfd)) {
     /* pass the raw socket into the SSL layers */
     failf(data, "SSL: SSL_set_fd failed: %s",
           ossl_strerror(ERR_get_error(), error_buffer, sizeof(error_buffer)));
@@ -3273,8 +3202,12 @@ static CURLcode ossl_connect_step2(struct connectdata *conn, int sockindex)
   struct Curl_easy *data = conn->data;
   int err;
   struct ssl_connect_data *connssl = &conn->ssl[sockindex];
+#ifndef CURL_DISABLE_PROXY
   long * const certverifyresult = SSL_IS_PROXY() ?
     &data->set.proxy_ssl.certverifyresult : &data->set.ssl.certverifyresult;
+#else
+  long * const certverifyresult = &data->set.ssl.certverifyresult;
+#endif
   struct ssl_backend_data *backend = connssl->backend;
   DEBUGASSERT(ssl_connect_2 == connssl->connecting_state
               || ssl_connect_2_reading == connssl->connecting_state
@@ -3283,10 +3216,13 @@ static CURLcode ossl_connect_step2(struct connectdata *conn, int sockindex)
   ERR_clear_error();
 
   err = SSL_connect(backend->handle);
-  /* If keylogging is enabled but the keylog callback is not supported then log
-     secrets here, immediately after SSL_connect by using tap_ssl_key. */
-#if defined(ENABLE_SSLKEYLOGFILE) && !defined(HAVE_KEYLOG_CALLBACK)
-  tap_ssl_key(backend->handle, &backend->tap_state);
+#ifndef HAVE_KEYLOG_CALLBACK
+  if(Curl_tls_keylog_enabled()) {
+    /* If key logging is enabled, wait for the handshake to complete and then
+     * proceed with logging secrets (for TLS 1.2 or older).
+     */
+    ossl_log_tls12_secret(backend->handle, &backend->keylog_done);
+  }
 #endif
 
   /* 1  is fine
@@ -3357,9 +3293,14 @@ static CURLcode ossl_connect_step2(struct connectdata *conn, int sockindex)
        * the SO_ERROR is also lost.
        */
       if(CURLE_SSL_CONNECT_ERROR == result && errdetail == 0) {
+#ifndef CURL_DISABLE_PROXY
         const char * const hostname = SSL_IS_PROXY() ?
           conn->http_proxy.host.name : conn->host.name;
         const long int port = SSL_IS_PROXY() ? conn->port : conn->remote_port;
+#else
+        const char * const hostname = conn->host.name;
+        const long int port = conn->remote_port;
+#endif
         char extramsg[80]="";
         int sockerr = SOCKERRNO;
         if(sockerr && detail == SSL_ERROR_SYSCALL)
@@ -3812,8 +3753,12 @@ static CURLcode servercert(struct connectdata *conn,
   char error_buffer[256]="";
   char buffer[2048];
   const char *ptr;
+#ifndef CURL_DISABLE_PROXY
   long * const certverifyresult = SSL_IS_PROXY() ?
     &data->set.proxy_ssl.certverifyresult : &data->set.ssl.certverifyresult;
+#else
+  long * const certverifyresult = &data->set.ssl.certverifyresult;
+#endif
   BIO *mem = BIO_new(BIO_s_mem());
   struct ssl_backend_data *backend = connssl->backend;
 
@@ -4020,7 +3965,6 @@ static CURLcode ossl_connect_common(struct connectdata *conn,
   struct Curl_easy *data = conn->data;
   struct ssl_connect_data *connssl = &conn->ssl[sockindex];
   curl_socket_t sockfd = conn->sock[sockindex];
-  timediff_t timeout_ms;
   int what;
 
   /* check if the connection has already been established */
@@ -4031,7 +3975,7 @@ static CURLcode ossl_connect_common(struct connectdata *conn,
 
   if(ssl_connect_1 == connssl->connecting_state) {
     /* Find out how much more time we're allowed */
-    timeout_ms = Curl_timeleft(data, NULL, TRUE);
+    const timediff_t timeout_ms = Curl_timeleft(data, NULL, TRUE);
 
     if(timeout_ms < 0) {
       /* no need to continue if time already is up */
@@ -4049,7 +3993,7 @@ static CURLcode ossl_connect_common(struct connectdata *conn,
         ssl_connect_2_writing == connssl->connecting_state) {
 
     /* check allowed time left */
-    timeout_ms = Curl_timeleft(data, NULL, TRUE);
+    const timediff_t timeout_ms = Curl_timeleft(data, NULL, TRUE);
 
     if(timeout_ms < 0) {
       /* no need to continue if time already is up */
@@ -4067,7 +4011,7 @@ static CURLcode ossl_connect_common(struct connectdata *conn,
         connssl->connecting_state?sockfd:CURL_SOCKET_BAD;
 
       what = Curl_socket_check(readfd, CURL_SOCKET_BAD, writefd,
-                               nonblocking?0:(time_t)timeout_ms);
+                               nonblocking?0:timeout_ms);
       if(what < 0) {
         /* fatal error */
         failf(data, "select/poll on SSL socket, errno: %d", SOCKERRNO);
@@ -4146,14 +4090,15 @@ static bool Curl_ossl_data_pending(const struct connectdata *conn,
                                    int connindex)
 {
   const struct ssl_connect_data *connssl = &conn->ssl[connindex];
-  const struct ssl_connect_data *proxyssl = &conn->proxy_ssl[connindex];
-
   if(connssl->backend->handle && SSL_pending(connssl->backend->handle))
     return TRUE;
-
-  if(proxyssl->backend->handle && SSL_pending(proxyssl->backend->handle))
-    return TRUE;
-
+#ifndef CURL_DISABLE_PROXY
+  {
+    const struct ssl_connect_data *proxyssl = &conn->proxy_ssl[connindex];
+    if(proxyssl->backend->handle && SSL_pending(proxyssl->backend->handle))
+      return TRUE;
+  }
+#endif
   return FALSE;
 }
 
@@ -4214,8 +4159,11 @@ static ssize_t ossl_send(struct connectdata *conn,
       sslerror = ERR_get_error();
       if(ERR_GET_LIB(sslerror) == ERR_LIB_SSL &&
          ERR_GET_REASON(sslerror) == SSL_R_BIO_NOT_SET &&
-         conn->ssl[sockindex].state == ssl_connection_complete &&
-         conn->proxy_ssl[sockindex].state == ssl_connection_complete) {
+         conn->ssl[sockindex].state == ssl_connection_complete
+#ifndef CURL_DISABLE_PROXY
+         && conn->proxy_ssl[sockindex].state == ssl_connection_complete
+#endif
+        ) {
         char ver[120];
         Curl_ossl_version(ver, 120);
         failf(conn->data, "Error: %s does not support double SSL tunneling.",
@@ -4439,7 +4387,7 @@ static CURLcode Curl_ossl_sha256sum(const unsigned char *tmp, /* input */
   unsigned int len = 0;
   (void) unused;
 
-  mdctx =  EVP_MD_CTX_create();
+  mdctx = EVP_MD_CTX_create();
   EVP_DigestInit_ex(mdctx, EVP_sha256(), NULL);
   EVP_DigestUpdate(mdctx, tmp, tmplen);
   EVP_DigestFinal_ex(mdctx, sha256sum, &len);

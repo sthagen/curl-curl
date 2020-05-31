@@ -99,7 +99,6 @@
         libssh2_sftp_symlink_ex((s), (p), curlx_uztoui(strlen(p)), \
                                 (t), (m), LIBSSH2_SFTP_REALPATH)
 
-
 /* Local functions: */
 static const char *sftp_libssh2_strerror(int err);
 static LIBSSH2_ALLOC_FUNC(my_libssh2_malloc);
@@ -1360,7 +1359,8 @@ static CURLcode ssh_statemach_act(struct connectdata *conn, bool *block)
          */
         cp = strchr(cmd, ' ');
         if(cp == NULL) {
-          failf(data, "Syntax error in SFTP command. Supply parameter(s)!");
+          failf(data, "Syntax error command '%s'. Missing parameter!",
+                cmd);
           state(conn, SSH_SFTP_CLOSE);
           sshc->nextstate = SSH_NO_STATE;
           sshc->actualcode = CURLE_QUOTE_ERROR;
@@ -1376,7 +1376,7 @@ static CURLcode ssh_statemach_act(struct connectdata *conn, bool *block)
           if(result == CURLE_OUT_OF_MEMORY)
             failf(data, "Out of memory");
           else
-            failf(data, "Syntax error: Bad first parameter");
+            failf(data, "Syntax error: Bad first parameter to '%s'", cmd);
           state(conn, SSH_SFTP_CLOSE);
           sshc->nextstate = SSH_NO_STATE;
           sshc->actualcode = result;
@@ -1401,8 +1401,7 @@ static CURLcode ssh_statemach_act(struct connectdata *conn, bool *block)
             if(result == CURLE_OUT_OF_MEMORY)
               failf(data, "Out of memory");
             else
-              failf(data, "Syntax error in chgrp/chmod/chown: "
-                    "Bad second parameter");
+              failf(data, "Syntax error in %s: Bad second parameter", cmd);
             Curl_safefree(sshc->quote_path1);
             state(conn, SSH_SFTP_CLOSE);
             sshc->nextstate = SSH_NO_STATE;
@@ -2599,7 +2598,7 @@ static CURLcode ssh_statemach_act(struct connectdata *conn, bool *block)
 
       /* download data */
       bytecount = (curl_off_t)sb.st_size;
-      data->req.maxdownload =  (curl_off_t)sb.st_size;
+      data->req.maxdownload = (curl_off_t)sb.st_size;
       Curl_setup_transfer(data, FIRSTSOCKET, bytecount, FALSE, -1);
 
       /* not set by Curl_setup_transfer to preserve keepon bits */
@@ -2930,7 +2929,7 @@ static CURLcode ssh_multi_statemach(struct connectdata *conn, bool *done)
 }
 
 static CURLcode ssh_block_statemach(struct connectdata *conn,
-                                    bool disconnect)
+                                   bool duringconnect)
 {
   struct ssh_conn *sshc = &conn->proto.sshc;
   CURLcode result = CURLE_OK;
@@ -2945,19 +2944,17 @@ static CURLcode ssh_block_statemach(struct connectdata *conn,
     if(result)
       break;
 
-    if(!disconnect) {
-      if(Curl_pgrsUpdate(conn))
-        return CURLE_ABORTED_BY_CALLBACK;
+    if(Curl_pgrsUpdate(conn))
+      return CURLE_ABORTED_BY_CALLBACK;
 
-      result = Curl_speedcheck(data, now);
-      if(result)
-        break;
+    result = Curl_speedcheck(data, now);
+    if(result)
+      break;
 
-      left = Curl_timeleft(data, NULL, FALSE);
-      if(left < 0) {
-        failf(data, "Operation timed out");
-        return CURLE_OPERATION_TIMEDOUT;
-      }
+    left = Curl_timeleft(data, NULL, duringconnect);
+    if(left < 0) {
+      failf(data, "Operation timed out");
+      return CURLE_OPERATION_TIMEDOUT;
     }
 
 #ifdef HAVE_LIBSSH2_SESSION_BLOCK_DIRECTION
@@ -2972,7 +2969,7 @@ static CURLcode ssh_block_statemach(struct connectdata *conn,
         fd_write = sock;
       /* wait for the socket to become ready */
       (void)Curl_socket_check(fd_read, CURL_SOCKET_BAD, fd_write,
-                              left>1000?1000:(time_t)left);
+                              left>1000?1000:left);
     }
 #endif
 
@@ -3180,7 +3177,7 @@ static CURLcode scp_disconnect(struct connectdata *conn, bool dead_connection)
 
     state(conn, SSH_SESSION_DISCONNECT);
 
-    result = ssh_block_statemach(conn, TRUE);
+    result = ssh_block_statemach(conn, FALSE);
   }
 
   return result;
@@ -3329,7 +3326,7 @@ static CURLcode sftp_disconnect(struct connectdata *conn, bool dead_connection)
   if(conn->proto.sshc.ssh_session) {
     /* only if there's a session still around to use! */
     state(conn, SSH_SFTP_SHUTDOWN);
-    result = ssh_block_statemach(conn, TRUE);
+    result = ssh_block_statemach(conn, FALSE);
   }
 
   DEBUGF(infof(conn->data, "SSH DISCONNECT is done\n"));

@@ -235,7 +235,7 @@ static CURLcode handshake(struct connectdata *conn,
 
       what = Curl_socket_check(readfd, CURL_SOCKET_BAD, writefd,
                                nonblocking?0:
-                               timeout_ms?(time_t)timeout_ms:1000);
+                               timeout_ms?timeout_ms:1000);
       if(what < 0) {
         /* fatal error */
         failf(data, "select/poll on SSL socket, errno: %d", SOCKERRNO);
@@ -412,7 +412,7 @@ gtls_connect_step1(struct connectdata *conn,
   if(!gtls_inited)
     Curl_gtls_init();
 
-  /* Initalize certverifyresult to OK */
+  /* Initialize certverifyresult to OK */
   *certverifyresult = 0;
 
   if(SSL_CONN_CONFIG(version) == CURL_SSLVERSION_SSLv2) {
