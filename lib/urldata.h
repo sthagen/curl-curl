@@ -1064,10 +1064,8 @@ struct connectdata {
   /* data used for the asynch name resolve callback */
   struct Curl_async async;
 
-  /* These three are used for chunked-encoding trailer support */
-  char *trailer; /* allocated buffer to store trailer in */
-  int trlMax;    /* allocated buffer size */
-  int trlPos;    /* index of where to store data */
+  /* for chunked-encoded trailer */
+  struct dynbuf trailer;
 
   union {
     struct ftp_conn ftpc;
@@ -1390,6 +1388,7 @@ struct UrlState {
   int stream_weight;
   CURLU *uh; /* URL handle for the current parsed URL */
   struct urlpieces up;
+  Curl_HttpReq httpreq; /* what kind of HTTP request (if any) is this */
 #ifndef CURL_DISABLE_HTTP
   size_t trailers_bytes_sent;
   struct dynbuf trailers_buf; /* a buffer containing the compiled trailing
@@ -1678,7 +1677,7 @@ struct UserDefined {
                                     the hostname and port to connect to */
   curl_TimeCond timecondition; /* kind of time/date comparison */
   time_t timevalue;       /* what time to compare with */
-  Curl_HttpReq httpreq;   /* what kind of HTTP request (if any) is this */
+  Curl_HttpReq method;   /* what kind of HTTP request (if any) is this */
   long httpversion; /* when non-zero, a specific HTTP version requested to
                        be used in the library's request(s) */
   struct ssl_config_data ssl;  /* user defined SSL stuff */

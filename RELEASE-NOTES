@@ -4,7 +4,7 @@ curl and libcurl 7.71.0
  Command line options:         232
  curl_easy_setopt() options:   277
  Public functions in libcurl:  82
- Contributors:                 2186
+ Contributors:                 2194
 
 This release includes the following changes:
 
@@ -17,11 +17,16 @@ This release includes the following bugfixes:
 
  o *_sspi: fix bad uses of CURLE_NOT_BUILT_IN [21]
  o all: fix codespell errors [75]
+ o altsvc: fix 'dsthost' may be used uninitialized in this function
  o altsvc: fix parser for lines ending with CRLF [74]
+ o appveyor: add non-debug plain autotools-based build [90]
  o appveyor: disable flaky test 1501 and ignore broken 1056
  o appveyor: disable test 1139 instead of ignoring it
  o asyn-*: remove support for never-used NULL entry pointers [19]
+ o azure: use matrix strategy to avoid configuration redundancy [83]
+ o build: disable more code/data when built without proxy support [84]
  o checksrc: enhance the ASTERISKSPACE and update code accordingly [52]
+ o CI/macos: fix 'is already installed' errors by using bundle [94]
  o cirrus: disable SFTP and SCP tests [7]
  o CMake: add ENABLE_ALT_SVC option
  o CMake: add HTTP/3 support (ngtcp2+nghttp3, quiche) [34]
@@ -30,11 +35,14 @@ This release includes the following bugfixes:
  o CMake: fix runtests.pl with CMake, add new test targets [29]
  o CMake: rebuild Makefile.inc.cmake when Makefile.inc changes [58]
  o configure: fix pthread check with static boringssl
+ o configure: only strip first -L from LDFLAGS [89]
  o configure: repair the check if argv can be written to [47]
  o configure: the wolfssh backend does not provide SCP [57]
  o connect: make happy eyeballs work for QUIC (again) [16]
  o curl.1: Quote globbed URLs [51]
  o curl: remove -J "informational" written on stdout [36]
+ o Curl_addrinfo: use one malloc instead of three [97]
+ o CURLINFO_ACTIVESOCKET.3: clarify the description [87]
  o doc: add missing closing parenthesis in CURLINFO_SSL_VERIFYRESULT.3 [5]
  o doc: Rename VERSIONS to VERSIONS.md as it already has Markdown syntax [20]
  o docs/HTTP3: add qlog to the quiche build instruction
@@ -42,6 +50,8 @@ This release includes the following bugfixes:
  o docs: unify protocol lists [54]
  o dynbuf: introduce internal generic dynamic buffer functions [17]
  o easy: fix dangling pointer on easy_perform fail [26]
+ o examples/ephiperfifo: turn off interval when setting timerfd [79]
+ o examples/http2-down/upload: add error checks [78]
  o examples: remove asiohiper.cpp [4]
  o FILEFORMAT: add more features that tests can depend on
  o ftp: make domore_getsock() return the secondary socket properly
@@ -52,26 +62,39 @@ This release includes the following bugfixes:
  o hostip: on macOS avoid DoH when given a numerical IP address [69]
  o http2: keep trying to send pending frames after req.upload_done [40]
  o http2: simplify and clean up trailer handling [6]
+ o HTTP3.md: clarify cargo build directory [77]
  o libcurl.pc: Merge Libs.private into Libs for static-only builds [28]
  o libssh2: improved error output for wrong quote syntax [39]
+ o libssh2: keep sftp errors as 'unsigned long' [103]
  o libssh2: set the expected total size in SCP upload init [2]
  o libtest/cmake: Remove commented code [13]
  o list-only.d: this option existed already in 4.0
+ o multi: add defensive check on data->multi->num_alive [96]
  o ngtcp2: cleanup memory when failing to connect [70]
  o ngtcp2: fix build with current ngtcp2 master implementing draft 28 [76]
  o ngtcp2: introduce qlog support [23]
+ o ngtcp2: update with recent API changes [100]
  o OpenSSL: have CURLOPT_CRLFILE imply CURLSSLOPT_NO_PARTIALCHAIN [55]
+ o openssl: set FLAG_TRUSTED_FIRST unconditionally [105]
+ o projects: Add crypt32.lib to dependencies for all OpenSSL configs [93]
+ o quiche: advertise draft 28 support [91]
  o quiche: clean up memory properly when failing to connect [71]
  o quiche: enable qlog output [14]
+ o quiche: update SSLKEYLOGFILE support [98]
  o Revert "buildconf: use find -execdir" [38]
  o Revert "ssh: ignore timeouts during disconnect" [67]
  o runtests: remove sleep calls [18]
  o runtests: show elapsed test time with higher precision (ms)
+ o select: always use Sleep in Curl_wait_ms on Win32 [82]
  o select: fix overflow protection in Curl_socket_check [22]
  o sendf: make failf() use the mvsnprintf() return code [62]
  o server/sws: fix asan warning on use of uninitialized variable
+ o server/util: fix logmsg format using curl_off_t argument [106]
  o sha256: fixed potentially uninitialized variable [61]
  o sockfilt: make select_ws stop waiting on exit signal event
+ o socks: detect connection close during handshake [95]
+ o socks: fix expected length of SOCKS5 reply [68]
+ o socks: remove unreachable breaks in socks.c and mime.c [101]
  o source cleanup: remove all custom typedef structs [42]
  o test1167: fixes in badsymbols.pl [73]
  o test1177: look for curl.h in source directory [1]
@@ -80,11 +103,16 @@ This release includes the following bugfixes:
  o test75: Remove precheck test
  o tests: add https-proxy support to the test suite [49]
  o tests: add support for SSH server variant specific transfer paths [24]
+ o tests: add two simple tests for --login-options [99]
  o tests: make test 1248 + 1249 use %NOLISTENPORT [3]
  o tests: pick a random port number for SSH [12]
  o tests: run stunnel for HTTPS and FTPS on dynamic ports [11]
+ o timeouts: change millisecond timeouts to timediff_t from time_t [86]
+ o timeouts: move ms timeouts to timediff_t from int and long [104]
  o tool: fixup a few --help descriptions [56]
  o tool: support UTF-16 command line on Windows [46]
+ o tool_cfgable: free login_options at exit [102]
+ o tool_getparam: fix memory leak in parse_args
  o tool_operate: fixed potentially uninitialized variables [60]
  o tool_paramhlp: fixed potentially uninitialized strtol() variable [59]
  o transfer: close connection after excess data has been read [66]
@@ -92,14 +120,19 @@ This release includes the following bugfixes:
  o travis: Add ngtcp2 and quiche tests for CMake
  o travis: upgrade to bionic, clang-9, improve readability [35]
  o typecheck-gcc.h: CURLINFO_PRIVATE does not need a 'char *' [44]
+ o unit1604.c: fix implicit conv from 'SANITIZEcode' to 'CURLcode' [88]
  o url: accept "any length" credentials for proxy auth [72]
+ o url: alloc the download buffer at transfer start [85]
  o url: make the updated credentials URL-encoded in the URL [48]
  o url: reject too long input when parsing credentials [25]
  o url: sort the protocol schemes in rough popularity order [32]
  o urlapi: accept :: as a valid IPv6 address [15]
+ o urldata: leave the HTTP method untouched in the set.* struct [45]
+ o user-agent.d: spell out what happens given a blank argument [80]
  o vauth/cleartext: fix theoretical integer overflow [50]
  o vtls: Extract and simplify key log file handling from OpenSSL
  o wolfssl: add SSLKEYLOGFILE support [65]
+ o wording: avoid blacklist/whitelist stereotypes [92]
  o write-out.d: added "response_code"
 
 This release includes the following known bugs:
@@ -109,15 +142,19 @@ This release includes the following known bugs:
 This release would not have looked like this without help, code, reports and
 advice from friends like these:
 
-  Billyzou0741326 on github, Brian Carpenter, Dan Fandrich, Daniel Stenberg,
-  Emil Engler, Estanislau Augé-Pujadas, Gilles Vollant, Gregory Jefferis,
-  huzunhao on github, James Le Cuirot, Jeroen Ooms, John Simpson, Kamil Dudka,
-  Kane York, Lucas Pardue, Maksim Stsepanenka, Marcel Raad, Marc Hörsken,
-  Max Peal, Michael Kaufmann, Murugan Balraj, Neal Poole, Pavel Volgarev,
-  Peter Wang, Peter Wu, Ray Satiro, Rikard Falkeborn, rl1987 on github,
-  Samuel Marks, Siva Sivaraman, Thomas Bouzerar, Viktor Szakats,
-  Vyron Tsingaras, Werner Stolz, Will Roberts, Коваленко Анатолий Викторович,
-  (36 contributors)
+  Adnan Khan, Alessandro Ghedini, Billyzou0741326 on github, Brian Carpenter,
+  Cherish98 on github, Dan Fandrich, Daniel Stenberg, Emil Engler,
+  Estanislau Augé-Pujadas, François Rigault, Geeknik Labs, Gilles Vollant,
+  Gregory Jefferis, huzunhao on github, James Fuller, James Le Cuirot,
+  Jeroen Ooms, John Simpson, Kamil Dudka, Kane York, Lucas Pardue,
+  Maksim Stsepanenka, Marcel Raad, Marc Hörsken, Max Peal, Michael Kaufmann,
+  Mohamed Osama, Murugan Balraj, Neal Poole, Pavel Volgarev, Peter Wang,
+  Peter Wu, Radoslav Georgiev, Ray Satiro, Rikard Falkeborn, rl1987 on github,
+  Saleem Abdulrasool, Samuel Marks, Siva Sivaraman, Tatsuhiro Tsujikawa,
+  therealhirudo on github, Thomas Bouzerar, Viktor Szakats, Vyron Tsingaras,
+  Werner Stolz, Will Roberts, zloi-user on github,
+  Коваленко Анатолий Викторович, kotoriのねこ
+  (49 contributors)
 
         Thanks! (and sorry if I forgot to mention someone)
 
@@ -167,6 +204,7 @@ References to bug reports and discussions on issues:
  [42] = https://curl.haxx.se/bug/?i=5338
  [43] = https://curl.haxx.se/bug/?i=5340
  [44] = https://curl.haxx.se/bug/?i=5432
+ [45] = https://curl.haxx.se/bug/?i=5499
  [46] = https://curl.haxx.se/bug/?i=3784
  [47] = https://curl.haxx.se/bug/?i=5470
  [48] = https://github.com/jeroen/curl/issues/224
@@ -189,6 +227,7 @@ References to bug reports and discussions on issues:
  [65] = https://curl.haxx.se/bug/?i=5327
  [66] = https://curl.haxx.se/bug/?i=5440
  [67] = https://curl.haxx.se/mail/lib-2020-05/0068.html
+ [68] = https://curl.haxx.se/bug/?i=5527
  [69] = https://curl.haxx.se/bug/?i=5454
  [70] = https://curl.haxx.se/bug/?i=5447
  [71] = https://curl.haxx.se/bug/?i=5450
@@ -197,3 +236,32 @@ References to bug reports and discussions on issues:
  [74] = https://curl.haxx.se/bug/?i=5445
  [75] = https://curl.haxx.se/bug/?i=5452
  [76] = https://curl.haxx.se/bug/?i=5444
+ [77] = https://curl.haxx.se/bug/?i=5522
+ [78] = https://curl.haxx.se/bug/?i=5463
+ [79] = https://curl.haxx.se/bug/?i=5485
+ [80] = https://curl.haxx.se/bug/?i=5525
+ [82] = https://curl.haxx.se/bug/?i=5489
+ [83] = https://curl.haxx.se/bug/?i=5468
+ [84] = https://curl.haxx.se/bug/?i=5466
+ [85] = https://curl.haxx.se/bug/?i=5472
+ [86] = https://curl.haxx.se/bug/?i=5479
+ [87] = https://curl.haxx.se/bug/?i=5299
+ [88] = https://curl.haxx.se/bug/?i=5476
+ [89] = https://curl.haxx.se/bug/?i=5519
+ [90] = https://curl.haxx.se/bug/?i=5477
+ [91] = https://curl.haxx.se/bug/?i=5518
+ [92] = https://curl.haxx.se/bug/?i=5546
+ [93] = https://curl.haxx.se/bug/?i=5516
+ [94] = https://curl.haxx.se/bug/?i=5513
+ [95] = https://curl.haxx.se/bug/?i=5532
+ [96] = https://curl.haxx.se/bug/?i=5540
+ [97] = https://curl.haxx.se/bug/?i=5533
+ [98] = https://curl.haxx.se/bug/?i=5541
+ [99] = https://curl.haxx.se/bug/?i=5539
+ [100] = https://curl.haxx.se/bug/?i=5538
+ [101] = https://curl.haxx.se/bug/?i=5537
+ [102] = https://curl.haxx.se/bug/?i=5535
+ [103] = https://curl.haxx.se/bug/?i=5534
+ [104] = https://curl.haxx.se/bug/?i=5490
+ [105] = https://curl.haxx.se/bug/?i=5530
+ [106] = https://curl.haxx.se/bug/?i=5529

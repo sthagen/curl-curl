@@ -158,6 +158,7 @@ CURLcode Curl_quic_connect(struct connectdata *conn, curl_socket_t sockfd,
   CURLcode result;
   struct quicsocket *qs = &conn->hequic[sockindex];
   struct Curl_easy *data = conn->data;
+  char *keylog_file = NULL;
 
 #ifdef DEBUG_QUICHE
   /* initialize debug log callback only once */
@@ -195,7 +196,9 @@ CURLcode Curl_quic_connect(struct connectdata *conn, curl_socket_t sockfd,
   if(result)
     return result;
 
-  if(getenv("SSLKEYLOGFILE"))
+  keylog_file = getenv("SSLKEYLOGFILE");
+
+  if(keylog_file)
     quiche_config_log_keys(qs->cfg);
 
   qs->conn = quiche_connect(conn->host.name, (const uint8_t *) qs->scid,
@@ -204,6 +207,9 @@ CURLcode Curl_quic_connect(struct connectdata *conn, curl_socket_t sockfd,
     failf(data, "can't create quiche connection");
     return CURLE_OUT_OF_MEMORY;
   }
+
+  if(keylog_file)
+    quiche_conn_set_keylog_path(qs->conn, keylog_file);
 
   /* Known to not work on Windows */
 #if !defined(WIN32) && defined(HAVE_QUICHE_CONN_SET_QLOG_FD)
@@ -234,8 +240,20 @@ CURLcode Curl_quic_connect(struct connectdata *conn, curl_socket_t sockfd,
   /* for connection reuse purposes: */
   conn->ssl[FIRSTSOCKET].state = ssl_connection_complete;
 
-  infof(data, "Sent QUIC client Initial, ALPN: %s\n",
-        QUICHE_H3_APPLICATION_PROTOCOL + 1);
+  {
+    unsigned char alpn_protocols[] = QUICHE_H3_APPLICATION_PROTOCOL;
+    unsigned alpn_len, offset = 0;
+
+    /* Replace each ALPN length prefix by a comma. */
+    while(offset < sizeof(alpn_protocols) - 1) {
+      alpn_len = alpn_protocols[offset];
+      alpn_protocols[offset] = ',';
+      offset += 1 + alpn_len;
+    }
+
+    infof(data, "Sent QUIC client Initial, ALPN: %s\n",
+          alpn_protocols + 1);
+  }
 
   return CURLE_OK;
 }
@@ -734,7 +752,7 @@ static CURLcode http_request(struct connectdata *conn, const void *mem,
     }
   }
 
-  switch(data->set.httpreq) {
+  switch(data->state.httpreq) {
   case HTTPREQ_POST:
   case HTTPREQ_POST_FORM:
   case HTTPREQ_POST_MIME:
