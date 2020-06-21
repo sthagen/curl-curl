@@ -981,8 +981,10 @@ struct connectdata {
   struct curltime connecttime;
   /* The two fields below get set in Curl_connecthost */
   int num_addr; /* number of addresses to try to connect to */
-  timediff_t timeoutms_per_addr; /* how long time in milliseconds to spend on
-                                    trying to connect to each IP address */
+
+  /* how long time in milliseconds to spend on trying to connect to each IP
+     address, per family */
+  timediff_t timeoutms_per_addr[2];
 
   const struct Curl_handler *handler; /* Connection's protocol handler */
   const struct Curl_handler *given;   /* The protocol first given */
@@ -1002,21 +1004,6 @@ struct connectdata {
   curl_socket_t writesockfd; /* socket to write to, it may very
                                 well be the same we read from.
                                 CURL_SOCKET_BAD disables */
-
-  /** Dynamically allocated strings, MUST be freed before this **/
-  /** struct is killed.                                      **/
-  struct dynamically_allocated_data {
-    char *proxyuserpwd;
-    char *uagent;
-    char *accept_encoding;
-    char *userpwd;
-    char *rangeline;
-    char *ref;
-    char *host;
-    char *cookiehost;
-    char *rtsp_transport;
-    char *te; /* TE: request header */
-  } allocptr;
 
 #ifdef HAVE_GSSAPI
   BIT(sec_complete); /* if Kerberos is enabled for this connection */
@@ -1260,7 +1247,8 @@ typedef enum {
   EXPIRE_100_TIMEOUT,
   EXPIRE_ASYNC_NAME,
   EXPIRE_CONNECTTIMEOUT,
-  EXPIRE_DNS_PER_NAME,
+  EXPIRE_DNS_PER_NAME, /* family1 */
+  EXPIRE_DNS_PER_NAME2, /* family2 */
   EXPIRE_HAPPY_EYEBALLS_DNS, /* See asyn-ares.c */
   EXPIRE_HAPPY_EYEBALLS,
   EXPIRE_MULTI_PENDING,
@@ -1396,6 +1384,22 @@ struct UrlState {
 #endif
   trailers_state trailers_state; /* whether we are sending trailers
                                        and what stage are we at */
+
+  /* Dynamically allocated strings, MUST be freed before this struct is
+     killed. */
+  struct dynamically_allocated_data {
+    char *proxyuserpwd;
+    char *uagent;
+    char *accept_encoding;
+    char *userpwd;
+    char *rangeline;
+    char *ref;
+    char *host;
+    char *cookiehost;
+    char *rtsp_transport;
+    char *te; /* TE: request header */
+  } aptr;
+
 #ifdef CURLDEBUG
   BIT(conncache_lock);
 #endif
