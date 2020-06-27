@@ -1,5 +1,3 @@
-#ifndef HEADER_CURL_ESCAPE_H
-#define HEADER_CURL_ESCAPE_H
 /***************************************************************************
  *                                  _   _ ____  _
  *  Project                     ___| | | |  _ \| |
@@ -7,7 +5,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2020, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) 2013 - 2020, Linus Nielsen Feltzing, <linus@haxx.se>
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -21,20 +19,29 @@
  * KIND, either express or implied.
  *
  ***************************************************************************/
-/* Escape and unescape URL encoding in strings. The functions return a new
- * allocated string or NULL if an error occurred.  */
+#include "test.h"
 
-bool Curl_isunreserved(unsigned char in);
+#include "testutil.h"
+#include "warnless.h"
+#include "memdebug.h"
 
-enum urlreject {
-  REJECT_NADA = 2,
-  REJECT_CTRL,
-  REJECT_ZERO
-};
+int test(char *URL)
+{
+  CURLcode ret = CURLE_OK;
+  CURL *hnd;
+  start_test_timing();
 
-CURLcode Curl_urldecode(struct Curl_easy *data,
-                        const char *string, size_t length,
-                        char **ostring, size_t *olen,
-                        enum urlreject ctrl);
+  curl_global_init(CURL_GLOBAL_ALL);
 
-#endif /* HEADER_CURL_ESCAPE_H */
+  hnd = curl_easy_init();
+  if(hnd) {
+    curl_easy_setopt(hnd, CURLOPT_URL, URL);
+    curl_easy_setopt(hnd, CURLOPT_NOPROGRESS, 1L);
+    curl_easy_setopt(hnd, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(hnd, CURLOPT_USERPWD, "user\nname:pass\nword");
+    ret = curl_easy_perform(hnd);
+    curl_easy_cleanup(hnd);
+  }
+  curl_global_cleanup();
+  return (int)ret;
+}

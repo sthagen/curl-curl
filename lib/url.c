@@ -1894,23 +1894,32 @@ static CURLcode parseurlandfillconn(struct Curl_easy *data,
   if(result)
     return result;
 
-  uc = curl_url_get(uh, CURLUPART_USER, &data->state.up.user,
-                    CURLU_URLDECODE);
+  /* we don't use the URL API's URL decoder option here since it rejects
+     control codes and we want to allow them for some schemes in the user and
+     password fields */
+  uc = curl_url_get(uh, CURLUPART_USER, &data->state.up.user, 0);
   if(!uc) {
-    conn->user = strdup(data->state.up.user);
-    if(!conn->user)
-      return CURLE_OUT_OF_MEMORY;
+    char *decoded;
+    result = Curl_urldecode(NULL, data->state.up.user, 0, &decoded, NULL,
+                            conn->handler->flags&PROTOPT_USERPWDCTRL ?
+                            REJECT_ZERO : REJECT_CTRL);
+    if(result)
+      return result;
+    conn->user = decoded;
     conn->bits.user_passwd = TRUE;
   }
   else if(uc != CURLUE_NO_USER)
     return Curl_uc_to_curlcode(uc);
 
-  uc = curl_url_get(uh, CURLUPART_PASSWORD, &data->state.up.password,
-                    CURLU_URLDECODE);
+  uc = curl_url_get(uh, CURLUPART_PASSWORD, &data->state.up.password, 0);
   if(!uc) {
-    conn->passwd = strdup(data->state.up.password);
-    if(!conn->passwd)
-      return CURLE_OUT_OF_MEMORY;
+    char *decoded;
+    result = Curl_urldecode(NULL, data->state.up.password, 0, &decoded, NULL,
+                            conn->handler->flags&PROTOPT_USERPWDCTRL ?
+                            REJECT_ZERO : REJECT_CTRL);
+    if(result)
+      return result;
+    conn->passwd = decoded;
     conn->bits.user_passwd = TRUE;
   }
   else if(uc != CURLUE_NO_PASSWORD)
@@ -2373,10 +2382,10 @@ static CURLcode parse_proxy_auth(struct Curl_easy *data,
 
   if(proxyuser)
     result = Curl_urldecode(data, proxyuser, 0, &conn->http_proxy.user, NULL,
-                            FALSE);
+                            REJECT_ZERO);
   if(!result && proxypasswd)
     result = Curl_urldecode(data, proxypasswd, 0, &conn->http_proxy.passwd,
-                            NULL, FALSE);
+                            NULL, REJECT_ZERO);
   return result;
 }
 
@@ -3980,6 +3989,11 @@ CURLcode Curl_connect(struct Curl_easy *data,
 CURLcode Curl_init_do(struct Curl_easy *data, struct connectdata *conn)
 {
   struct SingleRequest *k = &data->req;
+
+  /* if this is a pushed stream, we need this: */
+  CURLcode result = Curl_preconnect(data);
+  if(result)
+    return result;
 
   if(conn) {
     conn->bits.do_more = FALSE; /* by default there's no curl_do_more() to
