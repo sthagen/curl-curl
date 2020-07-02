@@ -1,10 +1,11 @@
-curl and libcurl 7.71.1
+curl and libcurl 7.71.2
 
  Public curl releases:         193
  Command line options:         232
  curl_easy_setopt() options:   277
  Public functions in libcurl:  82
- Contributors:                 2202
+ Contributors:                 2210
+
 
 This release includes the following changes:
 
@@ -12,7 +13,7 @@ This release includes the following changes:
 
 This release includes the following bugfixes:
 
- o DYNBUF.md: fix a typo: trail => tail [2]
+ o
 
 This release includes the following known bugs:
 
@@ -21,11 +22,9 @@ This release includes the following known bugs:
 This release would not have looked like this without help, code, reports and
 advice from friends like these:
 
-  Alexandre Pion, Daniel Stenberg, Denis Baručić,
-  (3 contributors)
 
         Thanks! (and sorry if I forgot to mention someone)
 
 References to bug reports and discussions on issues:
 
- [2] = https://curl.haxx.se/bug/?i=5599
+ [1] = https://curl.haxx.se/bug/?i=
