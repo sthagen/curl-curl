@@ -200,6 +200,16 @@ A short guide to how to write commit messages in the curl project.
     [whatever-else-by: credit all helpers, finders, doers]
     ---- stop ----
 
+The first line is a succinct description of the change:
+
+ - use the imperative, present tense: "change" not "changed" nor "changes"
+ - don't capitalize first letter
+ - no dot (.) at the end
+
+The `[area]` in the first line can be `http2`, `cookies`, `openssl` or
+similar. There's no fixed list to select from but using the same "area" as
+other related changes could make sense.
+
 Don't forget to use commit --author="" if you commit someone else's work, and
 make sure that you have your own user and email setup correctly in git before
 you commit
@@ -265,3 +275,6 @@ For Windows:
 
  - [https://gnuwin32.sourceforge.io/packages/patch.htm](https://gnuwin32.sourceforge.io/packages/patch.htm)
  - [https://gnuwin32.sourceforge.io/packages/diffutils.htm](https://gnuwin32.sourceforge.io/packages/diffutils.htm)
+
+### Useful resources
+* [Webinar on getting code into cURL](https://www.youtube.com/watch?v=QmZ3W1d6LQI)
