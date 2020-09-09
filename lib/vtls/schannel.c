@@ -346,6 +346,8 @@ set_ssl_ciphers(SCHANNEL_CRED *schannel_cred, char *ciphers)
 }
 
 #ifdef HAS_CLIENT_CERT_PATH
+
+/* Function allocates memory for store_path only if CURLE_OK is returned */
 static CURLcode
 get_cert_location(TCHAR *path, DWORD *store_name, TCHAR **store_path,
                   TCHAR **thumbprint)
@@ -388,15 +390,15 @@ get_cert_location(TCHAR *path, DWORD *store_name, TCHAR **store_path,
   if(sep == NULL)
     return CURLE_SSL_CERTPROBLEM;
 
+  *thumbprint = sep + 1;
+  if(_tcslen(*thumbprint) != CERT_THUMBPRINT_STR_LEN)
+    return CURLE_SSL_CERTPROBLEM;
+
   *sep = TEXT('\0');
   *store_path = _tcsdup(store_path_start);
   *sep = TEXT('\\');
   if(*store_path == NULL)
     return CURLE_OUT_OF_MEMORY;
-
-  *thumbprint = sep + 1;
-  if(_tcslen(*thumbprint) != CERT_THUMBPRINT_STR_LEN)
-    return CURLE_SSL_CERTPROBLEM;
 
   return CURLE_OK;
 }
@@ -418,7 +420,7 @@ schannel_connect_step1(struct connectdata *conn, int sockindex)
   SCHANNEL_CRED schannel_cred;
   PCCERT_CONTEXT client_certs[1] = { NULL };
   SECURITY_STATUS sspi_status = SEC_E_OK;
-  struct curl_schannel_cred *old_cred = NULL;
+  struct Curl_schannel_cred *old_cred = NULL;
   struct in_addr addr;
 #ifdef ENABLE_IPV6
   struct in6_addr addr6;
@@ -778,8 +780,8 @@ schannel_connect_step1(struct connectdata *conn, int sockindex)
 #endif
 
     /* allocate memory for the re-usable credential handle */
-    BACKEND->cred = (struct curl_schannel_cred *)
-      calloc(1, sizeof(struct curl_schannel_cred));
+    BACKEND->cred = (struct Curl_schannel_cred *)
+      calloc(1, sizeof(struct Curl_schannel_cred));
     if(!BACKEND->cred) {
       failf(data, "schannel: unable to allocate memory");
 
@@ -893,8 +895,8 @@ schannel_connect_step1(struct connectdata *conn, int sockindex)
     ISC_REQ_STREAM;
 
   /* allocate memory for the security context handle */
-  BACKEND->ctxt = (struct curl_schannel_ctxt *)
-    calloc(1, sizeof(struct curl_schannel_ctxt));
+  BACKEND->ctxt = (struct Curl_schannel_ctxt *)
+    calloc(1, sizeof(struct Curl_schannel_ctxt));
   if(!BACKEND->ctxt) {
     failf(data, "schannel: unable to allocate memory");
     return CURLE_OUT_OF_MEMORY;
@@ -1401,7 +1403,7 @@ schannel_connect_step3(struct connectdata *conn, int sockindex)
   /* save the current session data for possible re-use */
   if(SSL_SET_OPTION(primary.sessionid)) {
     bool incache;
-    struct curl_schannel_cred *old_cred = NULL;
+    struct Curl_schannel_cred *old_cred = NULL;
 
     Curl_ssl_sessionid_lock(conn);
     incache = !(Curl_ssl_getsessionid(conn, (void **)&old_cred, NULL,
@@ -1417,7 +1419,7 @@ schannel_connect_step3(struct connectdata *conn, int sockindex)
     }
     if(!incache) {
       result = Curl_ssl_addsessionid(conn, (void *)BACKEND->cred,
-                                     sizeof(struct curl_schannel_cred),
+                                     sizeof(struct Curl_schannel_cred),
                                      sockindex);
       if(result) {
         Curl_ssl_sessionid_unlock(conn);
@@ -2099,7 +2101,7 @@ static void Curl_schannel_close(struct connectdata *conn, int sockindex)
 static void Curl_schannel_session_free(void *ptr)
 {
   /* this is expected to be called under sessionid lock */
-  struct curl_schannel_cred *cred = ptr;
+  struct Curl_schannel_cred *cred = ptr;
 
   cred->refcount--;
   if(cred->refcount == 0) {

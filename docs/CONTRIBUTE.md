@@ -108,7 +108,7 @@ submit a small description of your fix or your new features with every
 contribution so that it can be swiftly added to the package documentation.
 
 The documentation is always made in man pages (nroff formatted) or plain
-ASCII files. All HTML files on the web site and in the release archives are
+ASCII files. All HTML files on the website and in the release archives are
 generated from the nroff/ASCII versions.
 
 ### Test Cases
@@ -171,6 +171,33 @@ If the pull-request fails one of these tests, it will show up as a red X and
 you are expected to fix the problem. If you don't understand when the issue is
 or have other problems to fix the complaint, just ask and other project
 members will likely be able to help out.
+
+Consider the following table while looking at pull request failures:
+
+ | CI platform as shown in PR          | State  | What to look at next       |
+ | ----------------------------------- | ------ | -------------------------- |
+ | CI / codeql                         | stable | quality check results      |
+ | CI / fuzzing                        | stable | fuzzing results            |
+ | CI / macos ...                      | stable | all errors and failures    |
+ | Code scanning results / CodeQL      | stable | quality check results      |
+ | FreeBSD FreeBSD: ...                | stable | all errors and failures    |
+ | LGTM analysis: Python               | stable | new findings               |
+ | LGTM analysis:  C/C++               | stable | new findings               |
+ | buildbot/curl_winssl_ ...           | stable | all errors and failures    |
+ | continuous-integration/appveyor/pr  | stable | all errors and failures    |
+ | continuous-integration/travis-ci/pr | stable | all errors and failures    |
+ | curl.curl (linux ...)               | stable | all errors and failures    |
+ | curl.curl (windows ...)             | flaky  | repetitive errors/failures |
+ | deepcode-ci-bot                     | stable | new findings               |
+ | musedev                             | stable | new findings               |
+
+Sometimes the tests fail due to a dependency service temporarily being offline
+or otherwise unavailable, eg. package downloads. In this case you can just
+try to update your pull requests to rerun the tests later as described below.
+
+You can update your pull requests by pushing new commits or force-pushing
+changes to existing commits. Force-pushing an amended commit without any
+actual content changed also allows you to retrigger the tests for that commit.
 
 When you adjust your pull requests after review, consider squashing the
 commits so that we can review the full updated version more easily.
