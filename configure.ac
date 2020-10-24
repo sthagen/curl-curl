@@ -49,9 +49,21 @@ CURL_CHECK_OPTION_CURLDEBUG
 CURL_CHECK_OPTION_SYMBOL_HIDING
 CURL_CHECK_OPTION_ARES
 CURL_CHECK_OPTION_RT
-CURL_CHECK_OPTION_ESNI
+CURL_CHECK_OPTION_ECH
 
 XC_CHECK_PATH_SEPARATOR
+
+pkgconfigdir='${libdir}/pkgconfig'
+AC_SUBST(pkgconfigdir)
+
+AX_COMPUTE_RELATIVE_PATHS(pkgconfigdir:prefix:pkgconf_to_prefix)
+AX_COMPUTE_RELATIVE_PATHS(pkgconfigdir:exec_prefix:pkgconf_to_exec_prefix)
+AX_COMPUTE_RELATIVE_PATHS(exec_prefix:libdir:exec_prefix_to_libdir)
+AX_COMPUTE_RELATIVE_PATHS(prefix:includedir:prefix_to_includedir)
+AC_SUBST(pkgconf_to_prefix)
+AC_SUBST(pkgconf_to_exec_prefix)
+AC_SUBST(exec_prefix_to_libdir)
+AC_SUBST(prefix_to_includedir)
 
 #
 # save the configure arguments
@@ -503,6 +515,7 @@ AC_HELP_STRING([--disable-proxy],[Disable proxy support]),
        AC_MSG_RESULT(no)
        AC_DEFINE(CURL_DISABLE_PROXY, 1, [to disable proxies])
        AC_SUBST(CURL_DISABLE_PROXY, [1])
+       https_proxy="no"
        ;;
   *)   AC_MSG_RESULT(yes)
        ;;
@@ -3049,7 +3062,8 @@ if test X"$OPT_LIBSSH2" != Xno; then
   CPPFLAGS="$CPPFLAGS $CPP_SSH2"
   LIBS="$LIB_SSH2 $LIBS"
 
-  AC_CHECK_LIB(ssh2, libssh2_channel_open_ex)
+  dnl check for function added in libssh2 version 1.0
+  AC_CHECK_LIB(ssh2, libssh2_session_block_directions)
 
   AC_CHECK_HEADERS(libssh2.h,
     curl_ssh_msg="enabled (libSSH2)"
@@ -3549,7 +3563,7 @@ case "$OPT_H2" in
     ;;
 esac
 
-curl_h2_msg="disabled (--with-nghttp2)"
+curl_h2_msg="no      (--with-nghttp2)"
 if test X"$want_h2" != Xno; then
   dnl backup the pre-nghttp2 variables
   CLEANLDFLAGS="$LDFLAGS"
@@ -3608,7 +3622,7 @@ dnl Check for ngtcp2 (QUIC)
 dnl **********************************************************************
 
 OPT_TCP2="yes"
-curl_h3_msg="disabled (--with-ngtcp2, --with-quiche)"
+curl_h3_msg="no      (--with-ngtcp2, --with-quiche)"
 
 if test "x$disable_http" = "xyes"; then
   # without HTTP, ngtcp2 is no use
@@ -3636,7 +3650,7 @@ case "$OPT_TCP2" in
     ;;
 esac
 
-curl_tcp2_msg="disabled (--with-ngtcp2)"
+curl_tcp2_msg="no      (--with-ngtcp2)"
 if test X"$want_tcp2" != Xno; then
   dnl backup the pre-ngtcp2 variables
   CLEANLDFLAGS="$LDFLAGS"
@@ -3835,7 +3849,7 @@ case "$OPT_NGHTTP3" in
     ;;
 esac
 
-curl_http3_msg="disabled (--with-nghttp3)"
+curl_http3_msg="no      (--with-nghttp3)"
 if test X"$want_nghttp3" != Xno; then
   dnl backup the pre-nghttp3 variables
   CLEANLDFLAGS="$LDFLAGS"
@@ -4873,32 +4887,32 @@ if test "$enable_altsvc" = "yes"; then
 fi
 
 dnl *************************************************************
-dnl check whether ESNI support, if desired, is actually available
+dnl check whether ECH support, if desired, is actually available
 dnl
-if test "x$want_esni" != "xno"; then
-  AC_MSG_CHECKING([whether ESNI support is available])
+if test "x$want_ech" != "xno"; then
+  AC_MSG_CHECKING([whether ECH support is available])
 
   dnl assume NOT and look for sufficient condition
-  ESNI_ENABLED=0
-  ESNI_SUPPORT=''
+  ECH_ENABLED=0
+  ECH_SUPPORT=''
 
-  dnl OpenSSL with a chosen ESNI function should be enough
+  dnl OpenSSL with a chosen ECH function should be enough
   dnl so more exhaustive checking seems unnecessary for now
   if test "x$OPENSSL_ENABLED" = "x1"; then
-    AC_CHECK_FUNCS(SSL_get_esni_status,
-      ESNI_SUPPORT="ESNI support available (OpenSSL with SSL_get_esni_status)"
-      ESNI_ENABLED=1)
+    AC_CHECK_FUNCS(SSL_get_ech_status,
+      ECH_SUPPORT="ECH support available (OpenSSL with SSL_get_ech_status)"
+      ECH_ENABLED=1)
 
   dnl add 'elif' chain here for additional implementations
   fi
 
   dnl now deal with whatever we found
-  if test "x$ESNI_ENABLED" = "x1"; then
-    AC_DEFINE(USE_ESNI, 1, [if ESNI support is available])
-    AC_MSG_RESULT($ESNI_SUPPORT)
-    experimental="$experimental ESNI"
+  if test "x$ECH_ENABLED" = "x1"; then
+    AC_DEFINE(USE_ECH, 1, [if ECH support is available])
+    AC_MSG_RESULT($ECH_SUPPORT)
+    experimental="$experimental ECH"
   else
-    AC_MSG_ERROR([--enable-esni ignored: No ESNI support found])
+    AC_MSG_ERROR([--enable-ech ignored: No ECH support found])
   fi
 fi
 
@@ -5029,13 +5043,16 @@ if test "x$CURL_WITH_MULTI_SSL" = "x1"; then
   SUPPORT_FEATURES="$SUPPORT_FEATURES MultiSSL"
 fi
 
-if test "x$OPENSSL_ENABLED" = "x1" -o "x$GNUTLS_ENABLED" = "x1" \
-    -o "x$NSS_ENABLED" = "x1"; then
-  SUPPORT_FEATURES="$SUPPORT_FEATURES HTTPS-proxy"
+dnl if not explictily turned off, HTTPS-proxy comes with some TLS backends
+if test "x$https_proxy" != "xno"; then
+  if test "x$OPENSSL_ENABLED" = "x1" -o "x$GNUTLS_ENABLED" = "x1" \
+      -o "x$NSS_ENABLED" = "x1"; then
+    SUPPORT_FEATURES="$SUPPORT_FEATURES HTTPS-proxy"
+  fi
 fi
 
-if test "x$ESNI_ENABLED" = "x1"; then
-  SUPPORT_FEATURES="$SUPPORT_FEATURES ESNI"
+if test "x$ECH_ENABLED" = "x1"; then
+  SUPPORT_FEATURES="$SUPPORT_FEATURES ECH"
 fi
 
 dnl replace spaces with newlines
@@ -5233,7 +5250,7 @@ AC_MSG_NOTICE([Configured to build curl/libcurl:
   Alt-svc:          ${curl_altsvc_msg}
   HTTP2:            ${curl_h2_msg}
   HTTP3:            ${curl_h3_msg}
-  ESNI:             ${curl_esni_msg}
+  ECH:              ${curl_ech_msg}
   Protocols:        ${SUPPORT_PROTOCOLS}
   Features:         ${SUPPORT_FEATURES}
 ])

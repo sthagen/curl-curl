@@ -320,8 +320,13 @@ static CURLcode pre_transfer(struct GlobalConfig *global,
     if(S_ISREG(fileinfo.st_mode))
       uploadfilesize = fileinfo.st_size;
 
-    if(uploadfilesize != -1)
+    if(uploadfilesize != -1) {
+      struct OperationConfig *config = per->config; /* for the macro below */
+#ifdef CURL_DISABLE_LIBCURL_OPTION
+      (void)config;
+#endif
       my_setopt(per->curl, CURLOPT_INFILESIZE_LARGE, uploadfilesize);
+    }
     per->input.fd = per->infd;
   }
   return result;
@@ -622,7 +627,7 @@ static CURLcode post_per_transfer(struct GlobalConfig *global,
     fputs("\n", per->progressbar.out);
 
   if(config->writeout)
-    ourWriteOut(per->curl, &per->outs, config->writeout);
+    ourWriteOut(per->curl, per, config->writeout);
 
   /* Close the outs file */
   if(outs->fopened && outs->stream) {
@@ -1853,12 +1858,7 @@ static CURLcode single_transfer(struct GlobalConfig *global,
           my_setopt(curl, CURLOPT_MAXFILESIZE_LARGE,
                     config->max_filesize);
 
-        if(4 == config->ip_version)
-          my_setopt(curl, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V4);
-        else if(6 == config->ip_version)
-          my_setopt(curl, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_V6);
-        else
-          my_setopt(curl, CURLOPT_IPRESOLVE, CURL_IPRESOLVE_WHATEVER);
+        my_setopt(curl, CURLOPT_IPRESOLVE, config->ip_version);
 
         /* new in curl 7.15.5 */
         if(config->ftp_ssl_reqd)

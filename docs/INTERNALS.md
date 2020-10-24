@@ -87,7 +87,7 @@ Dependencies
  - OpenSSL      0.9.7
  - GnuTLS       3.1.10
  - zlib         1.1.4
- - libssh2      0.16
+ - libssh2      1.0
  - c-ares       1.6.0
  - libidn2      2.0.0
  - wolfSSL      2.0.0
@@ -326,9 +326,9 @@ FTP
 Kerberos
 ========
 
- Kerberos support is mainly in `lib/krb5.c` and `lib/security.c` but also
- `curl_sasl_sspi.c` and `curl_sasl_gssapi.c` for the email protocols and
- `socks_gssapi.c` and `socks_sspi.c` for SOCKS5 proxy specifics.
+ Kerberos support is mainly in `lib/krb5.c` but also `curl_sasl_sspi.c` and
+ `curl_sasl_gssapi.c` for the email protocols and `socks_gssapi.c` and
+ `socks_sspi.c` for SOCKS5 proxy specifics.
 
 <a name="telnet"></a>
 TELNET
@@ -503,7 +503,7 @@ Client
  status and exits.
 
  When the operation is done, the `ourWriteOut()` function in `src/writeout.c`
- may be called to report about the operation. That function is using the
+ may be called to report about the operation. That function is mostly using the
  `curl_easy_getinfo()` function to extract useful information from the curl
  session.
 

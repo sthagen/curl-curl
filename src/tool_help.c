@@ -207,7 +207,7 @@ static const struct helptxt helptext[] = {
    CURLHELP_HTTP | CURLHELP_POST | CURLHELP_UPLOAD},
   {"    --delegation <LEVEL>",
    "GSS-API delegation permission",
-   CURLHELP_MISC},
+   CURLHELP_AUTH},
   {"    --digest",
    "Use HTTP Digest Authentication",
    CURLHELP_PROXY | CURLHELP_AUTH | CURLHELP_HTTP},
@@ -732,7 +732,7 @@ static const struct helptxt helptext[] = {
    CURLHELP_VERBOSE},
   {"    --suppress-connect-headers",
    "Suppress proxy CONNECT response headers",
-   CURLHELP_MISC},
+   CURLHELP_PROXY},
   {"    --tcp-fastopen",
    "Use TCP Fast Open",
    CURLHELP_CONNECTION},
@@ -830,10 +830,6 @@ static const struct helptxt helptext[] = {
 #  define PRINT_LINES_PAUSE 23
 #endif
 
-#ifdef __SYMBIAN32__
-#  define PRINT_LINES_PAUSE 16
-#endif
-
 struct feat {
   const char *name;
   int bitmask;
@@ -899,35 +895,31 @@ static void get_categories(void)
 }
 
 
-void tool_help(const char *category)
+void tool_help(char *category)
 {
   puts("Usage: curl [options...] <url>");
   /* If no category was provided */
   if(!category) {
     const char *category_note = "\nThis is not the full help, this "
-    "menu is stripped into categories.\nUse \"--help category\" to get "
-    "an overview of all categories.\nFor all options use the manual"
-    " or \"--help all\".";
+      "menu is stripped into categories.\nUse \"--help category\" to get "
+      "an overview of all categories.\nFor all options use the manual"
+      " or \"--help all\".";
     print_category(CURLHELP_IMPORTANT);
     puts(category_note);
-    return;
   }
   /* Lets print everything if "all" was provided */
-  if(curl_strequal(category, "all")) {
+  else if(curl_strequal(category, "all"))
     /* Print everything except hidden */
     print_category(~(CURLHELP_HIDDEN));
-    return;
-  }
   /* Lets handle the string "category" differently to not print an errormsg */
-  if(curl_strequal(category, "category")) {
+  else if(curl_strequal(category, "category"))
     get_categories();
-    return;
-  }
   /* Otherwise print category and handle the case if the cat was not found */
-  if(get_category_content(category)) {
+  else if(get_category_content(category)) {
     puts("Invalid category provided, here is a list of all categories:\n");
     get_categories();
   }
+  free(category);
 }
 
 static int

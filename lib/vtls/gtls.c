@@ -399,15 +399,8 @@ gtls_connect_step1(struct connectdata *conn,
 #endif
   const char *prioritylist;
   const char *err = NULL;
-#ifndef CURL_DISABLE_PROXY
-  const char * const hostname = SSL_IS_PROXY() ? conn->http_proxy.host.name :
-    conn->host.name;
-  long * const certverifyresult = SSL_IS_PROXY() ?
-    &data->set.proxy_ssl.certverifyresult : &data->set.ssl.certverifyresult;
-#else
-  const char * const hostname = conn->host.name;
-  long * const certverifyresult = &data->set.ssl.certverifyresult;
-#endif
+  const char * const hostname = SSL_HOST_NAME();
+  long * const certverifyresult = &SSL_SET_OPTION_LVALUE(certverifyresult);
 
   if(connssl->state == ssl_connection_complete)
     /* to make us tolerant against being called more than once for the
@@ -645,7 +638,7 @@ gtls_connect_step1(struct connectdata *conn,
     gnutls_alpn_set_protocols(session, protocols, cur, 0);
   }
 
-  if(SSL_SET_OPTION(cert)) {
+  if(SSL_SET_OPTION(primary.clientcert)) {
     if(SSL_SET_OPTION(key_passwd)) {
       const unsigned int supported_key_encryption_algorithms =
         GNUTLS_PKCS_USE_PKCS12_3DES | GNUTLS_PKCS_USE_PKCS12_ARCFOUR |
@@ -654,9 +647,9 @@ gtls_connect_step1(struct connectdata *conn,
         GNUTLS_PKCS_USE_PBES2_AES_256;
       rc = gnutls_certificate_set_x509_key_file2(
            backend->cred,
-           SSL_SET_OPTION(cert),
+           SSL_SET_OPTION(primary.clientcert),
            SSL_SET_OPTION(key) ?
-           SSL_SET_OPTION(key) : SSL_SET_OPTION(cert),
+           SSL_SET_OPTION(key) : SSL_SET_OPTION(primary.clientcert),
            do_file_type(SSL_SET_OPTION(cert_type)),
            SSL_SET_OPTION(key_passwd),
            supported_key_encryption_algorithms);
@@ -670,9 +663,9 @@ gtls_connect_step1(struct connectdata *conn,
     else {
       if(gnutls_certificate_set_x509_key_file(
            backend->cred,
-           SSL_SET_OPTION(cert),
+           SSL_SET_OPTION(primary.clientcert),
            SSL_SET_OPTION(key) ?
-           SSL_SET_OPTION(key) : SSL_SET_OPTION(cert),
+           SSL_SET_OPTION(key) : SSL_SET_OPTION(primary.clientcert),
            do_file_type(SSL_SET_OPTION(cert_type)) ) !=
          GNUTLS_E_SUCCESS) {
         failf(data, "error reading X.509 key or certificate file");
@@ -839,15 +832,8 @@ gtls_connect_step3(struct connectdata *conn,
   unsigned int bits;
   gnutls_protocol_t version = gnutls_protocol_get_version(session);
 #endif
-#ifndef CURL_DISABLE_PROXY
-  const char * const hostname = SSL_IS_PROXY() ? conn->http_proxy.host.name :
-    conn->host.name;
-  long * const certverifyresult = SSL_IS_PROXY() ?
-    &data->set.proxy_ssl.certverifyresult : &data->set.ssl.certverifyresult;
-#else
-  const char * const hostname = conn->host.name;
-  long * const certverifyresult = &data->set.ssl.certverifyresult;
-#endif
+  const char * const hostname = SSL_HOST_NAME();
+  long * const certverifyresult = &SSL_SET_OPTION_LVALUE(certverifyresult);
 
   /* the name of the cipher suite used, e.g. ECDHE_RSA_AES_256_GCM_SHA384. */
   ptr = gnutls_cipher_suite_get_name(gnutls_kx_get(session),
@@ -1128,22 +1114,15 @@ gtls_connect_step3(struct connectdata *conn,
   }
 #endif
   if(!rc) {
-#ifndef CURL_DISABLE_PROXY
-    const char * const dispname = SSL_IS_PROXY() ?
-      conn->http_proxy.host.dispname : conn->host.dispname;
-#else
-    const char * const dispname = conn->host.dispname;
-#endif
-
     if(SSL_CONN_CONFIG(verifyhost)) {
       failf(data, "SSL: certificate subject name (%s) does not match "
-            "target host name '%s'", certname, dispname);
+            "target host name '%s'", certname, SSL_HOST_DISPNAME());
       gnutls_x509_crt_deinit(x509_cert);
       return CURLE_PEER_FAILED_VERIFICATION;
     }
     else
       infof(data, "\t common name: %s (does not match '%s')\n",
-            certname, dispname);
+            certname, SSL_HOST_DISPNAME());
   }
   else
     infof(data, "\t common name: %s (matched)\n", certname);

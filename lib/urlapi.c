@@ -1255,8 +1255,7 @@ CURLUcode curl_url_set(CURLU *u, CURLUPart what,
       return CURLUE_UNKNOWN_PART;
     }
     if(storep && *storep) {
-      free(*storep);
-      *storep = NULL;
+      Curl_safefree(*storep);
     }
     return CURLUE_OK;
   }
@@ -1284,8 +1283,7 @@ CURLUcode curl_url_set(CURLU *u, CURLUPart what,
     break;
   case CURLUPART_HOST:
     storep = &u->host;
-    free(u->zoneid);
-    u->zoneid = NULL;
+    Curl_safefree(u->zoneid);
     break;
   case CURLUPART_ZONEID:
     storep = &u->zoneid;
@@ -1389,28 +1387,17 @@ CURLUcode curl_url_set(CURLU *u, CURLUPart what,
     if(urlencode) {
       const unsigned char *i;
       char *o;
-      bool free_part = FALSE;
       char *enc = malloc(nalloc * 3 + 1); /* for worst case! */
       if(!enc)
         return CURLUE_OUT_OF_MEMORY;
-      if(plusencode) {
-        /* space to plus */
-        i = (const unsigned char *)part;
-        for(o = enc; *i; ++o, ++i)
-          *o = (*i == ' ') ? '+' : *i;
-        *o = 0; /* null-terminate */
-        part = strdup(enc);
-        if(!part) {
-          free(enc);
-          return CURLUE_OUT_OF_MEMORY;
-        }
-        free_part = TRUE;
-      }
       for(i = (const unsigned char *)part, o = enc; *i; i++) {
-        if(Curl_isunreserved(*i) ||
-           ((*i == '/') && urlskipslash) ||
-           ((*i == '=') && equalsencode) ||
-           ((*i == '+') && plusencode)) {
+        if((*i == ' ') && plusencode) {
+          *o = '+';
+          o++;
+        }
+        else if(Curl_isunreserved(*i) ||
+                ((*i == '/') && urlskipslash) ||
+                ((*i == '=') && equalsencode)) {
           if((*i == '=') && equalsencode)
             /* only skip the first equals sign */
             equalsencode = FALSE;
@@ -1424,8 +1411,6 @@ CURLUcode curl_url_set(CURLU *u, CURLUPart what,
       }
       *o = 0; /* null-terminate */
       newp = enc;
-      if(free_part)
-        free((char *)part);
     }
     else {
       char *p;

@@ -47,8 +47,6 @@ include(CheckCCompilerFlag)
 
 project(CURL C)
 
-message(WARNING "the curl cmake build system is poorly maintained. Be aware")
-
 file(STRINGS ${CURL_SOURCE_DIR}/include/curl/curlver.h CURL_VERSION_H_CONTENTS REGEX "#define LIBCURL_VERSION( |_NUM )")
 string(REGEX MATCH "#define LIBCURL_VERSION \"[^\"]*"
   CURL_VERSION ${CURL_VERSION_H_CONTENTS})
@@ -1355,7 +1353,7 @@ endmacro()
 set(_items)
 _add_if("SSL"           SSL_ENABLED)
 _add_if("IPv6"          ENABLE_IPV6)
-_add_if("unix-sockets"  USE_UNIX_SOCKETS)
+_add_if("unixsockets"   USE_UNIX_SOCKETS)
 _add_if("libz"          HAVE_LIBZ)
 _add_if("brotli"        HAVE_BROTLI)
 _add_if("zstd"          HAVE_ZSTD)
@@ -1384,6 +1382,7 @@ _add_if("HTTP2"         USE_NGHTTP2)
 _add_if("HTTP3"         USE_NGTCP2 OR USE_QUICHE)
 _add_if("MultiSSL"      CURL_WITH_MULTI_SSL)
 _add_if("HTTPS-proxy"   SSL_ENABLED AND (USE_OPENSSL OR USE_GNUTLS OR USE_NSS))
+_add_if("unicode"       ENABLE_UNICODE)
 string(REPLACE ";" " " SUPPORT_FEATURES "${_items}")
 message(STATUS "Enabled features: ${SUPPORT_FEATURES}")
 

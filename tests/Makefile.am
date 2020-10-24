@@ -25,13 +25,12 @@ PDFPAGES = testcurl.pdf runtests.pdf
 MANDISTPAGES = runtests.1.dist testcurl.1.dist
 
 EXTRA_DIST = ftpserver.pl httpserver.pl secureserver.pl runtests.pl           \
- getpart.pm FILEFORMAT.md README stunnel.pem memanalyze.pl testcurl.pl        \
+ getpart.pm FILEFORMAT.md README.md stunnel.pem memanalyze.pl testcurl.pl     \
  valgrind.pm ftp.pm sshserver.pl sshhelp.pm pathhelp.pm testcurl.1 runtests.1 \
  serverhelp.pm tftpserver.pl rtspserver.pl directories.pm symbol-scan.pl      \
  CMakeLists.txt mem-include-scan.pl valgrind.supp extern-scan.pl              \
  manpage-scan.pl nroff-scan.pl http2-server.pl dictserver.py                  \
  negtelnetserver.py smbserver.py curl_test_data.py                            \
- objnames-test08.sh objnames-test10.sh objnames.inc                           \
  disable-scan.pl manpage-syntax.pl error-codes.pl badsymbols.pl               \
  azure.pm appveyor.pm version-scan.pl options-scan.pl
 

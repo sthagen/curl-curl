@@ -106,7 +106,6 @@ static long          init_flags;
 #  pragma warning(disable:4232) /* MSVC extension, dllimport identity */
 #endif
 
-#ifndef __SYMBIAN32__
 /*
  * If a memory-using function (like curl_getenv) is used before
  * curl_global_init() is called, we need to have these pointers set already.
@@ -118,17 +117,6 @@ curl_strdup_callback Curl_cstrdup = (curl_strdup_callback)system_strdup;
 curl_calloc_callback Curl_ccalloc = (curl_calloc_callback)calloc;
 #if defined(WIN32) && defined(UNICODE)
 curl_wcsdup_callback Curl_cwcsdup = (curl_wcsdup_callback)_wcsdup;
-#endif
-#else
-/*
- * Symbian OS doesn't support initialization to code in writable static data.
- * Initialization will occur in the curl_global_init() call.
- */
-curl_malloc_callback Curl_cmalloc;
-curl_free_callback Curl_cfree;
-curl_realloc_callback Curl_crealloc;
-curl_strdup_callback Curl_cstrdup;
-curl_calloc_callback Curl_ccalloc;
 #endif
 
 #if defined(_MSC_VER) && defined(_DLL) && !defined(__POCC__)
@@ -969,6 +957,7 @@ void curl_easy_reset(struct Curl_easy *data)
 
   data->progress.flags |= PGRS_HIDE;
   data->state.current_speed = -1; /* init to negative == impossible */
+  data->state.retrycount = 0;     /* reset the retry counter */
 
   /* zero out authentication data: */
   memset(&data->state.authhost, 0, sizeof(struct auth));
@@ -1078,9 +1067,10 @@ CURLcode curl_easy_pause(struct Curl_easy *data, int action)
      (KEEP_RECV_PAUSE|KEEP_SEND_PAUSE)) {
     Curl_expire(data, 0, EXPIRE_RUN_NOW); /* get this handle going again */
 
-    /* force a recv/send check of this connection, as the data might've been
-       read off the socket already */
-    data->conn->cselect_bits = CURL_CSELECT_IN | CURL_CSELECT_OUT;
+    if(!data->state.tempcount)
+      /* if not pausing again, force a recv/send check of this connection as
+         the data might've been read off the socket already */
+      data->conn->cselect_bits = CURL_CSELECT_IN | CURL_CSELECT_OUT;
     if(data->multi)
       Curl_update_timer(data->multi);
   }
