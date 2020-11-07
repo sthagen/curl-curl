@@ -9,7 +9,7 @@
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
- * are also available at https://curl.haxx.se/docs/copyright.html.
+ * are also available at https://curl.se/docs/copyright.html.
  *
  * You may opt to use, copy, modify, merge, publish, distribute and/or sell
  * copies of the Software, and permit persons to whom the Software is
@@ -410,8 +410,7 @@ static CURLcode CONNECT(struct connectdata *conn,
           return result;
 
         /* output debug if that is requested */
-        if(data->set.verbose)
-          Curl_debug(data, CURLINFO_HEADER_IN, linep, perline);
+        Curl_debug(data, CURLINFO_HEADER_IN, linep, perline);
 
         if(!data->set.suppress_connect_headers) {
           /* send the header to the callback */

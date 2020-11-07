@@ -10,7 +10,7 @@
 #
 # This software is licensed as described in the file COPYING, which
 # you should have received as part of this distribution. The terms
-# are also available at https://curl.haxx.se/docs/copyright.html.
+# are also available at https://curl.se/docs/copyright.html.
 #
 # You may opt to use, copy, modify, merge, publish, distribute and/or sell
 # copies of the Software, and permit persons to whom the Software is
@@ -43,6 +43,9 @@ my @skiplist=(
     '^projects/Windows/.*.tmpl$', # generated MSVC file
     '^projects/Windows/.*.vcxproj.filters$', # generated MSVC file
     '^m4/ax_compile_check_sizeof.m4$', # imported, leave be
+    '^m4/ax_compute_relative_paths.m4$', # imported, leave be
+    '^m4/ax_normalize_path.m4$', # imported, leave be
+    '^m4/ax_recursive_eval.m4$', # imported, leave be
     '^.mailmap', # git control file
     '\/readme',
     '^.github/', # github instruction files

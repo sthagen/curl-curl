@@ -9,7 +9,7 @@
 #
 # This software is licensed as described in the file COPYING, which
 # you should have received as part of this distribution. The terms
-# are also available at https://curl.haxx.se/docs/copyright.html.
+# are also available at https://curl.se/docs/copyright.html.
 #
 # You may opt to use, copy, modify, merge, publish, distribute and/or sell
 # copies of the Software, and permit persons to whom the Software is
@@ -2526,14 +2526,20 @@ AC_DEFUN([CURL_MAC_CFLAGS], [
   AC_MSG_RESULT([$tst_cflags]);
 
   if test "$tst_cflags" = "yes"; then
-    AC_MSG_CHECKING([for *version-min in CFLAGS])
+    AC_MSG_CHECKING([for *version-min set by user])
     min=""
-    if test -z "$(echo $CFLAGS | grep m.*os.*-version-min)"; then
+    if test -n "$IPHONEOS_DEPLOYMENT_TARGET"; then
+      var="IPHONEOS_DEPLOYMENT_TARGET"
+    elif test -n "$MACOSX_DEPLOYMENT_TARGET"; then
+      var="MACOSX_DEPLOYMENT_TARGET"
+    elif test -z "$(echo $CFLAGS $CC | grep m.*os.*-version-min)"; then
       min="-mmacosx-version-min=10.8"
       CFLAGS="$CFLAGS $min"
+    else
+      var="CFLAGS or CC"
     fi
     if test -z "$min"; then
-      AC_MSG_RESULT([set by user])
+      AC_MSG_RESULT([set by user in $var])
     else
       AC_MSG_RESULT([$min set])
     fi
