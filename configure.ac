@@ -53,18 +53,6 @@ CURL_CHECK_OPTION_ECH
 
 XC_CHECK_PATH_SEPARATOR
 
-pkgconfigdir='${libdir}/pkgconfig'
-AC_SUBST(pkgconfigdir)
-
-AX_COMPUTE_RELATIVE_PATHS(pkgconfigdir:prefix:pkgconf_to_prefix)
-AX_COMPUTE_RELATIVE_PATHS(pkgconfigdir:exec_prefix:pkgconf_to_exec_prefix)
-AX_COMPUTE_RELATIVE_PATHS(exec_prefix:libdir:exec_prefix_to_libdir)
-AX_COMPUTE_RELATIVE_PATHS(prefix:includedir:prefix_to_includedir)
-AC_SUBST(pkgconf_to_prefix)
-AC_SUBST(pkgconf_to_exec_prefix)
-AC_SUBST(exec_prefix_to_libdir)
-AC_SUBST(prefix_to_includedir)
-
 #
 # save the configure arguments
 #
@@ -875,14 +863,14 @@ then
   ])
 fi
 
-if test "$HAVE_GETHOSTBYNAME" != "1"
+if test "$HAVE_GETHOSTBYNAME" != "1" -o "${with_amissl+set}" = set
 then
   dnl This is for AmigaOS with bsdsocket.library - needs testing before -lnet
   AC_MSG_CHECKING([for gethostbyname for AmigaOS bsdsocket.library])
   AC_LINK_IFELSE([
     AC_LANG_PROGRAM([[
-#include <proto/bsdsocket.h>
-struct Library *SocketBase = NULL;
+  #include <proto/bsdsocket.h>
+  struct Library *SocketBase = NULL;
     ]],[[
       gethostbyname("www.dummysite.com");
     ]])
@@ -4515,6 +4503,8 @@ if test "$want_pthreads" != "no"; then
       if test "$USE_THREADS_POSIX" != "1"
       then
         CFLAGS="$CFLAGS -pthread"
+        # assign PTHREAD for pkg-config use
+        PTHREAD=" -pthread"
         AC_CHECK_LIB(pthread, pthread_create,
                      [USE_THREADS_POSIX=1],
                      [ CFLAGS="$save_CFLAGS"])
@@ -4945,7 +4935,7 @@ CURL_CONFIGURE_SYMBOL_HIDING
 dnl
 dnl All the library dependencies put into $LIB apply to libcurl only.
 dnl
-LIBCURL_LIBS=$LIBS
+LIBCURL_LIBS="$LIBS$PTHREAD"
 
 AC_SUBST(LIBCURL_LIBS)
 AC_SUBST(CURL_NETWORK_LIBS)

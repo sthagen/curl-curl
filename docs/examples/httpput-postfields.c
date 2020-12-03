@@ -20,7 +20,7 @@
  *
  ***************************************************************************/
 /* <DESC>
- * HTTP PUT with easy interface and read callback
+ * HTTP PUT using CURLOPT_POSTFIELDS
  * </DESC>
  */
 #include <stdio.h>
@@ -28,57 +28,31 @@
 #include <sys/stat.h>
 #include <curl/curl.h>
 
+static const char olivertwist[]=
+  "Among other public buildings in a certain town, which for many reasons "
+  "it will be prudent to refrain from mentioning, and to which I will assign "
+  "no fictitious name, there is one anciently common to most towns, great or "
+  "small: to wit, a workhouse; and in this workhouse was born; on a day and "
+  "date which I need not trouble myself to repeat, inasmuch as it can be of "
+  "no possible consequence to the reader, in this stage of the business at "
+  "all events; the item of mortality whose name is prefixed to the head of "
+  "this chapter.";
+
 /*
- * This example shows a HTTP PUT operation. PUTs a file given as a command
- * line argument to the URL also given on the command line.
- *
- * This example also uses its own read callback.
- *
- * Here's an article on how to setup a PUT handler for Apache:
- * http://www.apacheweek.com/features/put
+ * This example shows a HTTP PUT operation that sends a fixed buffer with
+ * CURLOPT_POSTFIELDS to the URL given as an argument.
  */
-
-static size_t read_callback(void *ptr, size_t size, size_t nmemb, void *stream)
-{
-  size_t retcode;
-  curl_off_t nread;
-
-  /* in real-world cases, this would probably get this data differently
-     as this fread() stuff is exactly what the library already would do
-     by default internally */
-  retcode = fread(ptr, size, nmemb, stream);
-
-  nread = (curl_off_t)retcode;
-
-  fprintf(stderr, "*** We read %" CURL_FORMAT_CURL_OFF_T
-          " bytes from file\n", nread);
-
-  return retcode;
-}
 
 int main(int argc, char **argv)
 {
   CURL *curl;
   CURLcode res;
-  FILE * hd_src;
-  struct stat file_info;
-
-  char *file;
   char *url;
 
-  if(argc < 3)
+  if(argc < 2)
     return 1;
 
-  file = argv[1];
-  url = argv[2];
-
-  /* get the file size of the local file */
-  stat(file, &file_info);
-
-  /* get a FILE * of the same file, could also be made with
-     fdopen() from the previous descriptor, but hey this is just
-     an example! */
-  hd_src = fopen(file, "rb");
+  url = argv[1];
 
   /* In windows, this will init the winsock stuff */
   curl_global_init(CURL_GLOBAL_ALL);
@@ -86,23 +60,27 @@ int main(int argc, char **argv)
   /* get a curl handle */
   curl = curl_easy_init();
   if(curl) {
-    /* we want to use our own read function */
-    curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_callback);
+    struct curl_slist *headers = NULL;
 
-    /* enable uploading (implies PUT over HTTP) */
-    curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+    /* default type with postfields is application/x-www-form-urlencoded,
+       change it if you want */
+    headers = curl_slist_append(headers, "Content-Type: literature/classic");
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
+    /* pass on content in request body. When CURLOPT_POSTFIELDSIZE isn't used,
+       curl does strlen to get the size. */
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, olivertwist);
+
+    /* override the POST implied by CURLOPT_POSTFIELDS
+     *
+     * Warning: CURLOPT_CUSTOMREQUEST is problematic, especially if you want
+     * to follow redirects. Be aware.
+     */
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
 
     /* specify target URL, and note that this URL should include a file
        name, not only a directory */
     curl_easy_setopt(curl, CURLOPT_URL, url);
-
-    /* now specify which file to upload */
-    curl_easy_setopt(curl, CURLOPT_READDATA, hd_src);
-
-    /* provide the size of the upload, we specicially typecast the value
-       to curl_off_t since we must be sure to use the correct data size */
-    curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE,
-                     (curl_off_t)file_info.st_size);
 
     /* Now run off and do what you've been told! */
     res = curl_easy_perform(curl);
@@ -113,8 +91,10 @@ int main(int argc, char **argv)
 
     /* always cleanup */
     curl_easy_cleanup(curl);
+
+    /* free headers */
+    curl_slist_free_all(headers);
   }
-  fclose(hd_src); /* close the local file */
 
   curl_global_cleanup();
   return 0;
