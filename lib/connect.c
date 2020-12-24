@@ -256,6 +256,9 @@ static CURLcode bindlocal(struct connectdata *conn,
   int portnum = data->set.localportrange;
   const char *dev = data->set.str[STRING_DEVICE];
   int error;
+#ifdef IP_BIND_ADDRESS_NO_PORT
+  int on = 1;
+#endif
 
   /*************************************************************
    * Select device to bind socket to
@@ -441,7 +444,9 @@ static CURLcode bindlocal(struct connectdata *conn,
       sizeof_sa = sizeof(struct sockaddr_in);
     }
   }
-
+#ifdef IP_BIND_ADDRESS_NO_PORT
+  setsockopt(sockfd, SOL_IP, IP_BIND_ADDRESS_NO_PORT, &on, sizeof(on));
+#endif
   for(;;) {
     if(bind(sockfd, sock, sizeof_sa) >= 0) {
       /* we succeeded to bind */
@@ -680,6 +685,7 @@ void Curl_conninfo_remote(struct connectdata *conn, curl_socket_t sockfd)
   struct Curl_sockaddr_storage ssrem;
   curl_socklen_t plen;
   plen = sizeof(struct Curl_sockaddr_storage);
+  memset(&ssrem, 0, sizeof(ssrem));
   if(getpeername(sockfd, (struct sockaddr*) &ssrem, &plen)) {
     int error = SOCKERRNO;
     failf(conn->data, "getpeername() failed with errno %d: %s",
@@ -1565,6 +1571,20 @@ CURLcode Curl_socket(struct connectdata *conn,
   if(conn->scope_id && (addr->family == AF_INET6)) {
     struct sockaddr_in6 * const sa6 = (void *)&addr->sa_addr;
     sa6->sin6_scope_id = conn->scope_id;
+  }
+#endif
+
+#if defined(__linux__) && defined(IP_RECVERR)
+  if(addr->socktype == SOCK_DGRAM) {
+    int one = 1;
+    switch(addr->family) {
+      case AF_INET:
+        setsockopt(*sockfd, SOL_IP, IP_RECVERR, &one, sizeof(one));
+        break;
+      case AF_INET6:
+        setsockopt(*sockfd, SOL_IPV6, IPV6_RECVERR, &one, sizeof(one));
+        break;
+    }
   }
 #endif
 

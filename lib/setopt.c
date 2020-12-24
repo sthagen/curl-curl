@@ -274,11 +274,13 @@ CURLcode Curl_vsetopt(struct Curl_easy *data, CURLoption option, va_list param)
      * Do not include the body part in the output data stream.
      */
     data->set.opt_no_body = (0 != va_arg(param, long)) ? TRUE : FALSE;
+#ifndef CURL_DISABLE_HTTP
     if(data->set.opt_no_body)
       /* in HTTP lingo, no body means using the HEAD request... */
       data->set.method = HTTPREQ_HEAD;
     else if(data->set.method == HTTPREQ_HEAD)
       data->set.method = HTTPREQ_GET;
+#endif
     break;
   case CURLOPT_FAILONERROR:
     /*
@@ -636,6 +638,20 @@ CURLcode Curl_vsetopt(struct Curl_easy *data, CURLoption option, va_list param)
     data->set.method = HTTPREQ_POST_FORM;
     data->set.opt_no_body = FALSE; /* this is implied */
     break;
+
+  case CURLOPT_AWS_SIGV4:
+    /*
+     * String that holds file type of the SSL certificate to use
+     */
+    result = Curl_setstropt(&data->set.str[STRING_AWS_SIGV4],
+                            va_arg(param, char *));
+    /*
+     * Basic been set by default it need to be unset here
+     */
+    if(data->set.str[STRING_AWS_SIGV4])
+      data->set.httpauth = CURLAUTH_AWS_SIGV4;
+    break;
+
 #endif   /* CURL_DISABLE_HTTP */
 
   case CURLOPT_MIMEPOST:
@@ -865,7 +881,7 @@ CURLcode Curl_vsetopt(struct Curl_easy *data, CURLoption option, va_list param)
       ;
     else
 #endif
-#ifndef USE_NGHTTP2
+#if !defined(USE_NGHTTP2) && !defined(USE_HYPER)
     if(arg >= CURL_HTTP_VERSION_2)
       return CURLE_UNSUPPORTED_PROTOCOL;
 #else

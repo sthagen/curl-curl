@@ -36,6 +36,7 @@ problems may have been fixed or changed somewhat since this was written!
  2.11 Schannel TLS 1.2 handshake bug in old Windows versions
  2.12 FTPS with Schannel times out file list operation
  2.13 curl with wolfSSL lacks support for renegotiation
+ 2.14 Secure Transport disabling hostname validation also disables SNI
 
  3. Email protocols
  3.1 IMAP SEARCH ALL truncated response
@@ -70,6 +71,7 @@ problems may have been fixed or changed somewhat since this was written!
  6.6 libcurl can fail to try alternatives with --proxy-any
  6.7 Don't clear digest for single realm
  6.8 RTSP authentication breaks without redirect support
+ 6.9 SHA-256 digest not supported in Windows SSPI builds
 
  7. FTP
  7.1 FTP without or slow 220 response
@@ -90,6 +92,7 @@ problems may have been fixed or changed somewhat since this was written!
  9. SFTP and SCP
  9.1 SFTP doesn't do CURLOPT_POSTQUOTE correct
  9.2 wolfssh: publickey auth doesn't work
+ 9.3 Remote recursive folder creation with SFTP
 
  10. SOCKS
  10.3 FTPS over SOCKS
@@ -320,6 +323,20 @@ problems may have been fixed or changed somewhat since this was written!
  renegotiation and client does not handle renegotiation.
 
  See https://github.com/curl/curl/issues/5839
+
+2.14 Secure Transport disabling hostname validation also disables SNI
+
+ SNI is the hostname that is sent by the TLS library to the server as part of
+ the TLS handshake. Secure Transport does not send SNI when hostname validation
+ is disabled. Servers that host multiple websites may not know which
+ certificate to serve without SNI or which backend server to connect to. The
+ server may serve the certificate of a default server or abort.
+
+ If a server aborts a handshake then curl shows error "SSL peer handshake
+ failed, the server most likely requires a client certificate to connect".
+ In this case the error may also have been caused by lack of SNI.
+
+ https://github.com/curl/curl/issues/6347
 
 3. Email protocols
 
@@ -558,6 +575,17 @@ problems may have been fixed or changed somewhat since this was written!
 
  See https://github.com/curl/curl/pull/4750
 
+6.9 SHA-256 digest not supported in Windows SSPI builds
+
+ Windows builds of curl that have SSPI enabled use the native Windows API calls
+ to create authentication strings. The call to InitializeSecurityContext fails
+ with SEC_E_QOP_NOT_SUPPORTED which causes curl to fail with CURLE_AUTH_ERROR.
+
+ Microsoft does not document supported digest algorithms and that SEC_E error
+ code is not a documented error for InitializeSecurityContext (digest).
+
+ https://github.com/curl/curl/issues/6302
+
 7. FTP
 
 7.1 FTP without or slow 220 response
@@ -686,6 +714,14 @@ problems may have been fixed or changed somewhat since this was written!
  yet, the necessary API for make this work is provided by wolfSSH.
 
  See https://github.com/curl/curl/issues/4820
+
+9.3 Remote recursive folder creation with SFTP
+
+ On this servers, the curl fails to create directories on the remote server
+ even when CURLOPT_FTP_CREATE_MISSING_DIRS option is set.
+
+ See https://github.com/curl/curl/issues/5204
+
 
 10. SOCKS
 

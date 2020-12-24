@@ -319,7 +319,7 @@ static CURLcode mqtt_publish(struct connectdata *conn)
 {
   CURLcode result;
   char *payload = conn->data->set.postfields;
-  size_t payloadlen = (size_t)conn->data->set.postfieldsize;
+  size_t payloadlen;
   char *topic = NULL;
   size_t topiclen;
   unsigned char *pkt = NULL;
@@ -327,6 +327,14 @@ static CURLcode mqtt_publish(struct connectdata *conn)
   size_t remaininglength;
   size_t encodelen;
   char encodedbytes[4];
+  curl_off_t postfieldsize = conn->data->set.postfieldsize;
+
+  if(!payload)
+    return CURLE_BAD_FUNCTION_ARGUMENT;
+  if(postfieldsize < 0)
+    payloadlen = strlen(payload);
+  else
+    payloadlen = (size_t)postfieldsize;
 
   result = mqtt_get_topic(conn, &topic, &topiclen);
   if(result)
@@ -553,7 +561,7 @@ static CURLcode mqtt_doing(struct connectdata *conn, bool *done)
   case MQTT_FIRST:
     /* Read the initial byte only */
     result = Curl_read(conn, sockfd, (char *)&mq->firstbyte, 1, &nread);
-    if(result)
+    if(!nread)
       break;
     Curl_debug(data, CURLINFO_HEADER_IN, (char *)&mq->firstbyte, 1);
     /* remember the first byte */
@@ -563,7 +571,7 @@ static CURLcode mqtt_doing(struct connectdata *conn, bool *done)
   case MQTT_REMAINING_LENGTH:
     do {
       result = Curl_read(conn, sockfd, (char *)&byte, 1, &nread);
-      if(result)
+      if(!nread)
         break;
       Curl_debug(data, CURLINFO_HEADER_IN, (char *)&byte, 1);
       pkt[mq->npacket++] = byte;

@@ -151,6 +151,7 @@ my $SMTP6PORT=$noport;   # SMTP IPv6 server port
 my $RTSPPORT=$noport;    # RTSP
 my $RTSP6PORT=$noport;   # RTSP IPv6 server port
 my $GOPHERPORT=$noport;  # Gopher
+my $GOPHERSPORT=$noport; # Gophers
 my $GOPHER6PORT=$noport; # Gopher IPv6 server port
 my $HTTPTLSPORT=$noport; # HTTP TLS (non-stunnel) server port
 my $HTTPTLS6PORT=$noport; # HTTP TLS (non-stunnel) IPv6 server port
@@ -257,11 +258,12 @@ my $has_threadedres;# set if built with threaded resolver
 my $has_psl;        # set if libcurl is built with PSL support
 my $has_altsvc;     # set if libcurl is built with alt-svc support
 my $has_hsts;       # set if libcurl is built with HSTS support
-my $has_ldpreload;  # set if curl is built for systems supporting LD_PRELOAD
-my $has_multissl;   # set if curl is build with MultiSSL support
-my $has_manual;     # set if curl is built with built-in manual
-my $has_win32;      # set if curl is built for Windows
-my $has_mingw;      # set if curl is built with MinGW (as opposed to MinGW-w64)
+my $has_ldpreload;  # set if built for systems supporting LD_PRELOAD
+my $has_multissl;   # set if build with MultiSSL support
+my $has_manual;     # set if built with built-in manual
+my $has_win32;      # set if built for Windows
+my $has_mingw;      # set if built with MinGW (as opposed to MinGW-w64)
+my $has_hyper = 0;  # set if built with Hyper
 
 # this version is decided by the particular nghttp2 library that is being used
 my $h2cver = "h2c";
@@ -416,7 +418,7 @@ delete $ENV{'CURL_CA_BUNDLE'} if($ENV{'CURL_CA_BUNDLE'});
 # possible servers.
 #
 sub init_serverpidfile_hash {
-  for my $proto (('ftp', 'http', 'imap', 'pop3', 'smtp', 'http/2')) {
+  for my $proto (('ftp', 'gopher', 'http', 'imap', 'pop3', 'smtp', 'http/2')) {
     for my $ssl (('', 's')) {
       for my $ipvnum ((4, 6)) {
         for my $idnum ((1, 2, 3)) {
@@ -429,7 +431,7 @@ sub init_serverpidfile_hash {
       }
     }
   }
-  for my $proto (('tftp', 'sftp', 'socks', 'ssh', 'rtsp', 'gopher', 'httptls',
+  for my $proto (('tftp', 'sftp', 'socks', 'ssh', 'rtsp', 'httptls',
                   'dict', 'smb', 'smbs', 'telnet', 'mqtt')) {
     for my $ipvnum ((4, 6)) {
       for my $idnum ((1, 2)) {
@@ -1600,10 +1602,9 @@ sub runhttpserver {
 # start the https stunnel based server
 #
 sub runhttpsserver {
-    my ($verbose, $ipv6, $proxy, $certfile) = @_;
-    my $proto = 'https';
-    my $ip = ($ipv6 && ($ipv6 =~ /6$/)) ? "$HOST6IP" : "$HOSTIP";
-    my $ipvnum = ($ipv6 && ($ipv6 =~ /6$/)) ? 6 : 4;
+    my ($verbose, $proto, $proxy, $certfile) = @_;
+    my $ip = $HOSTIP;
+    my $ipvnum = 4;
     my $idnum = 1;
     my $server;
     my $srvrname;
@@ -1647,7 +1648,10 @@ sub runhttpsserver {
     $flags .= "--ipv$ipvnum --proto $proto ";
     $flags .= "--certfile \"$certfile\" " if($certfile ne 'stunnel.pem');
     $flags .= "--stunnel \"$stunnel\" --srcdir \"$srcdir\" ";
-    if(!$proxy) {
+    if($proto eq "gophers") {
+        $flags .= "--connect $GOPHERPORT";
+    }
+    elsif(!$proxy) {
         $flags .= "--connect $HTTPPORT";
     }
     else {
@@ -2762,6 +2766,7 @@ sub compare {
 }
 
 sub setupfeatures {
+    $feature{"hyper"} = $has_hyper;
     $feature{"c-ares"} = $has_cares;
     $feature{"alt-svc"} = $has_altsvc;
     $feature{"HSTS"} = $has_hsts;
@@ -2821,6 +2826,7 @@ sub setupfeatures {
     $feature{"shuffle-dns"} = 1;
     $feature{"typecheck"} = 1;
     $feature{"verbose-strings"} = 1;
+    $feature{"wakeup"} = 1;
 
 }
 
@@ -2926,6 +2932,9 @@ sub checksystem {
            }
            if ($libcurl =~ /mesalink/i) {
                $has_mesalink=1;
+           }
+           if ($libcurl =~ /Hyper/i) {
+               $has_hyper=1;
            }
         }
         elsif($_ =~ /^Protocols: (.*)/i) {
@@ -3227,6 +3236,7 @@ sub subVariables {
     $$thing =~ s/${prefix}FTPPORT/$FTPPORT/g;
     $$thing =~ s/${prefix}GOPHER6PORT/$GOPHER6PORT/g;
     $$thing =~ s/${prefix}GOPHERPORT/$GOPHERPORT/g;
+    $$thing =~ s/${prefix}GOPHERSPORT/$GOPHERSPORT/g;
     $$thing =~ s/${prefix}HTTPTLS6PORT/$HTTPTLS6PORT/g;
     $$thing =~ s/${prefix}HTTPTLSPORT/$HTTPTLSPORT/g;
     $$thing =~ s/${prefix}HTTP6PORT/$HTTP6PORT/g;
@@ -3326,6 +3336,35 @@ sub subBase64 {
         $d =~ s/%([0-9A-Fa-f]{2})/chr(hex($1))/eg;
         my $all = $d x $n;
         $$thing =~ s/%%REPEAT%%/$all/;
+    }
+}
+
+my $prevupdate;
+sub subNewlines {
+    my ($thing) = @_;
+
+    # When curl is built with Hyper, it gets all response headers delivered as
+    # name/value pairs and curl "invents" the newlines when it saves the
+    # headers. Therefore, curl will always save headers with CRLF newlines
+    # when built to use Hyper. By making sure we deliver all tests using CRLF
+    # as well, all test comparisons will survive without knowing about this
+    # little quirk.
+
+    if(($$thing =~ /^HTTP\/(1.1|1.0|2) [1-5][^\x0d]*\z/) ||
+       (($$thing =~ /^[a-z0-9_-]+: [^\x0d]*\z/i) &&
+        # skip curl error messages
+        ($$thing !~ /^curl: \(\d+\) /))) {
+        # enforce CRLF newline
+        $$thing =~ s/\x0a/\x0d\x0a/;
+        $prevupdate = 1;
+    }
+    else {
+        if(($$thing =~ /^\n\z/) && $prevupdate) {
+            # if there's a blank link after a line we update, we hope it is
+            # the empty line following headers
+            $$thing =~ s/\x0a/\x0d\x0a/;
+        }
+        $prevupdate = 0;
     }
 }
 
@@ -3548,14 +3587,41 @@ sub singletest {
     my $otest = "log/test$testnum";
     open(D, ">$otest");
     my $diff;
+    my $show = 1;
     for my $s (@entiretest) {
         my $f = $s;
-        subVariables(\$s, "%");
-        subBase64(\$s);
-        if($f ne $s) {
+        if($s =~ /^ *%if (.*)/) {
+            my $cond = $1;
+            my $rev = 0;
+
+            if($cond =~ /^!(.*)/) {
+                $cond = $1;
+                $rev = 1;
+            }
+            $rev ^= $feature{$cond} ? 1 : 0;
+            $show = $rev;
+            next;
+        }
+        elsif($s =~ /^ *%else/) {
+            $show ^= 1;
+            next;
+        }
+        elsif($s =~ /^ *%endif/) {
+            $show = 1;
+            next;
+        }
+        if($show) {
+            subVariables(\$s, "%");
+            subBase64(\$s);
+            subNewlines(\$s) if($has_hyper);
+            if($f ne $s) {
+                $diff++;
+            }
+            print D $s;
+        }
+        else {
             $diff++;
         }
-        print D $s;
     }
     close(D);
 
@@ -4578,7 +4644,7 @@ sub startservers {
         $what =~ s/[^a-z0-9\/-]//g;
 
         my $certfile;
-        if($what =~ /^(ftp|http|imap|pop3|smtp)s((\d*)(-ipv6|-unix|))$/) {
+        if($what =~ /^(ftp|gopher|http|imap|pop3|smtp)s((\d*)(-ipv6|-unix|))$/) {
             $certfile = ($whatlist[1]) ? $whatlist[1] : 'stunnel.pem';
         }
 
@@ -4795,13 +4861,48 @@ sub startservers {
             }
             if(!$run{'https'}) {
                 ($pid, $pid2, $HTTPSPORT) =
-                    runhttpsserver($verbose, "", "", $certfile);
+                    runhttpsserver($verbose, "https", "", $certfile);
                 if($pid <= 0) {
                     return "failed starting HTTPS server (stunnel)";
                 }
                 logmsg sprintf("* pid https => %d %d\n", $pid, $pid2)
                     if($verbose);
                 $run{'https'}="$pid $pid2";
+            }
+        }
+        elsif($what eq "gophers") {
+            if(!$stunnel) {
+                # we can't run TLS tests without stunnel
+                return "no stunnel";
+            }
+            if($runcert{'gophers'} && ($runcert{'gophers'} ne $certfile)) {
+                # stop server when running and using a different cert
+                stopserver('gophers');
+            }
+            if($torture && $run{'gopher'} &&
+               !responsive_http_server("gopher", $verbose, 0, $GOPHERPORT)) {
+                stopserver('gopher');
+            }
+            if(!$run{'gopher'}) {
+                ($pid, $pid2, $GOPHERPORT) =
+                    runhttpserver("gopher", $verbose, 0);
+                if($pid <= 0) {
+                    return "failed starting GOPHER server";
+                }
+                printf ("* pid gopher => %d %d\n", $pid, $pid2) if($verbose);
+                print "GOPHERPORT => $GOPHERPORT\n" if($verbose);
+                $run{'gopher'}="$pid $pid2";
+            }
+            if(!$run{'gophers'}) {
+                ($pid, $pid2, $GOPHERSPORT) =
+                    runhttpsserver($verbose, "gophers", "", $certfile);
+                if($pid <= 0) {
+                    return "failed starting GOPHERS server (stunnel)";
+                }
+                logmsg sprintf("* pid gophers => %d %d\n", $pid, $pid2)
+                    if($verbose);
+                print "GOPHERSPORT => $GOPHERSPORT\n" if($verbose);
+                $run{'gophers'}="$pid $pid2";
             }
         }
         elsif($what eq "https-proxy") {
@@ -4824,7 +4925,7 @@ sub startservers {
 
             if(!$run{'https-proxy'}) {
                 ($pid, $pid2, $HTTPSPROXYPORT) =
-                    runhttpsserver($verbose, "", "proxy", $certfile);
+                    runhttpsserver($verbose, "https", "proxy", $certfile);
                 if($pid <= 0) {
                     return "failed starting HTTPS-proxy (stunnel)";
                 }

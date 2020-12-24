@@ -73,6 +73,7 @@
  5.3 Rearrange request header order
  5.4 Allow SAN names in HTTP/2 server push
  5.5 auth= in URLs
+ 5.6 alt-svc should fallback if alt-svc doesn't work
 
  6. TELNET
  6.1 ditch stdin
@@ -163,11 +164,13 @@
  18.21 retry on the redirected-to URL
  18.23 Set the modification date on an uploaded file
  18.24 Use multiple parallel transfers for a single download
+ 18.25 Prevent terminal injection when writing to terminal
 
  19. Build
  19.1 roffit
  19.2 Enable PIE and RELRO by default
  19.3 Don't use GNU libtool on OpenBSD
+ 19.4 Package curl for Windows in a signed installer
 
  20. Test suite
  20.1 SSL tunnel
@@ -604,6 +607,13 @@
 
  Additionally this should be implemented for proxy base URLs as well.
 
+5.6 alt-svc should fallback if alt-svc doesn't work
+
+ The alt-svc: header provides a set of alternative services for curl to use
+ instead of the original. If the first attempted one fails, it should try the
+ next etc and if all alterantives fail go back to the original.
+
+ See https://github.com/curl/curl/issues/4908
 
 6. TELNET
 
@@ -721,7 +731,7 @@ that doesn't exist on the server, just like --ftp-create-dirs.
  You can specify the private and public keys for SSH/SSL as file paths. Some
  programs want to avoid using files and instead just pass them as in-memory
  data blobs. There's probably a challenge to make this work across the
- plethory of different TLS and SSH backends that curl supports.
+ plethora of different TLS and SSH backends that curl supports.
  https://github.com/curl/curl/issues/2310
 
 13.4 Cache/share OpenSSL contexts
@@ -799,7 +809,7 @@ that doesn't exist on the server, just like --ftp-create-dirs.
  certificates when comparing the pinned keys. Therefore it is not compatible
  with "HTTP Public Key Pinning" as there also intermediate and root
  certificates can be pinned. This is very useful as it prevents webadmins from
- "locking themself out of their servers".
+ "locking themselves out of their servers".
 
  Adding this feature would make curls pinning 100% compatible to HPKP and
  allow more flexible pinning.
@@ -824,7 +834,7 @@ that doesn't exist on the server, just like --ftp-create-dirs.
 13.14 Support the clienthello extension
 
  Certain stupid networks and middle boxes have a problem with SSL handshake
- pakets that are within a certain size range because how that sets some bits
+ packets that are within a certain size range because how that sets some bits
  that previously (in older TLS version) were not set. The clienthello
  extension adds padding to avoid that size range.
 
@@ -1054,7 +1064,7 @@ that doesn't exist on the server, just like --ftp-create-dirs.
 
  Consider a command line option that can make curl do multiple serial requests
  slow, potentially with a (random) wait between transfers. There's also a
- propsed set of standard HTTP headers to let servers let the client adapt to
+ proposed set of standard HTTP headers to let servers let the client adapt to
  its rate limits:
  https://www.ietf.org/id/draft-polli-ratelimit-headers-02.html
 
@@ -1143,7 +1153,7 @@ that doesn't exist on the server, just like --ftp-create-dirs.
 
 18.23 Set the modification date on an uploaded file
 
- For SFTP and posssibly FTP, curl could offer an option to set the
+ For SFTP and possibly FTP, curl could offer an option to set the
  modification time for the uploaded file.
 
  See https://github.com/curl/curl/issues/5768
@@ -1168,6 +1178,15 @@ that doesn't exist on the server, just like --ftp-create-dirs.
  defaults.
 
  See https://github.com/curl/curl/issues/5774
+
+18.25 Prevent terminal injection when writing to terminal
+
+ curl could offer an option to make escape sequence either non-functional or
+ avoid cursor moves or similar to reduce the risk of a user getting tricked by
+ clever tricks.
+
+ See https://github.com/curl/curl/issues/6150
+
 
 19. Build
 
@@ -1197,6 +1216,10 @@ that doesn't exist on the server, just like --ftp-create-dirs.
  OpenBSD libtool instead.
 
  See https://github.com/curl/curl/issues/5862
+
+19.4 Package curl for Windows in a signed installer
+
+ See https://github.com/curl/curl/issues/5424
 
 20. Test suite
 
