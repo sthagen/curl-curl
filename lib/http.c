@@ -871,13 +871,17 @@ Curl_http_output_auth(struct Curl_easy *data,
 #else
 /* when disabled */
 CURLcode
-Curl_http_output_auth(struct connectdata *conn,
+Curl_http_output_auth(struct Curl_easy *data,
+                      struct connectdata *conn,
                       const char *request,
+                      Curl_HttpReq httpreq,
                       const char *path,
                       bool proxytunnel)
 {
+  (void)data;
   (void)conn;
   (void)request;
+  (void)httpreq;
   (void)path;
   (void)proxytunnel;
   return CURLE_OK;
@@ -1960,10 +1964,10 @@ CURLcode Curl_add_timecondition(struct Curl_easy *data,
 }
 #else
 /* disabled */
-CURLcode Curl_add_timecondition(const struct connectdata *conn,
+CURLcode Curl_add_timecondition(struct Curl_easy *data,
                                 struct dynbuf *req)
 {
-  (void)conn;
+  (void)data;
   (void)req;
   return CURLE_OK;
 }
