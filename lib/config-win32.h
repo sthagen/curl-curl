@@ -247,7 +247,9 @@
 #define HAVE_SOCKET 1
 
 /* Define if you have the strcasecmp function. */
-/* #define HAVE_STRCASECMP 1 */
+#ifdef __MINGW32__
+#define HAVE_STRCASECMP 1
+#endif
 
 /* Define if you have the strdup function. */
 #define HAVE_STRDUP 1
@@ -257,9 +259,6 @@
 
 /* Define if you have the stricmp function. */
 #define HAVE_STRICMP 1
-
-/* Define if you have the strncasecmp function. */
-/* #define HAVE_STRNCASECMP 1 */
 
 /* Define if you have the strnicmp function. */
 #define HAVE_STRNICMP 1
@@ -272,12 +271,6 @@
     (defined(_MSC_VER) && (_MSC_VER >= 1800))
 #define HAVE_STRTOLL 1
 #endif
-
-/* Define if you have the tcgetattr function. */
-/* #define HAVE_TCGETATTR 1 */
-
-/* Define if you have the tcsetattr function. */
-/* #define HAVE_TCSETATTR 1 */
 
 /* Define if you have the utime function. */
 #ifndef __BORLANDC__
