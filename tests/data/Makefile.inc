@@ -60,7 +60,7 @@ test325 test326 test327 test328 test329 test330 test331 test332 test333 \
 test334 test335 test336 test337 test338 test339 test340 test341 test342 \
 test343 test344 test345 test346 test347 test348 test349 test350 test351 \
 test352 test353 test354 test355 test356 test357 test358 test359 test360 \
-test361 test362 \
+test361 test362 test363 \
 \
 test393 test394 test395 test396 test397 \
 \
@@ -90,7 +90,7 @@ test635 test636 test637 test638 test639 test640 test641 test642 \
 test643 test644 test645 test646 test647 test648 test649 test650 test651 \
 test652 test653 test654 test655 test656 test658 test659 test660 test661 \
 test662 test663 test664 test665 test666 test667 test668 test669 \
-test670 test671 test672 test673 test674 test675 test676 \
+test670 test671 test672 test673 test674 test675 test676         test678 \
 \
 test700 test701 test702 test703 test704 test705 test706 test707 test708 \
 test709 test710 test711 test712 test713 test714 test715 test716 test717 \
