@@ -136,6 +136,7 @@ const struct Curl_handler Curl_handler_smtp = {
   smtp_disconnect,                  /* disconnect */
   ZERO_NULL,                        /* readwrite */
   ZERO_NULL,                        /* connection_check */
+  ZERO_NULL,                        /* attach connection */
   PORT_SMTP,                        /* defport */
   CURLPROTO_SMTP,                   /* protocol */
   CURLPROTO_SMTP,                   /* family */
@@ -164,6 +165,7 @@ const struct Curl_handler Curl_handler_smtps = {
   smtp_disconnect,                  /* disconnect */
   ZERO_NULL,                        /* readwrite */
   ZERO_NULL,                        /* connection_check */
+  ZERO_NULL,                        /* attach connection */
   PORT_SMTPS,                       /* defport */
   CURLPROTO_SMTPS,                  /* protocol */
   CURLPROTO_SMTP,                   /* family */
@@ -894,7 +896,7 @@ static CURLcode smtp_state_ehlo_resp(struct Curl_easy *data,
       for(;;) {
         size_t llen;
         size_t wordlen;
-        unsigned int mechbit;
+        unsigned short mechbit;
 
         while(len &&
               (*line == ' ' || *line == '\t' ||

@@ -131,6 +131,7 @@ const struct Curl_handler Curl_handler_pop3 = {
   pop3_disconnect,                  /* disconnect */
   ZERO_NULL,                        /* readwrite */
   ZERO_NULL,                        /* connection_check */
+  ZERO_NULL,                        /* attach connection */
   PORT_POP3,                        /* defport */
   CURLPROTO_POP3,                   /* protocol */
   CURLPROTO_POP3,                   /* family */
@@ -159,6 +160,7 @@ const struct Curl_handler Curl_handler_pop3s = {
   pop3_disconnect,                  /* disconnect */
   ZERO_NULL,                        /* readwrite */
   ZERO_NULL,                        /* connection_check */
+  ZERO_NULL,                        /* attach connection */
   PORT_POP3S,                       /* defport */
   CURLPROTO_POP3S,                  /* protocol */
   CURLPROTO_POP3,                   /* family */
@@ -709,7 +711,7 @@ static CURLcode pop3_state_capa_resp(struct Curl_easy *data, int pop3code,
       for(;;) {
         size_t llen;
         size_t wordlen;
-        unsigned int mechbit;
+        unsigned short mechbit;
 
         while(len &&
               (*line == ' ' || *line == '\t' ||
