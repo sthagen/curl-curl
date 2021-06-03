@@ -92,7 +92,6 @@ bool curl_win32_idn_to_ascii(const char *in, char **out);
 #include "speedcheck.h"
 #include "warnless.h"
 #include "non-ascii.h"
-#include "inet_pton.h"
 #include "getinfo.h"
 #include "urlapi-int.h"
 #include "system_win32.h"
@@ -1169,6 +1168,12 @@ ConnectionExists(struct Curl_easy *data,
       if(extract_if_dead(check, data)) {
         /* disconnect it */
         (void)Curl_disconnect(data, check, TRUE);
+        continue;
+      }
+
+      if(data->set.ipver != CURL_IPRESOLVE_WHATEVER
+          && data->set.ipver != check->ip_version) {
+        /* skip because the connection is not via the requested IP version */
         continue;
       }
 
