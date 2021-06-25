@@ -62,6 +62,14 @@
 #ifdef USE_LIBIDN2
 #include <idn2.h>
 
+#if defined(WIN32) && defined(UNICODE)
+#define IDN2_LOOKUP(name, host, flags) \
+  idn2_lookup_u8((const uint8_t *)name, (uint8_t **)host, flags)
+#else
+#define IDN2_LOOKUP(name, host, flags) \
+  idn2_lookup_ul((const char *)name, (char **)host, flags)
+#endif
+
 #elif defined(USE_WIN32_IDN)
 /* prototype for curl_win32_idn_to_ascii() */
 bool curl_win32_idn_to_ascii(const char *in, char **out);
@@ -726,6 +734,15 @@ static void conn_shutdown(struct Curl_easy *data, struct connectdata *conn)
   DEBUGASSERT(conn);
   DEBUGASSERT(data);
   infof(data, "Closing connection %ld\n", conn->connection_id);
+
+#ifndef USE_HYPER
+  if(conn->connect_state && conn->connect_state->prot_save) {
+    /* If this was closed with a CONNECT in progress, cleanup this temporary
+       struct arrangement */
+    data->req.p.http = NULL;
+    Curl_safefree(conn->connect_state->prot_save);
+  }
+#endif
 
   /* possible left-overs from the async name resolvers */
   Curl_resolver_cancel(data);
@@ -1576,12 +1593,12 @@ CURLcode Curl_idnconvert_hostname(struct Curl_easy *data,
 #else
       int flags = IDN2_NFC_INPUT;
 #endif
-      int rc = idn2_lookup_ul((const char *)host->name, &ace_hostname, flags);
+      int rc = IDN2_LOOKUP(host->name, &ace_hostname, flags);
       if(rc != IDN2_OK)
         /* fallback to TR46 Transitional mode for better IDNA2003
            compatibility */
-        rc = idn2_lookup_ul((const char *)host->name, &ace_hostname,
-                            IDN2_TRANSITIONAL);
+        rc = IDN2_LOOKUP(host->name, &ace_hostname,
+                         IDN2_TRANSITIONAL);
       if(rc == IDN2_OK) {
         host->encalloc = (char *)ace_hostname;
         /* change the name pointer to point to the encoded hostname */
@@ -3060,8 +3077,6 @@ static CURLcode parse_connect_to_host_port(struct Curl_easy *data,
       if((endp && *endp) || (portparse < 0) || (portparse > 65535)) {
         failf(data, "No valid port number in connect to host string (%s)",
               host_portno);
-        hostptr = NULL;
-        port = -1;
         result = CURLE_SETOPT_OPTION_SYNTAX;
         goto error;
       }
@@ -3359,9 +3374,12 @@ static CURLcode resolve_server(struct Curl_easy *data,
       if(rc == CURLRESOLV_PENDING)
         *async = TRUE;
 
-      else if(rc == CURLRESOLV_TIMEDOUT)
+      else if(rc == CURLRESOLV_TIMEDOUT) {
+        failf(data, "Failed to resolve host '%s' with timeout after %ld ms",
+              connhost->dispname,
+              Curl_timediff(Curl_now(), data->progress.t_startsingle));
         result = CURLE_OPERATION_TIMEDOUT;
-
+      }
       else if(!hostaddr) {
         failf(data, "Could not resolve host: %s", connhost->dispname);
         result = CURLE_COULDNT_RESOLVE_HOST;

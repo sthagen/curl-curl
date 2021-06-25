@@ -326,7 +326,7 @@ Curl_ssl_connect(struct Curl_easy *data, struct connectdata *conn,
 
 CURLcode
 Curl_ssl_connect_nonblocking(struct Curl_easy *data, struct connectdata *conn,
-                             int sockindex, bool *done)
+                             bool isproxy, int sockindex, bool *done)
 {
   CURLcode result;
 
@@ -345,7 +345,7 @@ Curl_ssl_connect_nonblocking(struct Curl_easy *data, struct connectdata *conn,
   result = Curl_ssl->connect_nonblocking(data, conn, sockindex, done);
   if(result)
     conn->ssl[sockindex].use = FALSE;
-  else if(*done)
+  else if(*done && !isproxy)
     Curl_pgrsTime(data, TIMER_APPCONNECT); /* SSL is connected */
   return result;
 }
@@ -444,6 +444,10 @@ bool Curl_ssl_getsessionid(struct Curl_easy *data,
     }
   }
 
+  DEBUGF(infof(data, "%s Session ID in cache for %s %s://%s:%d\n",
+               no_match? "Didn't find": "Found",
+               isProxy ? "proxy" : "host",
+               conn->handler->scheme, name, port));
   return no_match;
 }
 
@@ -493,7 +497,7 @@ void Curl_ssl_delsessionid(struct Curl_easy *data, void *ssl_sessionid)
  */
 CURLcode Curl_ssl_addsessionid(struct Curl_easy *data,
                                struct connectdata *conn,
-                               bool isProxy,
+                               const bool isProxy,
                                void *ssl_sessionid,
                                size_t idsize,
                                int sockindex)
@@ -589,6 +593,9 @@ CURLcode Curl_ssl_addsessionid(struct Curl_easy *data,
     return CURLE_OUT_OF_MEMORY;
   }
 
+  DEBUGF(infof(data, "Added Session ID to cache for %s://%s:%d [%s]\n",
+               store->scheme, store->name, store->remote_port,
+               isProxy ? "PROXY" : "server"));
   return CURLE_OK;
 }
 

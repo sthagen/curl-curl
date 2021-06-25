@@ -372,28 +372,29 @@ if(CMAKE_USE_DARWINSSL)
   message(FATAL_ERROR "The cmake option CMAKE_USE_DARWINSSL was renamed to CMAKE_USE_SECTRANSP.")
 endif()
 
-if(CMAKE_USE_SECTRANSP)
+if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   find_library(COREFOUNDATION_FRAMEWORK "CoreFoundation")
   if(NOT COREFOUNDATION_FRAMEWORK)
       message(FATAL_ERROR "CoreFoundation framework not found")
   endif()
 
-  find_library(SECURITY_FRAMEWORK "Security")
-  if(NOT SECURITY_FRAMEWORK)
-     message(FATAL_ERROR "Security framework not found")
-  endif()
-
-  set(SSL_ENABLED ON)
-  set(USE_SECTRANSP ON)
-  list(APPEND CURL_LIBS "-framework CoreFoundation" "-framework Security")
-endif()
-
-if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   find_library(SYSTEMCONFIGURATION_FRAMEWORK "SystemConfiguration")
   if(NOT SYSTEMCONFIGURATION_FRAMEWORK)
      message(FATAL_ERROR "SystemConfiguration framework not found")
   endif()
-  list(APPEND CURL_LIBS "-framework SystemConfiguration")
+
+  list(APPEND CURL_LIBS "-framework CoreFoundation" "-framework SystemConfiguration")
+
+  if(CMAKE_USE_SECTRANSP)
+    find_library(SECURITY_FRAMEWORK "Security")
+    if(NOT SECURITY_FRAMEWORK)
+       message(FATAL_ERROR "Security framework not found")
+    endif()
+
+    set(SSL_ENABLED ON)
+    set(USE_SECTRANSP ON)
+    list(APPEND CURL_LIBS "-framework Security")
+  endif()
 endif()
 
 if(CMAKE_USE_OPENSSL)
@@ -806,7 +807,11 @@ endif()
 option(ENABLE_UNIX_SOCKETS "Define if you want Unix domain sockets support" ON)
 if(ENABLE_UNIX_SOCKETS)
   include(CheckStructHasMember)
-  check_struct_has_member("struct sockaddr_un" sun_path "sys/un.h" USE_UNIX_SOCKETS)
+  if(WIN32)
+    set(USE_UNIX_SOCKETS ON)
+  else()
+    check_struct_has_member("struct sockaddr_un" sun_path "sys/un.h" USE_UNIX_SOCKETS)
+  endif()
 else()
   unset(USE_UNIX_SOCKETS CACHE)
 endif()
@@ -917,8 +922,6 @@ check_include_file_concat("alloca.h"         HAVE_ALLOCA_H)
 check_include_file_concat("arpa/inet.h"      HAVE_ARPA_INET_H)
 check_include_file_concat("arpa/tftp.h"      HAVE_ARPA_TFTP_H)
 check_include_file_concat("assert.h"         HAVE_ASSERT_H)
-check_include_file_concat("crypto.h"         HAVE_CRYPTO_H)
-check_include_file_concat("err.h"            HAVE_ERR_H)
 check_include_file_concat("errno.h"          HAVE_ERRNO_H)
 check_include_file_concat("fcntl.h"          HAVE_FCNTL_H)
 check_include_file_concat("idn2.h"           HAVE_IDN2_H)
@@ -936,9 +939,7 @@ check_include_file("linux/tcp.h"      HAVE_LINUX_TCP_H)
 check_include_file_concat("pem.h"            HAVE_PEM_H)
 check_include_file_concat("poll.h"           HAVE_POLL_H)
 check_include_file_concat("pwd.h"            HAVE_PWD_H)
-check_include_file_concat("rsa.h"            HAVE_RSA_H)
 check_include_file_concat("setjmp.h"         HAVE_SETJMP_H)
-check_include_file_concat("sgtty.h"          HAVE_SGTTY_H)
 check_include_file_concat("signal.h"         HAVE_SIGNAL_H)
 check_include_file_concat("ssl.h"            HAVE_SSL_H)
 check_include_file_concat("stdbool.h"        HAVE_STDBOOL_H)
@@ -1019,12 +1020,8 @@ endif()
 check_symbol_exists(getppid       "${CURL_INCLUDES}" HAVE_GETPPID)
 check_symbol_exists(utimes        "${CURL_INCLUDES}" HAVE_UTIMES)
 
-check_symbol_exists(gethostbyaddr "${CURL_INCLUDES}" HAVE_GETHOSTBYADDR)
-check_symbol_exists(gethostbyaddr_r "${CURL_INCLUDES}" HAVE_GETHOSTBYADDR_R)
 check_symbol_exists(gettimeofday  "${CURL_INCLUDES}" HAVE_GETTIMEOFDAY)
 check_symbol_exists(inet_addr     "${CURL_INCLUDES}" HAVE_INET_ADDR)
-check_symbol_exists(inet_ntoa     "${CURL_INCLUDES}" HAVE_INET_NTOA)
-check_symbol_exists(inet_ntoa_r   "${CURL_INCLUDES}" HAVE_INET_NTOA_R)
 check_symbol_exists(closesocket   "${CURL_INCLUDES}" HAVE_CLOSESOCKET)
 check_symbol_exists(sigsetjmp     "${CURL_INCLUDES}" HAVE_SIGSETJMP)
 check_symbol_exists(getpass_r     "${CURL_INCLUDES}" HAVE_GETPASS_R)
@@ -1049,11 +1046,8 @@ check_symbol_exists(strtoll        "${CURL_INCLUDES}" HAVE_STRTOLL)
 check_symbol_exists(_strtoi64      "${CURL_INCLUDES}" HAVE__STRTOI64)
 check_symbol_exists(strerror_r     "${CURL_INCLUDES}" HAVE_STRERROR_R)
 check_symbol_exists(siginterrupt   "${CURL_INCLUDES}" HAVE_SIGINTERRUPT)
-check_symbol_exists(perror         "${CURL_INCLUDES}" HAVE_PERROR)
-check_symbol_exists(fork           "${CURL_INCLUDES}" HAVE_FORK)
 check_symbol_exists(getaddrinfo    "${CURL_INCLUDES}" HAVE_GETADDRINFO)
 check_symbol_exists(freeaddrinfo   "${CURL_INCLUDES}" HAVE_FREEADDRINFO)
-check_symbol_exists(freeifaddrs    "${CURL_INCLUDES}" HAVE_FREEIFADDRS)
 check_symbol_exists(pipe           "${CURL_INCLUDES}" HAVE_PIPE)
 check_symbol_exists(ftruncate      "${CURL_INCLUDES}" HAVE_FTRUNCATE)
 check_symbol_exists(getprotobyname "${CURL_INCLUDES}" HAVE_GETPROTOBYNAME)
@@ -1120,12 +1114,6 @@ foreach(CURL_TEST
     HAVE_SOCKADDR_IN6_SIN6_SCOPE_ID
     TIME_WITH_SYS_TIME
     HAVE_O_NONBLOCK
-    HAVE_GETHOSTBYADDR_R_5
-    HAVE_GETHOSTBYADDR_R_7
-    HAVE_GETHOSTBYADDR_R_8
-    HAVE_GETHOSTBYADDR_R_5_REENTRANT
-    HAVE_GETHOSTBYADDR_R_7_REENTRANT
-    HAVE_GETHOSTBYADDR_R_8_REENTRANT
     HAVE_GETHOSTBYNAME_R_3
     HAVE_GETHOSTBYNAME_R_5
     HAVE_GETHOSTBYNAME_R_6
@@ -1135,8 +1123,6 @@ foreach(CURL_TEST
     HAVE_IN_ADDR_T
     HAVE_BOOL_T
     STDC_HEADERS
-    HAVE_INET_NTOA_R_DECL
-    HAVE_INET_NTOA_R_DECL_REENTRANT
     HAVE_GETADDRINFO
     HAVE_FILE_OFFSET_BITS
     HAVE_VARIADIC_MACROS_C99
@@ -1168,13 +1154,9 @@ endforeach()
 
 # Check for reentrant
 foreach(CURL_TEST
-    HAVE_GETHOSTBYADDR_R_5
-    HAVE_GETHOSTBYADDR_R_7
-    HAVE_GETHOSTBYADDR_R_8
     HAVE_GETHOSTBYNAME_R_3
     HAVE_GETHOSTBYNAME_R_5
-    HAVE_GETHOSTBYNAME_R_6
-    HAVE_INET_NTOA_R_DECL_REENTRANT)
+    HAVE_GETHOSTBYNAME_R_6)
   if(NOT ${CURL_TEST})
     if(${CURL_TEST}_REENTRANT)
       set(NEED_REENTRANT 1)
@@ -1184,9 +1166,6 @@ endforeach()
 
 if(NEED_REENTRANT)
   foreach(CURL_TEST
-      HAVE_GETHOSTBYADDR_R_5
-      HAVE_GETHOSTBYADDR_R_7
-      HAVE_GETHOSTBYADDR_R_8
       HAVE_GETHOSTBYNAME_R_3
       HAVE_GETHOSTBYNAME_R_5
       HAVE_GETHOSTBYNAME_R_6)
@@ -1195,11 +1174,6 @@ if(NEED_REENTRANT)
       set(${CURL_TEST} 1)
     endif()
   endforeach()
-endif()
-
-if(HAVE_INET_NTOA_R_DECL_REENTRANT)
-  set(HAVE_INET_NTOA_R_DECL 1)
-  set(NEED_REENTRANT 1)
 endif()
 
 # Check clock_gettime(CLOCK_MONOTONIC, x) support
