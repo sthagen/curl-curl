@@ -517,8 +517,8 @@ static const char *GTime2str(const char *beg, const char *end)
   return curl_maprintf("%.4s-%.2s-%.2s %.2s:%.2s:%c%c%s%.*s%s%.*s",
                        beg, beg + 4, beg + 6,
                        beg + 8, beg + 10, sec1, sec2,
-                       fracl? ".": "", fracl, fracp,
-                       sep, tzl, tzp);
+                       fracl? ".": "", (int)fracl, fracp,
+                       sep, (int)tzl, tzp);
 }
 
 /*
@@ -558,7 +558,7 @@ static const char *UTime2str(const char *beg, const char *end)
   return curl_maprintf("%u%.2s-%.2s-%.2s %.2s:%.2s:%.2s %.*s",
                        20 - (*beg >= '5'), beg, beg + 2, beg + 4,
                        beg + 6, beg + 8, sec,
-                       tzl, tzp);
+                       (int)tzl, tzp);
 }
 
 /*

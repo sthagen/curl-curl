@@ -126,6 +126,12 @@ static int hyper_each_header(void *userdata,
   CURLcode result;
   int writetype;
 
+  if(name_len + value_len + 2 > CURL_MAX_HTTP_HEADER) {
+    failf(data, "Too long response header");
+    data->state.hresult = CURLE_OUT_OF_MEMORY;
+    return HYPER_ITER_BREAK;
+  }
+
   if(!data->req.bytecount)
     Curl_pgrsTime(data, TIMER_STARTTRANSFER);
 
@@ -504,7 +510,7 @@ CURLcode Curl_hyper_header(struct Curl_easy *data, hyper_headers *headers,
 
     if(HYPERE_OK != hyper_headers_add(headers, (uint8_t *)n, nlen,
                                       (uint8_t *)v, vlen)) {
-      failf(data, "hyper_headers_add host");
+      failf(data, "hyper refused to add header '%s'", line);
       return CURLE_OUT_OF_MEMORY;
     }
     if(data->set.verbose) {
@@ -884,6 +890,15 @@ CURLcode Curl_http(struct Curl_easy *data, bool *done)
   }
   else
     Curl_safefree(data->state.aptr.accept_encoding);
+
+#ifdef HAVE_LIBZ
+  /* we only consider transfer-encoding magic if libz support is built-in */
+  result = Curl_transferencode(data);
+  if(result)
+    return result;
+  if(Curl_hyper_header(data, headers, data->state.aptr.te))
+    goto error;
+#endif
 
   result = cookies(data, conn, headers);
   if(result)

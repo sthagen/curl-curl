@@ -119,11 +119,11 @@ fi
 
 if [ "$TRAVIS_OS_NAME" = linux -a "$RUSTLS_VERSION" ]; then
   cd $HOME
-  git clone --depth=1 --recursive https://github.com/abetterinternet/crustls.git -b "$RUSTLS_VERSION"
+  git clone --depth=1 --recursive https://github.com/rustls/rustls-ffi.git -b "$RUSTLS_VERSION"
   curl https://sh.rustup.rs -sSf | sh -s -- -y
   source $HOME/.cargo/env
   cargo install cbindgen
-  cd $HOME/crustls
+  cd $HOME/rustls-ffi
   make
   make DESTDIR=$HOME/crust install
 fi
@@ -145,9 +145,6 @@ if [ $TRAVIS_OS_NAME = linux -a "$WOLFSSL" ]; then
 fi
 
 # Install common libraries.
-# The library build directories are set to be cached by .travis.yml. If you are
-# changing a build directory name below (eg a version change) then you must
-# change it in .travis.yml `cache: directories:` as well.
 if [ $TRAVIS_OS_NAME = linux ]; then
 
   if [ "$MESALINK" = "yes" ]; then

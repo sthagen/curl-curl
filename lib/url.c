@@ -1521,7 +1521,7 @@ void Curl_verboseconnect(struct Curl_easy *data,
                          struct connectdata *conn)
 {
   if(data->set.verbose)
-    infof(data, "Connected to %s (%s) port %ld (#%ld)\n",
+    infof(data, "Connected to %s (%s) port %u (#%ld)\n",
 #ifndef CURL_DISABLE_PROXY
           conn->bits.socksproxy ? conn->socks_proxy.host.dispname :
           conn->bits.httpproxy ? conn->http_proxy.host.dispname :
@@ -2464,7 +2464,7 @@ static CURLcode parse_proxy(struct Curl_easy *data,
     conn->bits.proxy_user_passwd = TRUE; /* enable it */
   }
 
-  curl_url_get(uhp, CURLUPART_PORT, &portptr, 0);
+  (void)curl_url_get(uhp, CURLUPART_PORT, &portptr, 0);
 
   if(portptr) {
     port = (int)strtol(portptr, NULL, 10);
@@ -3621,7 +3621,7 @@ static CURLcode create_conn(struct Curl_easy *data,
   if(result)
     goto out;
 
-  /* Check for overridden login details and set them accordingly so they
+  /* Check for overridden login details and set them accordingly so that
      they are known when protocol->setup_connection is called! */
   result = override_login(data, conn);
   if(result)

@@ -435,17 +435,16 @@ static bool rand_enough(void)
 
 static CURLcode ossl_seed(struct Curl_easy *data)
 {
-  /* we have the "SSL is seeded" boolean static to prevent multiple
-     time-consuming seedings in vain */
-  static bool ssl_seeded = FALSE;
   char fname[256];
 
-  if(ssl_seeded)
+  /* This might get called before it has been added to a multi handle */
+  if(data->multi && data->multi->ssl_seeded)
     return CURLE_OK;
 
   if(rand_enough()) {
     /* OpenSSL 1.1.0+ will return here */
-    ssl_seeded = TRUE;
+    if(data->multi)
+      data->multi->ssl_seeded = TRUE;
     return CURLE_OK;
   }
 
@@ -3869,12 +3868,12 @@ static CURLcode servercert(struct Curl_easy *data,
     long len;
     ASN1_TIME_print(mem, X509_get0_notBefore(backend->server_cert));
     len = BIO_get_mem_data(mem, (char **) &ptr);
-    infof(data, " start date: %.*s\n", len, ptr);
+    infof(data, " start date: %.*s\n", (int)len, ptr);
     (void)BIO_reset(mem);
 
     ASN1_TIME_print(mem, X509_get0_notAfter(backend->server_cert));
     len = BIO_get_mem_data(mem, (char **) &ptr);
-    infof(data, " expire date: %.*s\n", len, ptr);
+    infof(data, " expire date: %.*s\n", (int)len, ptr);
     (void)BIO_reset(mem);
   }
 #endif
@@ -4251,7 +4250,7 @@ static ssize_t ossl_send(struct Curl_easy *data,
 #endif
         ) {
         char ver[120];
-        ossl_version(ver, 120);
+        (void)ossl_version(ver, sizeof(ver));
         failf(data, "Error: %s does not support double SSL tunneling.", ver);
       }
       else
