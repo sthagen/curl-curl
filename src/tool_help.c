@@ -245,13 +245,13 @@ static const struct helptxt helptext[] = {
    "DNS server addrs to use",
    CURLHELP_DNS},
   {"    --doh-cert-status",
-   "Verify the status of the DOH server cert via OCSP-staple",
+   "Verify the status of the DoH server cert via OCSP-staple",
    CURLHELP_DNS | CURLHELP_TLS},
   {"    --doh-insecure",
-   "Allow insecure DOH server connections",
+   "Allow insecure DoH server connections",
    CURLHELP_DNS | CURLHELP_TLS},
   {"    --doh-url <URL>",
-   "Resolve host names over DOH",
+   "Resolve host names over DoH",
    CURLHELP_DNS},
   {"-D, --dump-header <filename>",
    "Write the received headers to <filename>",
@@ -852,10 +852,6 @@ static const struct helptxt helptext[] = {
    CURLHELP_MISC},
   { NULL, NULL, CURLHELP_HIDDEN }
 };
-
-#ifdef NETWARE
-#  define PRINT_LINES_PAUSE 23
-#endif
 
 struct feat {
   const char *name;
