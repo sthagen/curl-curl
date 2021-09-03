@@ -47,7 +47,7 @@ Go: [go-curl](https://github.com/andelf/go-curl) by ShuYu Wang
 
 [Guile](https://www.lonelycactus.com/guile-curl.html) Written by Michael L. Gran
 
-[Harbour](https://github.com/vszakats/harbour-core/tree/master/contrib/hbcurl) Written by Viktor Szakáts
+[Harbour](https://github.com/vszakats/hb/tree/master/contrib/hbcurl) Written by Viktor Szakats
 
 [Haskell](https://hackage.haskell.org/cgi-bin/hackage-scripts/package/curl) Written by Galois, Inc
 
@@ -59,7 +59,7 @@ Go: [go-curl](https://github.com/andelf/go-curl) by ShuYu Wang
 
 [Lisp](https://common-lisp.net/project/cl-curl/) Written by Liam Healy
 
-Lua: [luacurl](https://web.archive.org/web/20201205052437/http://luacurl.luaforge.net/) by Alexander Marinov, [Lua-cURL](https://github.com/Lua-cURL) by Jürgen Hötzel
+Lua: [luacurl](https://web.archive.org/web/20201205052437/luacurl.luaforge.net/) by Alexander Marinov, [Lua-cURL](https://github.com/Lua-cURL) by Jürgen Hötzel
 
 [Mono](https://forge.novell.com/modules/xfmod/project/?libcurl-mono) Written by Jeffrey Phillips
 

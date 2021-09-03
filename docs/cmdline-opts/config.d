@@ -3,6 +3,7 @@ Arg: <file>
 Help: Read config from a file
 Short: K
 Category: curl
+Example: --config file.txt $URL
 ---
 
 Specify a text file to read curl arguments from. The command line arguments
@@ -48,7 +49,7 @@ the following places in this order:
 
 5) Windows: use APPDATA if set
 
-6) Windows: use "USERPROFILE\Application Data" if set
+6) Windows: use "USERPROFILE\\Application Data" if set
 
 7) On windows, if there is no .curlrc file in the home dir, it checks for one
 in the same dir the curl executable is placed. On Unix-like systems, it will

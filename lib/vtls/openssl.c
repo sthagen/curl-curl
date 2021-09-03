@@ -2060,6 +2060,10 @@ static const char *ssl_msg_type(int ssl_ver, int msg)
       case SSL3_MT_ENCRYPTED_EXTENSIONS:
         return "Encrypted Extensions";
 #endif
+#ifdef SSL3_MT_SUPPLEMENTAL_DATA
+      case SSL3_MT_SUPPLEMENTAL_DATA:
+        return "Supplemental data";
+#endif
 #ifdef SSL3_MT_END_OF_EARLY_DATA
       case SSL3_MT_END_OF_EARLY_DATA:
         return "End of early data";
@@ -2658,8 +2662,7 @@ static CURLcode ossl_connect_step1(struct Curl_easy *data,
     return CURLE_SSL_CONNECT_ERROR;
   }
 
-  if(backend->ctx)
-    SSL_CTX_free(backend->ctx);
+  DEBUGASSERT(!backend->ctx);
   backend->ctx = SSL_CTX_new(req_method);
 
   if(!backend->ctx) {

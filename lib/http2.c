@@ -1624,10 +1624,6 @@ static ssize_t http2_recv(struct Curl_easy *data, int sockindex,
     return -1;
   }
 
-  if(stream->closed)
-    /* closed overrides paused */
-    return http2_handle_stream_close(conn, data, stream, err);
-
   /* Nullify here because we call nghttp2_session_send() and they
      might refer to the old buffer. */
   stream->upload_mem = NULL;
@@ -2340,15 +2336,8 @@ CURLcode Curl_http2_switched(struct Curl_easy *data,
 
   DEBUGASSERT(httpc->nread_inbuf == 0);
 
-  /* Good enough to call it an end once the remaining payload is copied to the
-   * connection buffer.
-   * Some servers (e.g. nghttpx v1.43.0) may fulfill stream 1 immediately
-   * following the protocol switch other than waiting for the client-side
-   * connection preface. If h2_process_pending_input is invoked here to parse
-   * the remaining payload, stream 1 would be marked as closed too early and
-   * thus ignored in http2_recv (following 252790c53).
-   * The logic in lib/http.c and lib/transfer.c guarantees a following
-   * http2_recv would be invoked very soon. */
+  if(-1 == h2_process_pending_input(data, httpc, &result))
+    return CURLE_HTTP2;
 
   return CURLE_OK;
 }

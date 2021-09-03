@@ -5,7 +5,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2020, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) 1998 - 2021, Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -455,11 +455,9 @@ static void clean_fifo(GlobalInfo *g)
 
 int g_should_exit_ = 0;
 
-void SignalHandler(int signo)
+void sigint_handler(int signo)
 {
-  if(signo == SIGINT) {
-    g_should_exit_ = 1;
-  }
+  g_should_exit_ = 1;
 }
 
 int main(int argc, char **argv)
@@ -472,7 +470,7 @@ int main(int argc, char **argv)
   (void)argv;
 
   g_should_exit_ = 0;
-  signal(SIGINT, SignalHandler);
+  signal(SIGINT, sigint_handler);
 
   memset(&g, 0, sizeof(GlobalInfo));
   g.epfd = epoll_create1(EPOLL_CLOEXEC);
