@@ -34,25 +34,34 @@ This release includes the following bugfixes:
  o codeql: fix error "Resource not accessible by integration" [61]
  o compressed.d: it's a request, not an order [21]
  o config.d: escape the backslash properly [81]
+ o config.d: note that curlrc is used even when --config [107]
  o config: get rid of the unused HAVE_SIG_ATOMIC_T et. al.
  o configure.ac: revert bad nghttp2 library detection improvements [9]
  o configure: error out if both ngtcp2 and quiche are specified [30]
+ o configure: make --disable-hsts work [106]
  o configure: set classic mingw minimum OS version to XP [83]
  o configure: tweak nghttp2 library name fix [2]
+ o connect: get local port + ip also when reusing connections [95]
  o connect: remove superfluous conditional [23]
  o curl-openssl.m4: check lib64 for the pkg-config file [14]
  o curl-openssl.m4: show correct output for OpenSSL v3 [75]
  o curl.1: mention "global" flags [7]
+ o curl.1: provide examples for each option [99]
  o curl: add warning for ignored data after quoted form parameter [60]
+ o curl: add warning for incompatible parameters usage [102]
  o curl: better error message when -O fails to get a good name [88]
+ o curl: stop retry if Retry-After: is longer than allowed [104]
  o curl_easy_setopt.3: improve the string copy wording [89]
  o curl_setup.h: sync values for HTTP_ONLY [82]
  o curl_url_get.3: clarify about path and query [45]
  o CURLMOPT_TIMERFUNCTION.3: remove misplaced "time" [5]
  o CURLOPT_DOH_URL.3: CURLOPT_OPENSOCKETFUNCTION is not inherited [8]
  o CURLOPT_SSL_CTX_*.3: tidy up the example [15]
+ o CURLOPT_UNIX_SOCKET_PATH.3: remove nginx reference, add see also [90]
  o docs/MQTT: update state of username/password support [4]
+ o docs: remove experimental mentions from HSTS and MQTT [93]
  o easy: use a custom implementation of wcsdup on Windows [31]
+ o examples/*hiperfifo.c: fix calloc arguments to match function proto [103]
  o examples/cookie_interface: avoid printfing time_t directly [18]
  o examples/cookie_interface: fix scan-build printf warning [16]
  o examples/ephiperfifo.c: simplify signal handler [42]
@@ -62,16 +71,21 @@ This release includes the following bugfixes:
  o http2: revert a change that broke upgrade to h2c [57]
  o http2: revert call the handle-closed function correctly on closed stream [25]
  o http: disallow >3-digit response codes [80]
+ o http: ignore content-length if any transfer-encoding is used [101]
  o http_proxy: clear 'sending' when the outgoing request is sent [6]
  o http_proxy: fix user-agent and custom headers for CONNECT with hyper [38]
  o http_proxy: only wait for writable socket while sending request [78]
+ o INTERNALS: bump c-ares requirement to 1.16.0
+ o INTERNALS: c-ares has a new home: c-ares.org
  o libcurl-errors.3: clarify two CURLUcode errors [72]
  o limit-rate.d: clarify base unit [17]
  o mailing lists: move from cool.haxx.se to lists.haxx.se
+ o mbedtls: avoid using a large buffer on the stack [105]
  o mbedTLS: initial 3.0.0 support [33]
  o mbedtls_threadlock: fix unused variable warning [11]
  o mksymbolsmanpage.pl: Fix showing symbol's last used version [76]
  o mksymbolsmanpage.pl: match symbols case insenitively [77]
+ o multi: fix compiler warning with `CURL_DISABLE_WAKEUP` [96]
  o ngtcp2: compile with the latest ngtcp2 and nghttp3 [12]
  o ngtcp2: remove the acked_crypto_offset struct field init [64]
  o ngtcp2: replace deprecated functions with nghttp3_conn_shutdown_stream_read [28]
@@ -79,21 +93,29 @@ This release includes the following bugfixes:
  o ngtcp2: rework the return value handling of ngtcp2_conn_writev_stream [29]
  o ngtcp2: stop buffering crypto data [85]
  o ngtcp2: utilize crypto API functions to simplify [52]
+ o openssl: annotate SSL3_MT_SUPPLEMENTAL_DATA [98]
  o openssl: when creating a new context, there cannot be an old one [48]
+ o opt-docs: make sure all man pages have examples [92]
+ o opt-docs: verify man page sections + order [91]
  o output.d: add method to suppress response bodies [49]
+ o page-header: add GOPHERS, simplify wording in the 1st para [94]
  o progress: fix a compile warning on some systems [54]
+ o progress: make trspeed avoid floats [100]
  o schannel: Work around typo in classic mingw macro [84]
  o scripts: invoke interpreters through /usr/bin/env [68]
  o sectransp: support CURLINFO_CERTINFO [63]
  o setopt: enable CURLOPT_IGNORE_CONTENT_LENGTH for hyper [70]
  o symbols-in-versions: fix CURLSSLBACKEND_QSOSSL last used version [73]
  o test1138: remove trailing space to make work with hyper [71]
+ o test1173: check references to libcurl options [69]
  o test1280: CRLFify the response to please hyper [86]
  o test1565: fix windows build errors [27]
+ o test365: verify response with chunked AND Content-Length headers
  o tests/*server.pl: flush output before executing subprocess [41]
  o tests/*server.py: remove pidfile on server termination [1]
  o tests/runtests.pl: cleanup copy&paste mistakes and unused code
  o tests/server/*.c: align handling of portfile argument and file [56]
+ o tests: adjust the tftpd output to work with hyper mode [97]
  o tests: be explicit about using 'python3' instead of 'python' [67]
  o tests: enable test 1129 for hyper builds [87]
  o tests: make three tests pass until 2037 [22]
@@ -115,16 +137,18 @@ advice from friends like these:
   a1346054 on github, Aleksandr Krotov, Alex Crichton, April King,
   Artur Sinila, Barry Pollard, Bastian Krause, Benau on github,
   Bernhard M. Wiedemann, Bin Lan, Brian Carpenter, Bylon2 on github,
-  Carlo Marcelo Arenas Belón, Christian Weisgerber, Colin O'Dell, Dan Fandrich,
-  Daniel Gustafsson, Daniel Stenberg, Daniel Woelfel, Dan Jacobson, David Cook,
-  Don J Olmstead, Ehren Bendler, Emil Engler, Gambit Communications,
-  Gergely Nagy, Gleb Ivanovsky, Ikko Ashimine, Jan Schaumann, Jan Verbeek,
-  Jeff Mears, Jeremy Falcon, Josh Soref, Marc Hörsken, Michael Kaufmann,
+  Cao ZhenXiang, Carlo Marcelo Arenas Belón, Christian Weisgerber,
+  Colin O'Dell, Dan Fandrich, Daniel Gustafsson, Daniel Stenberg,
+  Daniel Woelfel, Dan Jacobson, David Cook, Don J Olmstead, Ehren Bendler,
+  Emil Engler, Gambit Communications, Gergely Nagy, Gisle Vanem,
+  git-bruh on github, Gleb Ivanovsky, Ikko Ashimine, Jan Schaumann,
+  Jan Verbeek, Jeff Mears, Jeremy Falcon, Jonathan Cardoso Machado, Josh Soref,
+  Kari Pahula, Marcel Raad, Marc Hörsken, Max Dymond, Michael Kaufmann,
   Michał Antoniak, modbw on github, Oleg Pudeyev, Oleguer Llopart,
   Patrick Monnerat, Randall S. Becker, Ray Satiro, Rui Pinheiro,
   Sergey Markelov, Tatsuhiro Tsujikawa, Tk Xiong, Viktor Szakats,
   Vincent Grande, Yaobin Wen, z2-2z on github, zloi-user on github,
-  (51 contributors)
+  (58 contributors)
 
 References to bug reports and discussions on issues:
 
@@ -196,6 +220,7 @@ References to bug reports and discussions on issues:
  [66] = https://curl.se/bug/?i=7616
  [67] = https://curl.se/bug/?i=7602
  [68] = https://curl.se/bug/?i=7602
+ [69] = https://curl.se/bug/?i=7656
  [70] = https://curl.se/bug/?i=7614
  [71] = https://curl.se/bug/?i=7613
  [72] = https://curl.se/bug/?i=7611
@@ -216,3 +241,21 @@ References to bug reports and discussions on issues:
  [87] = https://curl.se/bug/?i=7638
  [88] = https://curl.se/bug/?i=7628
  [89] = https://curl.se/bug/?i=7632
+ [90] = https://curl.se/bug/?i=7656
+ [91] = https://curl.se/bug/?i=7656
+ [92] = https://curl.se/bug/?i=7656
+ [93] = https://github.com/curl/curl/pull/6700#issuecomment-913792863
+ [94] = https://curl.se/bug/?i=7665
+ [95] = https://curl.se/bug/?i=7660
+ [96] = https://curl.se/bug/?i=7661
+ [97] = https://curl.se/bug/?i=7658
+ [98] = https://curl.se/bug/?i=7652
+ [99] = https://curl.se/bug/?i=7654
+ [100] = https://curl.se/bug/?i=7645
+ [101] = https://curl.se/bug/?i=7643
+ [102] = https://curl.se/bug/?i=7674
+ [103] = https://curl.se/bug/?i=7678
+ [104] = https://curl.se/bug/?i=7675
+ [105] = https://curl.se/bug/?i=7586
+ [106] = https://curl.se/bug/?i=7669
+ [107] = https://github.com/curl/curl/pull/7666#issuecomment-912214751
