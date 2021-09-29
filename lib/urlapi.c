@@ -157,23 +157,23 @@ static size_t strlen_url(const char *url, bool relative)
       continue;
     }
 
-    switch(*ptr) {
-    case '?':
-      left = FALSE;
-      /* FALLTHROUGH */
-    default:
-      if(urlchar_needs_escaping(*ptr))
-        newlen += 2;
-      newlen++;
-      break;
-    case ' ':
+    if(*ptr == ' ') {
       if(left)
         newlen += 3;
       else
         newlen++;
-      break;
+      continue;
     }
+
+    if (*ptr == '?')
+      left = FALSE;
+
+    if(urlchar_needs_escaping(*ptr))
+      newlen += 2;
+
+    newlen++;
   }
+
   return newlen;
 }
 
@@ -202,19 +202,7 @@ static void strcpy_url(char *output, const char *url, bool relative)
       continue;
     }
 
-    switch(*iptr) {
-    case '?':
-      left = FALSE;
-      /* FALLTHROUGH */
-    default:
-      if(urlchar_needs_escaping(*iptr)) {
-        msnprintf(optr, 4, "%%%02x", *iptr);
-        optr += 3;
-      }
-      else
-        *optr++=*iptr;
-      break;
-    case ' ':
+    if(*iptr == ' ') {
       if(left) {
         *optr++='%'; /* add a '%' */
         *optr++='2'; /* add a '2' */
@@ -222,8 +210,18 @@ static void strcpy_url(char *output, const char *url, bool relative)
       }
       else
         *optr++='+'; /* add a '+' here */
-      break;
+      continue;
     }
+
+    if(*iptr == '?')
+      left = FALSE;
+
+    if(urlchar_needs_escaping(*iptr)) {
+      msnprintf(optr, 4, "%%%02x", *iptr);
+      optr += 3;
+    }
+    else
+      *optr++ = *iptr;
   }
   *optr = 0; /* null-terminate output buffer */
 
@@ -760,6 +758,7 @@ static CURLUcode seturl(const char *url, CURLU *u, unsigned int flags)
 {
   char *path;
   bool path_alloced = FALSE;
+  bool uncpath = FALSE;
   char *hostname;
   char *query = NULL;
   char *fragment = NULL;
@@ -798,7 +797,6 @@ static CURLUcode seturl(const char *url, CURLU *u, unsigned int flags)
     /* path has been allocated large enough to hold this */
     strcpy(path, &url[5]);
 
-    hostname = NULL; /* no host for file: URLs */
     u->scheme = strdup("file");
     if(!u->scheme)
       return CURLUE_OUT_OF_MEMORY;
@@ -820,10 +818,13 @@ static CURLUcode seturl(const char *url, CURLU *u, unsigned int flags)
        *
        *  o the hostname matches "localhost" (case-insensitively), or
        *
-       *  o the hostname is a FQDN that resolves to this machine.
+       *  o the hostname is a FQDN that resolves to this machine, or
+       *
+       *  o it is an UNC String transformed to an URI (Windows only, RFC 8089
+       *    Appendix E.3).
        *
        * For brevity, we only consider URLs with empty, "localhost", or
-       * "127.0.0.1" hostnames as local.
+       * "127.0.0.1" hostnames as local, otherwise as an UNC String.
        *
        * Additionally, there is an exception for URLs with a Windows drive
        * letter in the authority (which was accidentally omitted from RFC 8089
@@ -832,17 +833,42 @@ static CURLUcode seturl(const char *url, CURLU *u, unsigned int flags)
       if(ptr[0] != '/' && !STARTS_WITH_URL_DRIVE_PREFIX(ptr)) {
         /* the URL includes a host name, it must match "localhost" or
            "127.0.0.1" to be valid */
-        if(!checkprefix("localhost/", ptr) &&
-           !checkprefix("127.0.0.1/", ptr)) {
+        if(checkprefix("localhost/", ptr) ||
+           checkprefix("127.0.0.1/", ptr)) {
+          ptr += 9; /* now points to the slash after the host */
+        }
+        else {
+#if defined(WIN32)
+          size_t len;
+
+          /* the host name, NetBIOS computer name, can not contain disallowed
+             chars, and the delimiting slash character must be appended to the
+             host name */
+          path = strpbrk(ptr, "/\\:*?\"<>|");
+          if(!path || *path != '/')
+            return CURLUE_MALFORMED_INPUT;
+
+          len = path - ptr;
+          if(len) {
+            memcpy(hostname, ptr, len);
+            hostname[len] = 0;
+            uncpath = TRUE;
+          }
+
+          ptr -= 2; /* now points to the // before the host in UNC */
+#else
           /* Invalid file://hostname/, expected localhost or 127.0.0.1 or
              none */
           return CURLUE_MALFORMED_INPUT;
+#endif
         }
-        ptr += 9; /* now points to the slash after the host */
       }
 
       path = ptr;
     }
+
+    if(!uncpath)
+        hostname = NULL; /* no host for file: URLs by default */
 
 #if !defined(MSDOS) && !defined(WIN32) && !defined(__CYGWIN__)
     /* Don't allow Windows drive letters when not in Windows.
