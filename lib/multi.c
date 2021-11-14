@@ -878,6 +878,7 @@ void Curl_detach_connnection(struct Curl_easy *data)
 {
   struct connectdata *conn = data->conn;
   if(conn) {
+    Curl_connect_done(data); /* if mid-CONNECT, shut it down */
     Curl_llist_remove(&conn->easyq, &data->conn_queue, NULL);
     Curl_ssl_detach_conn(data, conn);
   }
@@ -2633,7 +2634,7 @@ CURLMcode curl_multi_cleanup(struct Curl_multi *multi)
 
     multi->magic = 0; /* not good anymore */
 
-    /* Firsrt remove all remaining easy handles */
+    /* First remove all remaining easy handles */
     data = multi->easyp;
     while(data) {
       nextdata = data->next;
