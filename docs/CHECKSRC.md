@@ -18,11 +18,11 @@ when, for example, one of the files is generated.
 
 ## What does checksrc warn for?
 
-checksrc does not check and verify the code against the entire style guide,
-but the script is instead an effort to detect the most common mistakes and
-syntax mistakes that contributors make before they get accustomed to our code
-style. Heck, many of us regulars do the mistakes too and this script helps us
-keep the code in shape.
+checksrc does not check and verify the code against the entire style guide.
+The script is an effort to detect the most common mistakes and syntax mistakes
+that contributors make before they get accustomed to our code style. Heck,
+many of us regulars do the mistakes too and this script helps us keep the code
+in shape.
 
     checksrc.pl -h
 
@@ -41,7 +41,7 @@ warnings are:
    more appropriate `char *name` style. The asterisk should sit right next to
    the name without a space in between.
 
-- `BADCOMMAND`: There's a bad !checksrc! instruction in the code. See the
+- `BADCOMMAND`: There's a bad `!checksrc!` instruction in the code. See the
    **Ignore certain warnings** section below for details.
 
 - `BANNEDFUNC`: A banned function was used. The functions sprintf, vsprintf,

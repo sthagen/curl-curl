@@ -23,11 +23,11 @@
 .SH NAME
 curl_mime_subparts - set subparts of a multipart mime part
 .SH SYNOPSIS
-.B #include <curl/curl.h>
-.sp
-.BI "CURLcode curl_mime_subparts(curl_mimepart * " part ,
-.BI "curl_mime * " subparts ");"
-.ad
+.nf
+#include <curl/curl.h>
+
+CURLcode curl_mime_subparts(curl_mimepart *part, curl_mime *subparts);
+.fi
 .SH DESCRIPTION
 \fIcurl_mime_subparts(3)\fP sets a multipart mime part's content from a mime
 structure.
@@ -45,7 +45,7 @@ is retained. It is possible to unassign previous part's contents by setting
 .SH EXAMPLE
 .nf
  /* The inline part is an alternative proposing the html and the text
-    versions of the e-mail. */
+    versions of the email. */
  alt = curl_mime_init(curl);
 
  /* HTML message. */
