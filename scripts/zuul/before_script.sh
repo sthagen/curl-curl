@@ -6,7 +6,7 @@
 #                            | (__| |_| |  _ <| |___
 #                             \___|\___/|_| \_\_____|
 #
-# Copyright (C) 1998 - 2021, Daniel Stenberg, <daniel@haxx.se>, et al.
+# Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
 #
 # This software is licensed as described in the file COPYING, which
 # you should have received as part of this distribution. The terms
@@ -96,14 +96,6 @@ if [ "$TRAVIS_OS_NAME" = linux -a "$OPENSSL3" ]; then
   make install_sw
 fi
 
-if [ "$TRAVIS_OS_NAME" = linux -a "$MBEDTLS3" ]; then
-  cd $HOME
-  git clone --depth=1 -b v3.0.0 https://github.com/ARMmbed/mbedtls
-  cd mbedtls
-  make
-  make DESTDIR=$HOME/mbedtls3 install
-fi
-
 if [ "$TRAVIS_OS_NAME" = linux -a "$LIBRESSL" ]; then
   cd $HOME
   git clone --depth=1 -b v3.1.4 https://github.com/libressl-portable/portable.git libressl-git
@@ -139,22 +131,6 @@ if [ "$TRAVIS_OS_NAME" = linux -a "$RUSTLS_VERSION" ]; then
   cd $HOME/rustls-ffi
   make
   make DESTDIR=$HOME/rustls install
-fi
-
-if [ $TRAVIS_OS_NAME = linux -a "$WOLFSSL" ]; then
-  if [ ! -e $HOME/wolfssl-4.7.0-stable/Makefile ]; then
-    cd $HOME
-    curl -LO https://github.com/wolfSSL/wolfssl/archive/v4.7.0-stable.tar.gz
-    tar -xzf v4.7.0-stable.tar.gz
-    cd wolfssl-4.7.0-stable
-    ./autogen.sh
-    ./configure --enable-tls13 --enable-all
-    touch wolfssl/wolfcrypt/fips.h
-    make
-  fi
-
-  cd $HOME/wolfssl-4.7.0-stable
-  sudo make install
 fi
 
 # Install common libraries.
