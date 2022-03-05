@@ -445,7 +445,7 @@ cookies from the 'headers' file like:
 
 While saving headers to a file is a working way to store cookies, it is
 however error-prone and not the preferred way to do this. Instead, make curl
-save the incoming cookies using the well-known netscape cookie format like
+save the incoming cookies using the well-known Netscape cookie format like
 this:
 
     curl -c cookies.txt www.example.com
@@ -458,13 +458,13 @@ non-existing file to trigger the cookie awareness like:
     curl -L -b empty.txt www.example.com
 
 The file to read cookies from must be formatted using plain HTTP headers OR as
-netscape's cookie file. Curl will determine what kind it is based on the file
+Netscape's cookie file. Curl will determine what kind it is based on the file
 contents. In the above command, curl will parse the header and store the
 cookies received from www.example.com. curl will send to the server the
 stored cookies which match the request as it follows the location. The file
 "empty.txt" may be a nonexistent file.
 
-To read and write cookies from a netscape cookie file, you can set both `-b`
+To read and write cookies from a Netscape cookie file, you can set both `-b`
 and `-c` to use the same file:
 
     curl -b cookies.txt -c cookies.txt www.example.com
@@ -603,7 +603,7 @@ header from being used:
 ## FTP and Path Names
 
 Do note that when getting files with a `ftp://` URL, the given path is
-relative the directory you enter. To get the file `README` from your home
+relative to the directory you enter. To get the file `README` from your home
 directory at your ftp site, do:
 
     curl ftp://user:passwd@my.site.com/README
@@ -770,8 +770,8 @@ If you have installed the OpenLDAP library, curl can take advantage of it and
 offer `ldap://` support. On Windows, curl will use WinLDAP from Platform SDK
 by default.
 
-Default protocol version used by curl is LDAPv3. LDAPv2 will be used as
-fallback mechanism in case if LDAPv3 will fail to connect.
+Default protocol version used by curl is LDAPv3. LDAPv2 will be used as a
+fallback mechanism in case LDAPv3 fails to connect.
 
 LDAP is a complex thing and writing an LDAP query is not an easy task. I do
 advise you to dig up the syntax description for that elsewhere. One such place
@@ -791,7 +791,7 @@ You also can use authentication when accessing LDAP catalog:
     curl -u user:passwd "ldap://ldap.frontec.se/o=frontec??sub?mail=*"
     curl "ldap://user:passwd@ldap.frontec.se/o=frontec??sub?mail=*"
 
-By default, if user and password provided, OpenLDAP/WinLDAP will use basic
+By default, if user and password are provided, OpenLDAP/WinLDAP will use basic
 authentication. On Windows you can control this behavior by providing one of
 `--basic`, `--ntlm` or `--digest` option in curl command line
 
