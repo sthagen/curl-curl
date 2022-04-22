@@ -130,6 +130,7 @@ bool curl_win32_idn_to_ascii(const char *in, char **out);
 #include "setopt.h"
 #include "altsvc.h"
 #include "dynbuf.h"
+#include "headers.h"
 
 /* The last 3 #include files should be in this order */
 #include "curl_printf.h"
@@ -470,6 +471,7 @@ CURLcode Curl_close(struct Curl_easy **datap)
   /* destruct wildcard structures if it is needed */
   Curl_wildcard_dtor(&data->wildcard);
   Curl_freeset(data);
+  Curl_headers_cleanup(data);
   free(data);
   return CURLE_OK;
 }
@@ -618,7 +620,7 @@ CURLcode Curl_init_userdefined(struct Curl_easy *data)
   set->maxlifetime_conn = 0;
   set->http09_allowed = FALSE;
   set->httpwant =
-#ifdef USE_NGHTTP2
+#ifdef USE_HTTP2
     CURL_HTTP_VERSION_2TLS
 #else
     CURL_HTTP_VERSION_1_1
@@ -1031,7 +1033,7 @@ static bool extract_if_dead(struct connectdata *conn,
     }
 
     if(dead) {
-      infof(data, "Connection %ld seems to be dead!", conn->connection_id);
+      infof(data, "Connection %ld seems to be dead", conn->connection_id);
       Curl_conncache_remove_conn(data, conn, FALSE);
       return TRUE;
     }
@@ -1166,11 +1168,11 @@ ConnectionExists(struct Curl_easy *data,
       }
       if((bundle->multiuse == BUNDLE_MULTIPLEX) &&
          !Curl_multiplex_wanted(data->multi)) {
-        infof(data, "Could multiplex, but not asked to!");
+        infof(data, "Could multiplex, but not asked to");
         canmultiplex = FALSE;
       }
       if(bundle->multiuse == BUNDLE_NO_MULTIUSE) {
-        infof(data, "Can not multiplex, even if we wanted to!");
+        infof(data, "Can not multiplex, even if we wanted to");
         canmultiplex = FALSE;
       }
     }
@@ -1491,7 +1493,7 @@ ConnectionExists(struct Curl_easy *data,
 #endif
           /* When not multiplexed, we have a match here! */
           chosen = check;
-          infof(data, "Multiplexed connection found!");
+          infof(data, "Multiplexed connection found");
           break;
         }
         else {
@@ -3108,7 +3110,7 @@ static CURLcode parse_connect_to_host_port(struct Curl_easy *data,
      * name nor a numeric can legally start with a bracket.
      */
 #else
-    failf(data, "Use of IPv6 in *_CONNECT_TO without IPv6 support built-in!");
+    failf(data, "Use of IPv6 in *_CONNECT_TO without IPv6 support built-in");
     result = CURLE_NOT_BUILT_IN;
     goto error;
 #endif
@@ -3279,16 +3281,16 @@ static CURLcode parse_connect_to_slist(struct Curl_easy *data,
     bool hit;
     struct altsvc *as;
     const int allowed_versions = ( ALPN_h1
-#ifdef USE_NGHTTP2
-      | ALPN_h2
+#ifdef USE_HTTP2
+                                   | ALPN_h2
 #endif
 #ifdef ENABLE_QUIC
-      | ALPN_h3
+                                   | ALPN_h3
 #endif
       ) & data->asi->flags;
 
     host = conn->host.rawalloc;
-#ifdef USE_NGHTTP2
+#ifdef USE_HTTP2
     /* with h2 support, check that first */
     srcalpnid = ALPN_h2;
     hit = Curl_altsvc_lookup(data->asi,
@@ -3911,14 +3913,14 @@ static CURLcode create_conn(struct Curl_easy *data,
     *in_connect = conn;
 
 #ifndef CURL_DISABLE_PROXY
-    infof(data, "Re-using existing connection! (#%ld) with %s %s",
+    infof(data, "Re-using existing connection #%ld with %s %s",
           conn->connection_id,
           conn->bits.proxy?"proxy":"host",
           conn->socks_proxy.host.name ? conn->socks_proxy.host.dispname :
           conn->http_proxy.host.name ? conn->http_proxy.host.dispname :
           conn->host.dispname);
 #else
-    infof(data, "Re-using existing connection! (#%ld) with host %s",
+    infof(data, "Re-using existing connection #%ld with host %s",
           conn->connection_id, conn->host.dispname);
 #endif
   }
@@ -4009,14 +4011,14 @@ static CURLcode create_conn(struct Curl_easy *data,
        connection based. */
     if((data->state.authhost.picked & (CURLAUTH_NTLM | CURLAUTH_NTLM_WB)) &&
        data->state.authhost.done) {
-      infof(data, "NTLM picked AND auth done set, clear picked!");
+      infof(data, "NTLM picked AND auth done set, clear picked");
       data->state.authhost.picked = CURLAUTH_NONE;
       data->state.authhost.done = FALSE;
     }
 
     if((data->state.authproxy.picked & (CURLAUTH_NTLM | CURLAUTH_NTLM_WB)) &&
        data->state.authproxy.done) {
-      infof(data, "NTLM-proxy picked AND auth done set, clear picked!");
+      infof(data, "NTLM-proxy picked AND auth done set, clear picked");
       data->state.authproxy.picked = CURLAUTH_NONE;
       data->state.authproxy.done = FALSE;
     }

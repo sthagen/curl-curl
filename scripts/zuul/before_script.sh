@@ -22,7 +22,7 @@
 ###########################################################################
 set -eo pipefail
 
-./buildconf
+autoreconf -fi
 
 if [ "$NGTCP2" = yes ]; then
   if [ "$TRAVIS_OS_NAME" = linux -a "$GNUTLS" ]; then
@@ -87,15 +87,6 @@ if [ "$TRAVIS_OS_NAME" = linux -a "$BORINGSSL" ]; then
   export LIBS=-lpthread
 fi
 
-if [ "$TRAVIS_OS_NAME" = linux -a "$OPENSSL3" ]; then
-  cd $HOME
-  git clone --depth=1 https://github.com/openssl/openssl
-  cd openssl
-  ./config enable-tls1_3 --prefix=$HOME/openssl3
-  make
-  make install_sw
-fi
-
 if [ "$TRAVIS_OS_NAME" = linux -a "$LIBRESSL" ]; then
   cd $HOME
   git clone --depth=1 -b v3.1.4 https://github.com/libressl-portable/portable.git libressl-git
@@ -120,22 +111,4 @@ if [ "$TRAVIS_OS_NAME" = linux -a "$QUICHE" ]; then
   cargo build -v --package quiche --release --features ffi,pkg-config-meta,qlog
   mkdir -v quiche/deps/boringssl/src/lib
   ln -vnf $(find target/release -name libcrypto.a -o -name libssl.a) quiche/deps/boringssl/src/lib/
-fi
-
-# Install common libraries.
-if [ $TRAVIS_OS_NAME = linux ]; then
-
-  if [ "$BEARSSL" = "yes" ]; then
-    if [ ! -e $HOME/bearssl-0.6/Makefile ]; then
-      cd $HOME
-      curl -LO https://bearssl.org/bearssl-0.6.tar.gz
-      tar -xzf bearssl-0.6.tar.gz
-      cd bearssl-0.6
-      make
-    fi
-    cd $HOME/bearssl-0.6
-    sudo cp inc/*.h /usr/local/include
-    sudo cp build/libbearssl.* /usr/local/lib
-  fi
-
 fi

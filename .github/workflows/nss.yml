@@ -22,18 +22,18 @@ jobs:
         build:
         - name: NSS
           install:
-          configure: --with-nss --enable-debug --enable-werror --with-nss-deprecated
+          configure: --with-nss --enable-debug --enable-werror --with-nss-deprecated --enable-headers-api
 
     steps:
     - run: |
-        sudo apt-get install libtool autoconf automake pkg-config stunnel4 python3-pip libnss3-dev clang-9 libpsl-dev libbrotli-dev libzstd-dev libnghttp2-dev nss-plugin-pem
-        sudo pip3 install impacket
+        sudo apt-get install libtool autoconf automake pkg-config stunnel4 libnss3-dev clang-9 libpsl-dev libbrotli-dev libzstd-dev libnghttp2-dev nss-plugin-pem
+        sudo python3 -m pip install impacket
       name: install prereqs and impacket
 
     - uses: actions/checkout@v2
 
-    - run: ./buildconf
-      name: 'buildconf'
+    - run: autoreconf -fi
+      name: 'autoreconf'
 
     - run: CC=clang-9 CPPFLAGS="-isystem /usr/include/nss" ./configure ${{ matrix.build.configure }}
       name: 'configure with clang'

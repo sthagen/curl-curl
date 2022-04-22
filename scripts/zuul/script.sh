@@ -22,7 +22,7 @@
 ###########################################################################
 set -eo pipefail
 
-./buildconf
+autoreconf -fi
 
 if [ "$T" = "coverage" ]; then
   ./configure --enable-debug --disable-shared --disable-threaded-resolver --enable-code-coverage --enable-werror --with-libssh2
@@ -40,13 +40,6 @@ if [ "$T" = "torture" ]; then
   make
   tests="!TLS-SRP !FTP"
   make "TFLAGS=-n --shallow=20 -t $tests" test-nonflaky
-fi
-
-if [ "$T" = "events" ]; then
-  ./configure --enable-debug --disable-shared --disable-threaded-resolver --enable-code-coverage --enable-werror --with-libssh2 --with-openssl
-  make
-  tests="!TLS-SRP"
-  make "TFLAGS=-n -e $tests" test-nonflaky
 fi
 
 if [ "$T" = "debug" ]; then

@@ -1767,7 +1767,7 @@ CURLcode Curl_http_compile_trailers(struct curl_slist *trailers,
         return result;
     }
     else
-      infof(handle, "Malformatted trailing header ! Skipping trailer.");
+      infof(handle, "Malformatted trailing header, skipping trailer");
     trailers = trailers->next;
   }
   result = Curl_dyn_add(b, endofline_network);
@@ -2927,7 +2927,7 @@ CURLcode Curl_http_firstwrite(struct Curl_easy *data,
       /* The resume point is at the end of file, consider this fine even if it
          doesn't allow resume from here. */
       infof(data, "The entire document is already downloaded");
-      connclose(conn, "already downloaded");
+      streamclose(conn, "already downloaded");
       /* Abort download */
       k->keepon &= ~KEEP_RECV;
       *done = TRUE;
@@ -2952,10 +2952,10 @@ CURLcode Curl_http_firstwrite(struct Curl_easy *data,
       /* We're simulating a http 304 from server so we return
          what should have been returned from the server */
       data->info.httpcode = 304;
-      infof(data, "Simulate a HTTP 304 response!");
+      infof(data, "Simulate a HTTP 304 response");
       /* we abort the transfer before it is completed == we ruin the
          re-use ability. Close the connection */
-      connclose(conn, "Simulated 304 handling");
+      streamclose(conn, "Simulated 304 handling");
       return CURLE_OK;
     }
   } /* we have a time condition */
@@ -3385,7 +3385,7 @@ CURLcode Curl_http_header(struct Curl_easy *data, struct connectdata *conn,
         return CURLE_FILESIZE_EXCEEDED;
       }
       streamclose(conn, "overflow content-length");
-      infof(data, "Overflow Content-Length: value!");
+      infof(data, "Overflow Content-Length: value");
     }
     else {
       /* negative or just rubbish - bad HTTP */
@@ -3419,7 +3419,7 @@ CURLcode Curl_http_header(struct Curl_easy *data, struct connectdata *conn,
      * Default action for 1.0 is to close.
      */
     connkeep(conn, "Proxy-Connection keep-alive"); /* don't close */
-    infof(data, "HTTP/1.0 proxy connection set to keep alive!");
+    infof(data, "HTTP/1.0 proxy connection set to keep alive");
   }
   else if((conn->httpversion == 11) &&
           conn->bits.httpproxy &&
@@ -3431,7 +3431,7 @@ CURLcode Curl_http_header(struct Curl_easy *data, struct connectdata *conn,
      * close down after this transfer.
      */
     connclose(conn, "Proxy-Connection: asked to close after done");
-    infof(data, "HTTP/1.1 proxy connection set close!");
+    infof(data, "HTTP/1.1 proxy connection set close");
   }
 #endif
   else if((conn->httpversion == 10) &&
@@ -3445,7 +3445,7 @@ CURLcode Curl_http_header(struct Curl_easy *data, struct connectdata *conn,
      *
      * [RFC2068, section 19.7.1] */
     connkeep(conn, "Connection keep-alive");
-    infof(data, "HTTP/1.0 connection set to keep alive!");
+    infof(data, "HTTP/1.0 connection set to keep alive");
   }
   else if(Curl_compareheader(headp,
                              STRCONST("Connection:"), STRCONST("close"))) {
@@ -3775,6 +3775,29 @@ CURLcode Curl_http_size(struct Curl_easy *data)
   return CURLE_OK;
 }
 
+static CURLcode verify_header(struct Curl_easy *data)
+{
+  struct SingleRequest *k = &data->req;
+  const char *header = Curl_dyn_ptr(&data->state.headerb);
+  size_t hlen = Curl_dyn_len(&data->state.headerb);
+  char *ptr = memchr(header, 0x00, hlen);
+  if(ptr) {
+    /* this is bad, bail out */
+    failf(data, "Nul byte in header");
+    return CURLE_WEIRD_SERVER_REPLY;
+  }
+  if(k->headerline < 2)
+    /* the first "header" is the status-line and it has no colon */
+    return CURLE_OK;
+  ptr = memchr(header, ':', hlen);
+  if(!ptr) {
+    /* this is bad, bail out */
+    failf(data, "Header without colon");
+    return CURLE_WEIRD_SERVER_REPLY;
+  }
+  return CURLE_OK;
+}
+
 /*
  * Read any HTTP header lines from the server and pass them to the client app.
  */
@@ -3997,9 +4020,9 @@ CURLcode Curl_http_readwrite_headers(struct Curl_easy *data,
 
       /* now, only output this if the header AND body are requested:
        */
-      writetype = CLIENTWRITE_HEADER;
-      if(data->set.include_header)
-        writetype |= CLIENTWRITE_BODY;
+      writetype = CLIENTWRITE_HEADER |
+        (data->set.include_header ? CLIENTWRITE_BODY : 0) |
+        ((k->httpcode/100 == 1) ? CLIENTWRITE_1XX : 0);
 
       headerlen = Curl_dyn_len(&data->state.headerb);
       result = Curl_client_write(data, writetype,
@@ -4096,7 +4119,7 @@ CURLcode Curl_http_readwrite_headers(struct Curl_easy *data,
         if(conn->bits.rewindaftersend) {
           /* We rewind after a complete send, so thus we continue
              sending now */
-          infof(data, "Keep sending data to get tossed away!");
+          infof(data, "Keep sending data to get tossed away");
           k->keepon |= KEEP_SEND;
         }
       }
@@ -4152,6 +4175,7 @@ CURLcode Curl_http_readwrite_headers(struct Curl_easy *data,
      * Checks for special headers coming up.
      */
 
+    writetype = CLIENTWRITE_HEADER;
     if(!k->headerline++) {
       /* This is the first header, it MUST be the error code line
          or else we consider this to be the body right away! */
@@ -4204,10 +4228,10 @@ CURLcode Curl_http_readwrite_headers(struct Curl_easy *data,
           switch(httpversion) {
           case 10:
           case 11:
-#if defined(USE_NGHTTP2) || defined(USE_HYPER)
+#ifdef USE_HTTP2
           case 20:
 #endif
-#if defined(ENABLE_QUIC)
+#ifdef ENABLE_QUIC
           case 30:
 #endif
             conn->httpversion = (unsigned char)httpversion;
@@ -4276,12 +4300,17 @@ CURLcode Curl_http_readwrite_headers(struct Curl_easy *data,
         result = Curl_http_statusline(data, conn);
         if(result)
           return result;
+        writetype |= CLIENTWRITE_STATUS;
       }
       else {
         k->header = FALSE;   /* this is not a header line */
         break;
       }
     }
+
+    result = verify_header(data);
+    if(result)
+      return result;
 
     result = Curl_http_header(data, conn, headp);
     if(result)
@@ -4290,10 +4319,10 @@ CURLcode Curl_http_readwrite_headers(struct Curl_easy *data,
     /*
      * End of header-checks. Write them to the client.
      */
-
-    writetype = CLIENTWRITE_HEADER;
     if(data->set.include_header)
       writetype |= CLIENTWRITE_BODY;
+    if(k->httpcode/100 == 1)
+      writetype |= CLIENTWRITE_1XX;
 
     Curl_debug(data, CURLINFO_HEADER_IN, headp,
                Curl_dyn_len(&data->state.headerb));

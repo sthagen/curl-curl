@@ -60,7 +60,7 @@ my @skiplist=(
     'options-in-versions',
 
     # macos-framework files
-    '^lib\/libcurl.plist',
+    '^lib\/libcurl.plist.in',
     '^lib\/libcurl.vers.in',
 
     # vms files
@@ -81,6 +81,9 @@ my @skiplist=(
 
     # an empty control file
     "^zuul.d/playbooks/.zuul.ignore",
+
+    # markdown linkchecker config
+    "mlc_config.json",
 
     );
 
