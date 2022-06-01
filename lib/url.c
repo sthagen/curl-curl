@@ -499,7 +499,6 @@ CURLcode Curl_init_userdefined(struct Curl_easy *data)
   /* use fread as default function to read input */
   set->fread_func_set = (curl_read_callback)fread;
   set->is_fread_set = 0;
-  set->is_fwrite_set = 0;
 
   set->seek_func = ZERO_NULL;
   set->seek_client = ZERO_NULL;
@@ -509,7 +508,9 @@ CURLcode Curl_init_userdefined(struct Curl_easy *data)
   set->maxredirs = -1;       /* allow any amount by default */
 
   set->method = HTTPREQ_GET; /* Default HTTP request */
+#ifndef CURL_DISABLE_RTSP
   set->rtspreq = RTSPREQ_OPTIONS; /* Default RTSP request */
+#endif
 #ifndef CURL_DISABLE_FTP
   set->ftp_use_epsv = TRUE;   /* FTP defaults to EPSV operations */
   set->ftp_use_eprt = TRUE;   /* FTP defaults to EPRT operations */
@@ -525,10 +526,12 @@ CURLcode Curl_init_userdefined(struct Curl_easy *data)
   set->proxyport = 0;
   set->proxytype = CURLPROXY_HTTP; /* defaults to HTTP proxy */
   set->httpauth = CURLAUTH_BASIC;  /* defaults to basic */
-  set->proxyauth = CURLAUTH_BASIC; /* defaults to basic */
 
+#ifndef CURL_DISABLE_PROXY
+  set->proxyauth = CURLAUTH_BASIC; /* defaults to basic */
   /* SOCKS5 proxy auth defaults to username/password + GSS-API */
   set->socks5auth = CURLAUTH_BASIC | CURLAUTH_GSSAPI;
+#endif
 
   /* make libcurl quiet by default: */
   set->hide_progress = TRUE;  /* CURLOPT_NOPROGRESS changes these */
@@ -548,8 +551,8 @@ CURLcode Curl_init_userdefined(struct Curl_easy *data)
 #ifdef USE_TLS_SRP
   set->ssl.primary.authtype = CURL_TLSAUTH_NONE;
 #endif
-  set->ssh_auth_types = CURLSSH_AUTH_DEFAULT; /* defaults to any auth
-                                                      type */
+   /* defaults to any auth type */
+  set->ssh_auth_types = CURLSSH_AUTH_DEFAULT;
   set->ssl.primary.sessionid = TRUE; /* session ID caching enabled by
                                         default */
 #ifndef CURL_DISABLE_PROXY
@@ -562,7 +565,7 @@ CURLcode Curl_init_userdefined(struct Curl_easy *data)
   /* for the *protocols fields we don't use the CURLPROTO_ALL convenience
      define since we internally only use the lower 16 bits for the passed
      in bitmask to not conflict with the private bits */
-  set->allowed_protocols = CURLPROTO_ALL;
+  set->allowed_protocols = (unsigned int)CURLPROTO_ALL;
   set->redir_protocols = CURLPROTO_HTTP | CURLPROTO_HTTPS | CURLPROTO_FTP |
                          CURLPROTO_FTPS;
 
@@ -602,9 +605,12 @@ CURLcode Curl_init_userdefined(struct Curl_easy *data)
 #endif
   }
 
+#ifndef CURL_DISABLE_FTP
   set->wildcard_enabled = FALSE;
   set->chunk_bgn      = ZERO_NULL;
   set->chunk_end      = ZERO_NULL;
+  set->fnmatch = ZERO_NULL;
+#endif
   set->tcp_keepalive = FALSE;
   set->tcp_keepintvl = 60;
   set->tcp_keepidle = 60;
@@ -617,7 +623,6 @@ CURLcode Curl_init_userdefined(struct Curl_easy *data)
   set->buffer_size = READBUFFER_SIZE;
   set->upload_buffer_size = UPLOADBUFFER_DEFAULT;
   set->happy_eyeballs_timeout = CURL_HET_DEFAULT;
-  set->fnmatch = ZERO_NULL;
   set->upkeep_interval_ms = CURL_UPKEEP_INTERVAL_DEFAULT;
   set->maxconnects = DEFAULT_CONNCACHE_SIZE; /* for easy handles */
   set->maxage_conn = 118;
@@ -1104,12 +1109,17 @@ static void prune_dead_connections(struct Curl_easy *data)
   }
 }
 
+#ifdef USE_SSH
 static bool ssh_config_matches(struct connectdata *one,
                                struct connectdata *two)
 {
   return (Curl_safecmp(one->proto.sshc.rsa, two->proto.sshc.rsa) &&
           Curl_safecmp(one->proto.sshc.rsa_pub, two->proto.sshc.rsa_pub));
 }
+#else
+#define ssh_config_matches(x,y) FALSE
+#endif
+
 /*
  * Given one filled in connection struct (named needle), this function should
  * detect if there already is one that has all the significant details
