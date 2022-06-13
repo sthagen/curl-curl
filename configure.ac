@@ -18,6 +18,8 @@
 # This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
 # KIND, either express or implied.
 #
+# SPDX-License-Identifier: curl
+#
 #***************************************************************************
 dnl Process this file with autoconf to produce a configure script.
 
@@ -4260,7 +4262,7 @@ if test ${ac_cv_sizeof_curl_off_t} -gt 4; then
 fi
 
 if test "$tst_atomic" = "yes"; then
-  SUPPORT_FEATURES="$SUPPORT_FEATURES threadsafe-init"
+  SUPPORT_FEATURES="$SUPPORT_FEATURES threadsafe"
 else
   AC_COMPILE_IFELSE([
     AC_LANG_PROGRAM([[
@@ -4271,7 +4273,7 @@ else
       #endif
     ]])
   ],[
-     SUPPORT_FEATURES="$SUPPORT_FEATURES threadsafe-init"
+     SUPPORT_FEATURES="$SUPPORT_FEATURES threadsafe"
   ],[
   ])
 fi

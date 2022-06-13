@@ -18,6 +18,8 @@
  * This software is distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY
  * KIND, either express or implied.
  *
+ * SPDX-License-Identifier: curl
+ *
  ***************************************************************************/
 
 #include "curl_setup.h"
@@ -453,7 +455,7 @@ static curl_version_info_data version_info = {
   | CURL_VERSION_GSASL
 #endif
 #if defined(GLOBAL_INIT_IS_THREADSAFE)
-  | CURL_VERSION_THREADSAFE_INIT
+  | CURL_VERSION_THREADSAFE
 #endif
   ,
   NULL, /* ssl_version */
