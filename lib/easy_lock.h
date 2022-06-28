@@ -40,8 +40,20 @@
 #include <sched.h>
 #endif
 
-#define curl_simple_lock atomic_bool
-#define CURL_SIMPLE_LOCK_INIT false
+#define curl_simple_lock atomic_int
+#define CURL_SIMPLE_LOCK_INIT 0
+
+/* a clang-thing */
+#ifndef __has_builtin
+#define __has_builtin(x) 0
+#endif
+
+/* if GCC on i386/x86_64 or if the built-in is present */
+#if ( (defined(__GNUC__) && !defined(__clang__)) &&     \
+      (defined(__i386__) || defined(__x86_64__))) ||    \
+  __has_builtin(__builtin_ia32_pause)
+#define HAVE_BUILTIN_IA32_PAUSE
+#endif
 
 static inline void curl_simple_lock_lock(curl_simple_lock *lock)
 {
@@ -51,10 +63,10 @@ static inline void curl_simple_lock_lock(curl_simple_lock *lock)
     /* Reduce cache coherency traffic */
     while(atomic_load_explicit(lock, memory_order_relaxed)) {
       /* Reduce load (not mandatory) */
-#if defined(__i386__) || defined(__x86_64__)
+#ifdef HAVE_BUILTIN_IA32_PAUSE
       __builtin_ia32_pause();
 #elif defined(__aarch64__)
-      asm volatile("yield" ::: "memory");
+      __asm__ volatile("yield" ::: "memory");
 #elif defined(HAVE_SCHED_YIELD)
       sched_yield();
 #endif
