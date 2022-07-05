@@ -318,11 +318,11 @@ struct digestdata {
   char *nonce;
   char *cnonce;
   char *realm;
-  int algo;
   char *opaque;
   char *qop;
   char *algorithm;
   int nc; /* nonce count */
+  unsigned char algo;
   BIT(stale); /* set true for re-negotiation */
   BIT(userhash);
 #endif
@@ -1649,7 +1649,7 @@ struct UserDefined {
   void *out;         /* CURLOPT_WRITEDATA */
   void *in_set;      /* CURLOPT_READDATA */
   void *writeheader; /* write the header to this if non-NULL */
-  long use_port;     /* which port to use (when not using default) */
+  unsigned short use_port; /* which port to use (when not using default) */
   unsigned long httpauth;  /* kind of HTTP authentication to use (bitmask) */
   unsigned long proxyauth; /* kind of proxy authentication to use (bitmask) */
 #ifndef CURL_DISABLE_PROXY
@@ -1695,10 +1695,10 @@ struct UserDefined {
 #endif
   void *progress_client; /* pointer to pass to the progress callback */
   void *ioctl_client;   /* pointer to pass to the ioctl callback */
-  long timeout;         /* in milliseconds, 0 means no timeout */
-  long connecttimeout;  /* in milliseconds, 0 means no timeout */
-  long happy_eyeballs_timeout; /* in milliseconds, 0 is a valid value */
-  long server_response_timeout; /* in milliseconds, 0 means no timeout */
+  unsigned int timeout;        /* ms, 0 means no timeout */
+  unsigned int connecttimeout; /* ms, 0 means no timeout */
+  unsigned int happy_eyeballs_timeout; /* ms, 0 is a valid value */
+  unsigned int server_response_timeout; /* ms, 0 means no timeout */
   long maxage_conn;     /* in seconds, max idle time to allow a connection that
                            is to be reused */
   long maxlifetime_conn; /* in seconds, max time since creation to allow a
@@ -1743,8 +1743,8 @@ struct UserDefined {
   struct ssl_config_data proxy_ssl;  /* user defined SSL stuff for proxy */
 #endif
   struct ssl_general_config general_ssl; /* general user defined SSL stuff */
-  long dns_cache_timeout; /* DNS cache timeout */
-  long buffer_size;      /* size of receive buffer to use */
+  int dns_cache_timeout; /* DNS cache timeout (seconds) */
+  unsigned int buffer_size;      /* size of receive buffer to use */
   unsigned int upload_buffer_size; /* size of upload buffer to use,
                                       keep it >= CURL_MAX_WRITE_SIZE */
   void *private_data; /* application-private data */
@@ -1769,8 +1769,7 @@ struct UserDefined {
   curl_sshkeycallback ssh_keyfunc; /* key matching callback */
   void *ssh_keyfunc_userp;         /* custom pointer to callback */
 #ifndef CURL_DISABLE_NETRC
-  enum CURL_NETRC_OPTION
-       use_netrc;        /* defined in include/curl.h */
+  unsigned char use_netrc;        /* enum CURL_NETRC_OPTION values  */
 #endif
   curl_usessl use_ssl;   /* if AUTH TLS is to be attempted etc, for FTP or
                             IMAP or POP3 or others! */
@@ -1782,15 +1781,14 @@ struct UserDefined {
 #ifdef ENABLE_IPV6
   unsigned int scope_id;  /* Scope id for IPv6 */
 #endif
-  unsigned int allowed_protocols;
-  unsigned int redir_protocols;
+  curl_off_t allowed_protocols;
+  curl_off_t redir_protocols;
   unsigned int mime_options;      /* Mime option flags. */
 
 #ifndef CURL_DISABLE_RTSP
   void *rtp_out;     /* write RTP to this if non-NULL */
   /* Common RTSP header options */
   Curl_RtspReq rtspreq; /* RTSP request type */
-  long rtspversion; /* like httpversion, for RTSP */
 #endif
 #ifndef CURL_DISABLE_FTP
   curl_chunk_bgn_callback chunk_bgn; /* called before part of transfer
