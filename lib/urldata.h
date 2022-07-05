@@ -1732,10 +1732,10 @@ struct UserDefined {
                                      DNS cache */
   struct curl_slist *connect_to; /* list of host:port mappings to override
                                     the hostname and port to connect to */
-  curl_TimeCond timecondition; /* kind of time/date comparison */
-  curl_proxytype proxytype; /* what kind of proxy that is in use */
   time_t timevalue;       /* what time to compare with */
-  Curl_HttpReq method;   /* what kind of HTTP request (if any) is this */
+  unsigned char timecondition; /* kind of time comparison: curl_TimeCond */
+  unsigned char proxytype; /* what kind of proxy: curl_proxytype */
+  unsigned char method;   /* what kind of HTTP request: Curl_HttpReq */
   unsigned char httpwant; /* when non-zero, a specific HTTP version requested
                              to be used in the library's request(s) */
   struct ssl_config_data ssl;  /* user defined SSL stuff */
@@ -1753,14 +1753,16 @@ struct UserDefined {
                           file 0 - whatever, 1 - v2, 2 - v6 */
   curl_off_t max_filesize; /* Maximum file size to download */
 #ifndef CURL_DISABLE_FTP
-  curl_ftpfile ftp_filemethod; /* how to get to a file when FTP is used  */
-  curl_ftpauth ftpsslauth; /* what AUTH XXX to be attempted */
-  curl_ftpccc ftp_ccc;   /* FTP CCC options */
-  long accepttimeout;   /* in milliseconds, 0 means no timeout */
+  unsigned char ftp_filemethod; /* how to get to a file: curl_ftpfile  */
+  unsigned char ftpsslauth; /* what AUTH XXX to try: curl_ftpauth */
+  unsigned char ftp_ccc;   /* FTP CCC options: curl_ftpccc */
+  unsigned int accepttimeout;   /* in milliseconds, 0 means no timeout */
 #endif
-  int ftp_create_missing_dirs; /* 1 - create directories that don't exist
-                                  2 - the same but also allow MKD to fail once
-                               */
+  /* Desppie the name ftp_create_missing_dirs is for FTP(S) and SFTP
+     1 - create directories that don't exist
+     2 - the same but also allow MKD to fail once
+  */
+  unsigned char ftp_create_missing_dirs;
 #ifdef USE_LIBSSH2
   curl_sshhostkeycallback ssh_hostkeyfunc; /* hostkey check callback */
   void *ssh_hostkeyfunc_userp;         /* custom pointer to callback */
