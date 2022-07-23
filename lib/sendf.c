@@ -586,18 +586,20 @@ static CURLcode chop_write(struct Curl_easy *data,
     len -= chunklen;
   }
 
+#ifndef CURL_DISABLE_HTTP
   /* HTTP header, but not status-line */
   if((conn->handler->protocol & PROTO_FAMILY_HTTP) &&
      (type & CLIENTWRITE_HEADER) && !(type & CLIENTWRITE_STATUS) ) {
-    CURLcode result =
-      Curl_headers_push(data, optr,
-                        type & CLIENTWRITE_CONNECT ? CURLH_CONNECT :
-                        (type & CLIENTWRITE_1XX ? CURLH_1XX :
-                         (type & CLIENTWRITE_TRAILER ? CURLH_TRAILER :
-                          CURLH_HEADER)));
+    unsigned char htype = (unsigned char)
+      (type & CLIENTWRITE_CONNECT ? CURLH_CONNECT :
+       (type & CLIENTWRITE_1XX ? CURLH_1XX :
+        (type & CLIENTWRITE_TRAILER ? CURLH_TRAILER :
+         CURLH_HEADER)));
+    CURLcode result = Curl_headers_push(data, optr, htype);
     if(result)
       return result;
   }
+#endif
 
   if(writeheader) {
     size_t wrote;
@@ -714,16 +716,15 @@ CURLcode Curl_read(struct Curl_easy *data,   /* transfer */
 }
 
 /* return 0 on success */
-int Curl_debug(struct Curl_easy *data, curl_infotype type,
-               char *ptr, size_t size)
+void Curl_debug(struct Curl_easy *data, curl_infotype type,
+                char *ptr, size_t size)
 {
-  int rc = 0;
   if(data->set.verbose) {
     static const char s_infotype[CURLINFO_END][3] = {
       "* ", "< ", "> ", "{ ", "} ", "{ ", "} " };
     if(data->set.fdebug) {
       Curl_set_in_callback(data, true);
-      rc = (*data->set.fdebug)(data, type, ptr, size, data->set.debugdata);
+      (void)(*data->set.fdebug)(data, type, ptr, size, data->set.debugdata);
       Curl_set_in_callback(data, false);
     }
     else {
@@ -739,5 +740,4 @@ int Curl_debug(struct Curl_easy *data, curl_infotype type,
       }
     }
   }
-  return rc;
 }
