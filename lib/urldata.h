@@ -879,6 +879,11 @@ struct connstate {
   unsigned char *outp; /* send from this pointer */
 };
 
+#define TRNSPRT_TCP 3
+#define TRNSPRT_UDP 4
+#define TRNSPRT_QUIC 5
+#define TRNSPRT_UNIX 6
+
 /*
  * The connectdata struct contains all fields and variables that should be
  * unique for an entire connection.
@@ -919,12 +924,7 @@ struct connectdata {
 #ifdef ENABLE_IPV6
   unsigned int scope_id;  /* Scope id for IPv6 */
 #endif
-
-  enum {
-    TRNSPRT_TCP = 3,
-    TRNSPRT_UDP = 4,
-    TRNSPRT_QUIC = 5
-  } transport;
+  unsigned char transport; /* one of the TRNSPRT_* defines */
 
 #ifdef ENABLE_QUIC
   struct quicsocket hequic[2]; /* two, for happy eyeballs! */
@@ -1018,9 +1018,9 @@ struct connectdata {
 
 #ifdef HAVE_GSSAPI
   BIT(sec_complete); /* if Kerberos is enabled for this connection */
-  enum protection_level command_prot;
-  enum protection_level data_prot;
-  enum protection_level request_data_prot;
+  unsigned char command_prot; /* enum protection_level */
+  unsigned char data_prot; /* enum protection_level */
+  unsigned char request_data_prot; /* enum protection_level */
   size_t buffer_size;
   struct krb5buffer in_buffer;
   void *app_data;
@@ -1119,7 +1119,8 @@ struct connectdata {
   int localportrange;
   int cselect_bits; /* bitmask of socket events */
   int waitfor;      /* current READ/WRITE bits to wait for */
-  int negnpn; /* APLN or NPN TLS negotiated protocol, CURL_HTTP_VERSION* */
+  unsigned char negnpn; /* APLN or NPN TLS negotiated protocol,
+                           a CURL_HTTP_VERSION* value */
 
 #if defined(HAVE_GSSAPI) || defined(USE_WINDOWS_SSPI)
   int socks5_gssapi_enctype;

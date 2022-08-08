@@ -39,7 +39,22 @@
 #include "memdebug.h"
 
 #ifdef __AMIGA__
-#if defined(HAVE_PROTO_BSDSOCKET_H) && !defined(USE_AMISSL)
+
+#ifdef __amigaos4__
+
+#ifdef USE_AMISSL
+int Curl_amiga_select(int nfds, fd_set *readfds, fd_set *writefds,
+                      fd_set *errorfds, struct timeval *timeout)
+{
+  int r = WaitSelect(nfds, readfds, writefds, errorfds, timeout, 0);
+  /* Ensure Ctrl-C signal is actioned */
+  if((r == -1) && (SOCKERRNO == EINTR))
+    raise(SIGINT);
+  return r;
+}
+#endif /* USE_AMISSL */
+
+#elif defined(HAVE_PROTO_BSDSOCKET_H) && !defined(USE_AMISSL)
 struct Library *SocketBase = NULL;
 extern int errno, h_errno;
 
@@ -87,38 +102,5 @@ ADD2EXIT(Curl_amiga_cleanup, -50);
 
 #endif /* HAVE_PROTO_BSDSOCKET_H */
 
-#ifdef USE_AMISSL
-void Curl_amiga_X509_free(X509 *a)
-{
-  X509_free(a);
-}
-
-/* AmiSSL replaces many functions with macros. Curl requires pointer
- * to some of these functions. Thus, we have to encapsulate these macros.
- */
-
-#include "warnless.h"
-
-int (SHA256_Init)(SHA256_CTX *c)
-{
-  return SHA256_Init(c);
-};
-
-int (SHA256_Update)(SHA256_CTX *c, const void *data, size_t len)
-{
-  return SHA256_Update(c, data, curlx_uztoui(len));
-};
-
-int (SHA256_Final)(unsigned char *md, SHA256_CTX *c)
-{
-  return SHA256_Final(md, c);
-};
-
-void (X509_INFO_free)(X509_INFO *a)
-{
-  X509_INFO_free(a);
-};
-
-#endif /* USE_AMISSL */
 #endif /* __AMIGA__ */
 
