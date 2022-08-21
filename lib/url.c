@@ -440,6 +440,7 @@ CURLcode Curl_close(struct Curl_easy **datap)
   Curl_safefree(data->info.wouldredirect);
 
   /* this destroys the channel and we cannot use it anymore after this */
+  Curl_resolver_cancel(data);
   Curl_resolver_cleanup(data->state.async.resolver);
 
   Curl_http2_cleanup_dependencies(data);
@@ -2024,6 +2025,10 @@ static CURLcode parseurlandfillconn(struct Curl_easy *data,
   if(uc) {
     if(!strcasecompare("file", data->state.up.scheme))
       return CURLE_OUT_OF_MEMORY;
+  }
+  else if(strlen(data->state.up.hostname) > 0xffff) {
+    failf(data, "Too long host name");
+    return CURLE_URL_MALFORMAT;
   }
 
 #ifndef CURL_DISABLE_HSTS
