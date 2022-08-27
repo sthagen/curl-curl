@@ -55,6 +55,22 @@
 #include "curl_memory.h"
 #include "memdebug.h"
 
+#ifdef __APPLE__
+
+#define wakeup_write  write
+#define wakeup_read   read
+#define wakeup_close  close
+#define wakeup_create pipe
+
+#else /* __APPLE__ */
+
+#define wakeup_write     swrite
+#define wakeup_read      sread
+#define wakeup_close     sclose
+#define wakeup_create(p) Curl_socketpair(AF_UNIX, SOCK_STREAM, 0, p)
+
+#endif /* __APPLE__ */
+
 /*
   CURL_SOCKET_HASH_TABLE_SIZE should be a prime number. Increasing it from 97
   to 911 takes on a 32-bit machine 4 x 804 = 3211 more bytes.  Still, every
@@ -404,14 +420,14 @@ struct Curl_multi *Curl_multi_handle(int hashsize, /* socket hash */
     goto error;
 #else
 #ifdef ENABLE_WAKEUP
-  if(Curl_socketpair(AF_UNIX, SOCK_STREAM, 0, multi->wakeup_pair) < 0) {
+  if(wakeup_create(multi->wakeup_pair) < 0) {
     multi->wakeup_pair[0] = CURL_SOCKET_BAD;
     multi->wakeup_pair[1] = CURL_SOCKET_BAD;
   }
   else if(curlx_nonblock(multi->wakeup_pair[0], TRUE) < 0 ||
           curlx_nonblock(multi->wakeup_pair[1], TRUE) < 0) {
-    sclose(multi->wakeup_pair[0]);
-    sclose(multi->wakeup_pair[1]);
+    wakeup_close(multi->wakeup_pair[0]);
+    wakeup_close(multi->wakeup_pair[1]);
     multi->wakeup_pair[0] = CURL_SOCKET_BAD;
     multi->wakeup_pair[1] = CURL_SOCKET_BAD;
   }
@@ -827,6 +843,24 @@ CURLMcode curl_multi_remove_handle(struct Curl_multi *multi,
 
   /* Remove the association between the connection and the handle */
   Curl_detach_connection(data);
+
+  if(data->set.connect_only && !data->multi_easy) {
+    /* This removes a handle that was part the multi inteface that used
+       CONNECT_ONLY, that connection is now left alive but since this handle
+       has bits.close set nothing can use that transfer anymore and it is
+       forbidden from reuse. And this easy handle cannot find the connection
+       anymore once removed from the multi handle
+
+       Better close the connection here, at once.
+    */
+    struct connectdata *c;
+    curl_socket_t s;
+    s = Curl_getconnectinfo(data, &c);
+    if((s != CURL_SOCKET_BAD) && c) {
+      Curl_conncache_remove_conn(data, c, TRUE);
+      Curl_disconnect(data, c, TRUE);
+    }
+  }
 
   if(data->state.lastconnect_id != -1) {
     /* Mark any connect-only connection for closure */
@@ -1309,8 +1343,6 @@ static CURLMcode multi_wait(struct Curl_multi *multi,
       pollrc = Curl_poll(ufds, nfds, 0); /* just pre-check with WinSock */
     else
       pollrc = 0;
-    if(pollrc <= 0) /* now wait... if not ready during the pre-check above */
-      WSAWaitForMultipleEvents(1, &multi->wsa_event, FALSE, timeout_ms, FALSE);
 #else
     pollrc = Curl_poll(ufds, nfds, timeout_ms); /* wait... */
 #endif
@@ -1320,6 +1352,9 @@ static CURLMcode multi_wait(struct Curl_multi *multi,
     if(pollrc > 0) {
       retcode = pollrc;
 #ifdef USE_WINSOCK
+    }
+    else { /* now wait... if not ready during the pre-check (pollrc == 0) */
+      WSAWaitForMultipleEvents(1, &multi->wsa_event, FALSE, timeout_ms, FALSE);
     }
     /* With WinSock, we have to run the following section unconditionally
        to call WSAEventSelect(fd, event, 0) on all the sockets */
@@ -1332,20 +1367,23 @@ static CURLMcode multi_wait(struct Curl_multi *multi,
         unsigned r = ufds[curlfds + i].revents;
         unsigned short mask = 0;
 #ifdef USE_WINSOCK
+        curl_socket_t s = extra_fds[i].fd;
         wsa_events.lNetworkEvents = 0;
-        if(WSAEnumNetworkEvents(extra_fds[i].fd, NULL, &wsa_events) == 0) {
+        if(WSAEnumNetworkEvents(s, NULL, &wsa_events) == 0) {
           if(wsa_events.lNetworkEvents & (FD_READ|FD_ACCEPT|FD_CLOSE))
             mask |= CURL_WAIT_POLLIN;
           if(wsa_events.lNetworkEvents & (FD_WRITE|FD_CONNECT|FD_CLOSE))
             mask |= CURL_WAIT_POLLOUT;
           if(wsa_events.lNetworkEvents & FD_OOB)
             mask |= CURL_WAIT_POLLPRI;
-          if(ret && pollrc <= 0 && wsa_events.lNetworkEvents)
+          if(ret && !pollrc && wsa_events.lNetworkEvents)
             retcode++;
         }
-        WSAEventSelect(extra_fds[i].fd, multi->wsa_event, 0);
-        if(pollrc <= 0)
+        WSAEventSelect(s, multi->wsa_event, 0);
+        if(!pollrc) {
+          extra_fds[i].revents = mask;
           continue;
+        }
 #endif
         if(r & POLLIN)
           mask |= CURL_WAIT_POLLIN;
@@ -1368,7 +1406,7 @@ static CURLMcode multi_wait(struct Curl_multi *multi,
             if(bitmap & (GETSOCK_READSOCK(i) | GETSOCK_WRITESOCK(i))) {
               wsa_events.lNetworkEvents = 0;
               if(WSAEnumNetworkEvents(sockbunch[i], NULL, &wsa_events) == 0) {
-                if(ret && pollrc <= 0 && wsa_events.lNetworkEvents)
+                if(ret && !pollrc && wsa_events.lNetworkEvents)
                   retcode++;
               }
               WSAEventSelect(sockbunch[i], multi->wsa_event, 0);
@@ -1395,7 +1433,7 @@ static CURLMcode multi_wait(struct Curl_multi *multi,
                data from it until it receives an error (except EINTR).
                In normal cases it will get EAGAIN or EWOULDBLOCK
                when there is no more data, breaking the loop. */
-            nread = sread(multi->wakeup_pair[0], buf, sizeof(buf));
+            nread = wakeup_read(multi->wakeup_pair[0], buf, sizeof(buf));
             if(nread <= 0) {
               if(nread < 0 && EINTR == SOCKERRNO)
                 continue;
@@ -1488,7 +1526,7 @@ CURLMcode curl_multi_wakeup(struct Curl_multi *multi)
          that will call curl_multi_wait(). If swrite() returns that it
          would block, it's considered successful because it means that
          previous calls to this function will wake up the poll(). */
-      if(swrite(multi->wakeup_pair[1], buf, sizeof(buf)) < 0) {
+      if(wakeup_write(multi->wakeup_pair[1], buf, sizeof(buf)) < 0) {
         int err = SOCKERRNO;
         int return_success;
 #ifdef USE_WINSOCK
@@ -2724,8 +2762,8 @@ CURLMcode curl_multi_cleanup(struct Curl_multi *multi)
     WSACloseEvent(multi->wsa_event);
 #else
 #ifdef ENABLE_WAKEUP
-    sclose(multi->wakeup_pair[0]);
-    sclose(multi->wakeup_pair[1]);
+    wakeup_close(multi->wakeup_pair[0]);
+    wakeup_close(multi->wakeup_pair[1]);
 #endif
 #endif
     free(multi);
