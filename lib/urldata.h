@@ -53,6 +53,14 @@
 #define PORT_GOPHER 70
 #define PORT_MQTT 1883
 
+#ifdef USE_WEBSOCKETS
+#define CURLPROTO_WS     (1<<30)
+#define CURLPROTO_WSS    (1LL<<31)
+#else
+#define CURLPROTO_WS 0
+#define CURLPROTO_WSS 0
+#endif
+
 #define DICT_MATCH "/MATCH:"
 #define DICT_MATCH2 "/M:"
 #define DICT_MATCH3 "/FIND:"
@@ -66,7 +74,8 @@
 /* Convenience defines for checking protocols or their SSL based version. Each
    protocol handler should only ever have a single CURLPROTO_ in its protocol
    field. */
-#define PROTO_FAMILY_HTTP (CURLPROTO_HTTP|CURLPROTO_HTTPS)
+#define PROTO_FAMILY_HTTP (CURLPROTO_HTTP|CURLPROTO_HTTPS|CURLPROTO_WS| \
+                           CURLPROTO_WSS)
 #define PROTO_FAMILY_FTP  (CURLPROTO_FTP|CURLPROTO_FTPS)
 #define PROTO_FAMILY_POP3 (CURLPROTO_POP3|CURLPROTO_POP3S)
 #define PROTO_FAMILY_SMB  (CURLPROTO_SMB|CURLPROTO_SMBS)
@@ -507,9 +516,7 @@ struct ConnectBits {
                  connection */
   BIT(multiplex); /* connection is multiplexed */
   BIT(tcp_fastopen); /* use TCP Fast Open */
-  BIT(tls_enable_npn);  /* TLS NPN extension? */
   BIT(tls_enable_alpn); /* TLS ALPN extension? */
-  BIT(connect_only);
 #ifndef CURL_DISABLE_DOH
   BIT(doh);
 #endif
@@ -575,8 +582,9 @@ enum expect100 {
 
 enum upgrade101 {
   UPGR101_INIT,               /* default state */
-  UPGR101_REQUESTED,          /* upgrade requested */
-  UPGR101_RECEIVED,           /* response received */
+  UPGR101_WS,                 /* upgrade to WebSockets requested */
+  UPGR101_H2,                 /* upgrade to HTTP/2 requested */
+  UPGR101_RECEIVED,           /* 101 response received */
   UPGR101_WORKING             /* talking upgraded protocol */
 };
 
@@ -803,7 +811,7 @@ struct Curl_handler {
                                         url query strings (?foo=bar) ! */
 #define PROTOPT_CREDSPERREQUEST (1<<7) /* requires login credentials per
                                           request instead of per connection */
-#define PROTOPT_ALPN_NPN (1<<8) /* set ALPN and/or NPN for this */
+#define PROTOPT_ALPN (1<<8) /* set ALPN for this */
 #define PROTOPT_STREAM (1<<9) /* a protocol with individual logical streams */
 #define PROTOPT_URLOPTIONS (1<<10) /* allow options part in the userinfo field
                                       of the URL */
@@ -1118,11 +1126,12 @@ struct connectdata {
   unsigned short localport;
   unsigned short secondary_port; /* secondary socket remote port to connect to
                                     (ftp) */
-  unsigned char negnpn; /* APLN or NPN TLS negotiated protocol,
-                           a CURL_HTTP_VERSION* value */
+  unsigned char alpn; /* APLN TLS negotiated protocol, a CURL_HTTP_VERSION*
+                         value */
   unsigned char transport; /* one of the TRNSPRT_* defines */
   unsigned char ip_version; /* copied from the Curl_easy at creation time */
   unsigned char httpversion; /* the HTTP version*10 reported by the server */
+  unsigned char connect_only;
 };
 
 /* The end of connectdata. */
@@ -1817,6 +1826,8 @@ struct UserDefined {
   BIT(mail_rcpt_allowfails); /* allow RCPT TO command to fail for some
                                 recipients */
 #endif
+  unsigned char connect_only; /* make connection/request, then let
+                                 application use the socket */
   BIT(is_fread_set); /* has read callback been set to non-NULL? */
 #ifndef CURL_DISABLE_TFTP
   BIT(tftp_no_options); /* do not send TFTP options requests */
@@ -1862,7 +1873,6 @@ struct UserDefined {
   BIT(no_signal);      /* do not use any signal/alarm handler */
   BIT(tcp_nodelay);    /* whether to enable TCP_NODELAY or not */
   BIT(ignorecl);       /* ignore content length */
-  BIT(connect_only);   /* make connection, let application use the socket */
   BIT(http_te_skip);   /* pass the raw body data to the user, even when
                           transfer-encoded (chunked, compressed) */
   BIT(http_ce_skip);   /* pass the raw body data to the user, even when
@@ -1875,7 +1885,6 @@ struct UserDefined {
   BIT(sasl_ir);         /* Enable/disable SASL initial response */
   BIT(tcp_keepalive);  /* use TCP keepalives */
   BIT(tcp_fastopen);   /* use TCP Fast Open */
-  BIT(ssl_enable_npn); /* TLS NPN extension? */
   BIT(ssl_enable_alpn);/* TLS ALPN extension? */
   BIT(path_as_is);     /* allow dotdots? */
   BIT(pipewait);       /* wait for multiplex status before starting a new
@@ -1895,6 +1904,9 @@ struct UserDefined {
   BIT(doh_verifystatus);   /* DoH certificate status verification */
 #endif
   BIT(http09_allowed); /* allow HTTP/0.9 responses */
+#ifdef USE_WEBSOCKETS
+  BIT(ws_raw_mode);
+#endif
 };
 
 struct Names {

@@ -84,6 +84,10 @@
 #define CURL_CONNECTION_HASH_SIZE 97
 #endif
 
+#ifndef CURL_DNS_HASH_SIZE
+#define CURL_DNS_HASH_SIZE 71
+#endif
+
 #define CURL_MULTI_HANDLE 0x000bab1e
 
 #define GOOD_MULTI_HANDLE(x) \
@@ -388,7 +392,8 @@ static CURLMcode multi_addmsg(struct Curl_multi *multi,
 }
 
 struct Curl_multi *Curl_multi_handle(int hashsize, /* socket hash */
-                                     int chashsize) /* connection hash */
+                                     int chashsize, /* connection hash */
+                                     int dnssize) /* dns hash */
 {
   struct Curl_multi *multi = calloc(1, sizeof(struct Curl_multi));
 
@@ -397,7 +402,7 @@ struct Curl_multi *Curl_multi_handle(int hashsize, /* socket hash */
 
   multi->magic = CURL_MULTI_HANDLE;
 
-  Curl_init_dnscache(&multi->hostcache);
+  Curl_init_dnscache(&multi->hostcache, dnssize);
 
   sh_init(&multi->sockhash, hashsize);
 
@@ -451,7 +456,8 @@ struct Curl_multi *Curl_multi_handle(int hashsize, /* socket hash */
 struct Curl_multi *curl_multi_init(void)
 {
   return Curl_multi_handle(CURL_SOCKET_HASH_TABLE_SIZE,
-                           CURL_CONNECTION_HASH_SIZE);
+                           CURL_CONNECTION_HASH_SIZE,
+                           CURL_DNS_HASH_SIZE);
 }
 
 CURLMcode curl_multi_add_handle(struct Curl_multi *multi,
@@ -747,7 +753,7 @@ static int close_connect_only(struct Curl_easy *data,
   if(data->state.lastconnect_id != conn->connection_id)
     return 0;
 
-  if(!conn->bits.connect_only)
+  if(!conn->connect_only)
     return 1;
 
   connclose(conn, "Removing connect-only easy handle");
@@ -845,7 +851,7 @@ CURLMcode curl_multi_remove_handle(struct Curl_multi *multi,
   Curl_detach_connection(data);
 
   if(data->set.connect_only && !data->multi_easy) {
-    /* This removes a handle that was part the multi inteface that used
+    /* This removes a handle that was part the multi interface that used
        CONNECT_ONLY, that connection is now left alive but since this handle
        has bits.close set nothing can use that transfer anymore and it is
        forbidden from reuse. And this easy handle cannot find the connection
@@ -2138,7 +2144,7 @@ static CURLMcode multi_runsingle(struct Curl_multi *multi,
         }
       }
 
-      if(data->set.connect_only) {
+      if(data->set.connect_only == 1) {
         /* keep connection open for application to use the socket */
         connkeep(data->conn, "CONNECT_ONLY");
         multistate(data, MSTATE_DONE);

@@ -170,6 +170,7 @@ curl_verbose_msg="enabled (--disable-verbose)"
  curl_altsvc_msg="enabled (--disable-alt-svc)"
 curl_headers_msg="enabled (--disable-headers-api)"
    curl_hsts_msg="enabled (--disable-hsts)"
+     curl_ws_msg="no      (--enable-websockets)"
     ssl_backends=
      curl_h1_msg="enabled (internal)"
      curl_h2_msg="no      (--with-nghttp2, --with-hyper)"
@@ -1957,7 +1958,7 @@ if test "x$curl_cv_native_windows" = "xyes" &&
   LIBS="-lbcrypt $LIBS"
 fi
 
-case "x$OPENSSL_ENABLED$GNUTLS_ENABLED$NSS_ENABLED$MBEDTLS_ENABLED$WOLFSSL_ENABLED$SCHANNEL_ENABLED$SECURETRANSPORT_ENABLED$BEARSSL_ENABLED$RUSTLS_ENABLED$SSL_DISABLED"
+case "x$SSL_DISABLED$OPENSSL_ENABLED$GNUTLS_ENABLED$NSS_ENABLED$MBEDTLS_ENABLED$WOLFSSL_ENABLED$SCHANNEL_ENABLED$SECURETRANSPORT_ENABLED$BEARSSL_ENABLED$RUSTLS_ENABLED"
 in
 x)
   AC_MSG_ERROR([TLS not detected, you will not be able to use HTTPS, FTPS, NTLM and more.
@@ -1971,6 +1972,11 @@ x1)
   ;;
 xD)
   # explicitly built without TLS
+  ;;
+xD*)
+  AC_MSG_ERROR([--without-ssl has been set together with an explicit option to use an ssl library
+(e.g. --with-openssl, --with-gnutls, --with-wolfssl, --with-mbedtls, --with-nss, --with-schannel, --with-secure-transport, --with-amissl, --with-bearssl, --with-rustls).
+Since these are conflicting parameters, verify which is the desired one and drop the other.])
   ;;
 *)
   # more than one SSL backend is enabled
@@ -4175,6 +4181,38 @@ if test "x$want_ech" != "xno"; then
   fi
 fi
 
+dnl *************************************************************
+dnl WebSockets
+dnl
+AC_MSG_CHECKING([whether to support WebSockets])
+AC_ARG_ENABLE(websockets,
+AS_HELP_STRING([--enable-websockets],[Enable WebSockets support])
+AS_HELP_STRING([--disable-websockets],[Disable WebSockets support]),
+[ case "$enableval" in
+  no)
+     AC_MSG_RESULT(no)
+     ;;
+  *)
+     if test ${ac_cv_sizeof_curl_off_t} -gt 4; then
+         AC_MSG_RESULT(yes)
+         curl_ws_msg="enabled"
+         AC_DEFINE_UNQUOTED(USE_WEBSOCKETS, [1], [enable websockets support])
+         SUPPORT_PROTOCOLS="$SUPPORT_PROTOCOLS WS"
+         if test "x$SSL_ENABLED" = "x1"; then
+           SUPPORT_PROTOCOLS="$SUPPORT_PROTOCOLS WSS"
+         fi
+         experimental="$experimental Websockets"
+     else
+         dnl websockets requires >32 bit curl_off_t
+         AC_MSG_RESULT(no)
+         AC_MSG_WARN([Websockets disabled due to lack of >32 bit curl_off_t])
+     fi
+     ;;
+  esac ],
+     AC_MSG_RESULT(no)
+)
+
+
 dnl ************************************************************
 dnl hiding of library internal symbols
 dnl
@@ -4554,6 +4592,7 @@ AC_MSG_NOTICE([Configured to build curl/libcurl:
   HTTP2:            ${curl_h2_msg}
   HTTP3:            ${curl_h3_msg}
   ECH:              ${curl_ech_msg}
+  WebSockets:       ${curl_ws_msg}
   Protocols:        ${SUPPORT_PROTOCOLS}
   Features:         ${SUPPORT_FEATURES}
 ])

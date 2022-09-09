@@ -96,6 +96,13 @@
 #include "curl_memory.h"
 #include "memdebug.h"
 
+/* in 0.10.0 or later, ignore deprecated warnings */
+#if defined(__GNUC__) &&                        \
+  (LIBSSH_VERSION_MINOR >= 10) ||               \
+  (LIBSSH_VERSION_MAJOR > 0)
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
 /* A recent macro provided by libssh. Or make our own. */
 #ifndef SSH_STRING_FREE_CHAR
 #define SSH_STRING_FREE_CHAR(x)                 \
@@ -1660,7 +1667,7 @@ static CURLcode myssh_statemach_act(struct Curl_easy *data, bool *block)
           if(from_t == CURL_OFFT_FLOW) {
             return CURLE_RANGE_ERROR;
           }
-          while(*ptr && (ISSPACE(*ptr) || (*ptr == '-')))
+          while(*ptr && (ISBLANK(*ptr) || (*ptr == '-')))
             ptr++;
           to_t = curlx_strtoofft(ptr, &ptr2, 0, &to);
           if(to_t == CURL_OFFT_FLOW) {

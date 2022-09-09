@@ -181,7 +181,7 @@ create_hostcache_id(const char *name, int port, char *ptr, size_t buflen)
     len = buflen - 7;
   /* store and lower case the name */
   while(len--)
-    *ptr++ = (char)TOLOWER(*name++);
+    *ptr++ = Curl_raw_tolower(*name++);
   msnprintf(ptr, 7, ":%u", port);
 }
 
@@ -584,7 +584,7 @@ bool Curl_host_is_ipnum(const char *hostname)
 }
 
 
-/* return TRUE if 'part' is a case insentive tail of 'full' */
+/* return TRUE if 'part' is a case insensitive tail of 'full' */
 static bool tailmatch(const char *full, const char *part)
 {
   size_t plen = strlen(part);
@@ -1005,9 +1005,9 @@ static void freednsentry(void *freethis)
 /*
  * Curl_init_dnscache() inits a new DNS cache.
  */
-void Curl_init_dnscache(struct Curl_hash *hash)
+void Curl_init_dnscache(struct Curl_hash *hash, int size)
 {
-  Curl_hash_init(hash, 7, Curl_hash_str, Curl_str_key_compare,
+  Curl_hash_init(hash, size, Curl_hash_str, Curl_str_key_compare,
                  freednsentry);
 }
 

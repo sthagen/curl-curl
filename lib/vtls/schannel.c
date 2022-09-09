@@ -186,10 +186,6 @@
 #define ALG_CLASS_DHASH ALG_CLASS_HASH
 #endif
 
-#ifndef PKCS12_NO_PERSIST_KEY
-#define PKCS12_NO_PERSIST_KEY 0x00008000
-#endif
-
 static Curl_recv schannel_recv;
 static Curl_send schannel_send;
 
@@ -680,13 +676,7 @@ schannel_acquire_credential_handle(struct Curl_easy *data,
         else
           pszPassword[0] = 0;
 
-        if(curlx_verify_windows_version(6, 0, 0, PLATFORM_WINNT,
-                                        VERSION_GREATER_THAN_EQUAL))
-          cert_store = PFXImportCertStore(&datablob, pszPassword,
-                                          PKCS12_NO_PERSIST_KEY);
-        else
-          cert_store = PFXImportCertStore(&datablob, pszPassword, 0);
-
+        cert_store = PFXImportCertStore(&datablob, pszPassword, 0);
         free(pszPassword);
       }
       if(!blob)
@@ -803,7 +793,7 @@ schannel_acquire_credential_handle(struct Curl_easy *data,
     int crypto_settings_idx = 0;
 
 
-    /* If TLS 1.3 ciphers are explictly listed, then
+    /* If TLS 1.3 ciphers are explicitly listed, then
      * disable all the ciphers and re-enable which
      * ciphers the user has provided.
      */
@@ -923,7 +913,7 @@ schannel_acquire_credential_handle(struct Curl_easy *data,
       blocked_gcm_modes[0].MaximumLength = sizeof(BCRYPT_CHAIN_MODE_GCM);
       blocked_gcm_modes[0].Buffer = (PWSTR)BCRYPT_CHAIN_MODE_GCM;
 
-      /* if only one is disabled, then explictly disable the
+      /* if only one is disabled, then explicitly disable the
          digest cipher suite (sha384 or sha256) */
       if(disable_aes_gcm_sha384 != disable_aes_gcm_sha256) {
         crypto_settings[crypto_settings_idx].eAlgorithmUsage =
@@ -1730,19 +1720,19 @@ schannel_connect_step3(struct Curl_easy *data, struct connectdata *conn,
 #ifdef USE_HTTP2
       if(alpn_result.ProtocolIdSize == ALPN_H2_LENGTH &&
          !memcmp(ALPN_H2, alpn_result.ProtocolId, ALPN_H2_LENGTH)) {
-        conn->negnpn = CURL_HTTP_VERSION_2;
+        conn->alpn = CURL_HTTP_VERSION_2;
       }
       else
 #endif
         if(alpn_result.ProtocolIdSize == ALPN_HTTP_1_1_LENGTH &&
            !memcmp(ALPN_HTTP_1_1, alpn_result.ProtocolId,
                    ALPN_HTTP_1_1_LENGTH)) {
-          conn->negnpn = CURL_HTTP_VERSION_1_1;
+          conn->alpn = CURL_HTTP_VERSION_1_1;
         }
     }
     else
       infof(data, VTLS_INFOF_NO_ALPN);
-    Curl_multiuse_state(data, conn->negnpn == CURL_HTTP_VERSION_2 ?
+    Curl_multiuse_state(data, conn->alpn == CURL_HTTP_VERSION_2 ?
                         BUNDLE_MULTIPLEX : BUNDLE_NO_MULTIUSE);
   }
 #endif

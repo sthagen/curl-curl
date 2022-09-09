@@ -87,6 +87,7 @@ if(WIN32)
   if(CURL_TARGET_WINDOWS_VERSION)
     add_definitions(-D_WIN32_WINNT=${CURL_TARGET_WINDOWS_VERSION})
     set(CMAKE_REQUIRED_DEFINITIONS "${CMAKE_REQUIRED_DEFINITIONS} -D_WIN32_WINNT=${CURL_TARGET_WINDOWS_VERSION}")
+    set(CURL_TEST_DEFINES "${CURL_TEST_DEFINES} -D_WIN32_WINNT=${CURL_TARGET_WINDOWS_VERSION}")
   endif()
   if(ENABLE_UNICODE)
     add_definitions(-DUNICODE -D_UNICODE)
@@ -1166,15 +1167,24 @@ if(WIN32)
   curl_internal_test(HAVE_WIN32_WINNT)
   if(HAVE_WIN32_WINNT)
     string(REGEX MATCH ".*_WIN32_WINNT=0x[0-9a-fA-F]+" OUTPUT "${OUTPUT}")
-    string(REGEX REPLACE ".*_WIN32_WINNT=" "" OUTPUT "${OUTPUT}")
-    math(EXPR HAVE_WIN32_WINNT "${OUTPUT}" OUTPUT_FORMAT DECIMAL)
-    message(STATUS "Found _WIN32_WINNT=${OUTPUT} (${HAVE_WIN32_WINNT})")
+    string(REGEX REPLACE ".*_WIN32_WINNT=" "" HAVE_WIN32_WINNT "${OUTPUT}")
+    message(STATUS "Found _WIN32_WINNT=${HAVE_WIN32_WINNT}")
   endif()
   # avoid storing HAVE_WIN32_WINNT in CMake cache
   unset(HAVE_WIN32_WINNT CACHE)
 endif()
 
 set(CMAKE_REQUIRED_FLAGS)
+
+option(ENABLE_WEBSOCKETS "Set to ON to enable EXPERIMENTAL websockets" OFF)
+
+if(ENABLE_WEBSOCKETS)
+  if(${SIZEOF_CURL_OFF_T} GREATER "4")
+    set(USE_WEBSOCKETS ON)
+  else()
+    message(WARNING "curl_off_t is too small to enable WebSockets")
+  endif()
+endif()
 
 foreach(CURL_TEST
     HAVE_GLIBC_STRERROR_R
@@ -1291,7 +1301,22 @@ if(WIN32)
     list(APPEND CURL_LIBS "advapi32" "crypt32")
   endif()
 
-  list(APPEND CURL_LIBS "bcrypt")
+  # Matching logic used for Curl_win32_random()
+  if(MINGW)
+    check_c_source_compiles("
+      #include <_mingw.h>
+      #if defined(__MINGW64_VERSION_MAJOR)
+      #error
+      #endif
+      int main(void) {
+        return 0;
+      }"
+      HAVE_MINGW_ORIGINAL)
+  endif()
+
+  if(NOT HAVE_MINGW_ORIGINAL)
+    list(APPEND CURL_LIBS "bcrypt")
+  endif()
 endif()
 
 if(MSVC)
@@ -1434,6 +1459,7 @@ _add_if("HTTPS-proxy"   SSL_ENABLED AND (USE_OPENSSL OR USE_GNUTLS OR USE_NSS))
 _add_if("unicode"       ENABLE_UNICODE)
 _add_if("threadsafe"    HAVE_ATOMIC OR (WIN32 AND
                         HAVE_WIN32_WINNT GREATER_EQUAL 0x600))
+_add_if("PSL"           USE_LIBPSL)
 string(REPLACE ";" " " SUPPORT_FEATURES "${_items}")
 message(STATUS "Enabled features: ${SUPPORT_FEATURES}")
 
@@ -1470,6 +1496,8 @@ _add_if("SFTP"          USE_LIBSSH2 OR USE_LIBSSH)
 _add_if("RTSP"          NOT CURL_DISABLE_RTSP)
 _add_if("RTMP"          USE_LIBRTMP)
 _add_if("MQTT"          NOT CURL_DISABLE_MQTT)
+_add_if("WS"            USE_WEBSOCKETS)
+_add_if("WSS"           USE_WEBSOCKETS)
 if(_items)
   list(SORT _items)
 endif()
