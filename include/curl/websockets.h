@@ -24,6 +24,10 @@
  *
  ***************************************************************************/
 
+#ifdef  __cplusplus
+extern "C" {
+#endif
+
 /* generic in/out flag bits */
 #define CURLWS_TEXT       (1<<0)
 #define CURLWS_BINARY     (1<<1)
@@ -58,10 +62,6 @@ CURL_EXTERN CURLcode curl_ws_send(CURL *curl, const void *buffer,
                                   size_t buflen, size_t *sent,
                                   unsigned int sendflags);
 
-typedef ssize_t (*curl_ws_write_callback)(void *userdata, char *data,
-                                          size_t len,
-                                          unsigned int flags);
-
 /* bits for the CURLOPT_WS_OPTIONS bitmask: */
 #define CURLWS_RAW_MODE (1<<0)
 
@@ -71,5 +71,9 @@ struct curl_ws_metadata {
 };
 
 CURL_EXTERN struct curl_ws_metadata *curl_ws_meta(CURL *curl);
+
+#ifdef  __cplusplus
+}
+#endif
 
 #endif /* CURLINC_WEBSOCKETS_H */

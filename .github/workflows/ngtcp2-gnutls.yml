@@ -25,14 +25,14 @@ jobs:
       matrix:
         build:
         - name: gnutls
-          install:
+          install: nettle-dev libp11-kit-dev libtspi-dev libunistring-dev guile-2.2-dev libtasn1-bin libtasn1-6-dev libidn2-0-dev gawk gperf libtss2-dev dns-root-data bison gtk-doc-tools texinfo texlive texlive-extra-utils autopoint libev-dev
           configure: LDFLAGS="-Wl,-rpath,$HOME/all/lib" --with-gnutls=$HOME/all --enable-debug
           gnutls-configure: --with-included-libtasn1 --with-included-unistring --disable-guile --disable-doc --disable-tests
 
     steps:
     - run: |
         sudo apt-get update
-        sudo apt-get install libtool autoconf automake pkg-config stunnel4 ${{ matrix.build.install }} python3 nettle-dev libp11-kit-dev libtspi-dev libunistring-dev guile-2.2-dev libtasn1-bin libtasn1-6-dev libidn2-0-dev gawk gperf libtss2-dev dns-root-data bison gtk-doc-tools texinfo texlive texlive-extra-utils autopoint libev-dev
+        sudo apt-get install libtool autoconf automake pkg-config stunnel4 ${{ matrix.build.install }}
         sudo python3 -m pip install impacket
       name: 'install prereqs and impacket'
 
@@ -41,7 +41,7 @@ jobs:
         cd nettle
         ./.bootstrap
         ./configure LDFLAGS="-Wl,-rpath,$HOME/all/lib" ${{ matrix.build.nettle-configure }} --prefix=$HOME/all --libdir=$HOME/all/lib --disable-documentation
-        make && make install
+        make install
       name: 'install nettle'
 
     - run: |
@@ -49,7 +49,7 @@ jobs:
         cd gnutls
         ./bootstrap
         ./configure PKG_CONFIG_PATH="$HOME/all/lib/pkgconfig" LDFLAGS="-Wl,-rpath,$HOME/all/lib -L$HOME/all/lib" --prefix=$HOME/all ${{ matrix.build.gnutls-configure }} --disable-tools
-        make V=1 && make install
+        make install
       name: 'install gnutls'
 
     - run: |
@@ -57,7 +57,7 @@ jobs:
         cd nghttp3
         autoreconf -fi
         ./configure --prefix=$HOME/all --enable-lib-only
-        make && make install
+        make install
       name: 'install nghttp3'
 
     - run: |
@@ -65,7 +65,7 @@ jobs:
         cd ngtcp2
         autoreconf -fi
         ./configure PKG_CONFIG_PATH=$HOME/all/lib/pkgconfig LDFLAGS="-Wl,-rpath,$HOME/all/lib" --prefix=$HOME/all --enable-lib-only --with-gnutls=$HOME/all
-        make && make install
+        make install
       name: 'install ngtcp2'
 
     - uses: actions/checkout@v3

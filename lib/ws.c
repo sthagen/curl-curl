@@ -22,6 +22,7 @@
  *
  ***************************************************************************/
 #include "curl_setup.h"
+#include <curl/curl.h>
 
 #ifdef USE_WEBSOCKETS
 
@@ -293,7 +294,7 @@ static CURLcode ws_decode(struct Curl_easy *data,
   *olen = payloadssize;
   wsp->usedbuf = total; /* number of bytes "used" from the buffer */
   *endp = &p[total];
-  infof(data, "WS: received %u bytes payload", payloadssize);
+  infof(data, "WS: received %zu bytes payload", payloadssize);
   return CURLE_OK;
 }
 
