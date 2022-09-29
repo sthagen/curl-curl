@@ -349,6 +349,8 @@ AC_SYS_LARGEFILE
 
 XC_LIBTOOL
 
+LT_LANG([Windows Resource])
+
 #
 # Automake conditionals based on libtool related checks
 #
@@ -568,6 +570,7 @@ CURL_DARWIN_CFLAGS
 CURL_DARWIN_SYSTEMCONFIGURATION
 CURL_SUPPORTS_BUILTIN_AVAILABLE
 
+AM_CONDITIONAL([OS_WINDOWS], [test "$curl_cv_native_windows" = "yes"])
 
 dnl ************************************************************
 dnl switch off particular protocols
@@ -3385,6 +3388,18 @@ AC_CHECK_TYPE(long long,
 )
 
 
+if test ${ac_cv_sizeof_curl_off_t} -lt 8; then
+  AC_ARG_WITH(n64-deprecated,dnl
+AS_HELP_STRING([--with-n64-deprecated],[confirm you realize support for systems without 64 bit data types is going away]),
+  if test X"$withval" != Xno; then
+    OPT_N64_AWARE=$withval
+  fi
+)
+  if test -z "$OPT_N64_AWARE"; then
+    AC_MSG_ERROR([support for systems without 64 bit curl_off_t is deprecated, use --with-n64-deprecated until then])
+  fi
+fi
+
 # check for ssize_t
 AC_CHECK_TYPE(ssize_t, ,
    AC_DEFINE(ssize_t, int, [the signed version of size_t]))
@@ -3532,6 +3547,7 @@ AC_CHECK_FUNCS([fnmatch \
   setlocale \
   setmode \
   setrlimit \
+  snprintf \
   utime \
   utimes
 ],[

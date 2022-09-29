@@ -73,8 +73,8 @@
 #endif
 
 #elif defined(USE_WIN32_IDN)
-/* prototype for curl_win32_idn_to_ascii() */
-bool curl_win32_idn_to_ascii(const char *in, char **out);
+/* prototype for Curl_win32_idn_to_ascii() */
+bool Curl_win32_idn_to_ascii(const char *in, char **out);
 #endif  /* USE_LIBIDN2 */
 
 #include "doh.h"
@@ -577,11 +577,7 @@ CURLcode Curl_init_userdefined(struct Curl_easy *data)
 
   set->new_file_perms = 0644;    /* Default permissions */
   set->new_directory_perms = 0755; /* Default permissions */
-
-  /* for the *protocols fields we don't use the CURLPROTO_ALL convenience
-     define since we internally only use the lower 16 bits for the passed
-     in bitmask to not conflict with the private bits */
-  set->allowed_protocols = (unsigned int)CURLPROTO_ALL;
+  set->allowed_protocols = (curl_prot_t) CURLPROTO_ALL;
   set->redir_protocols = CURLPROTO_HTTP | CURLPROTO_HTTPS | CURLPROTO_FTP |
                          CURLPROTO_FTPS;
 
@@ -1652,7 +1648,7 @@ CURLcode Curl_idnconvert_hostname(struct Curl_easy *data,
 #elif defined(USE_WIN32_IDN)
     char *ace_hostname = NULL;
 
-    if(curl_win32_idn_to_ascii(host->name, &ace_hostname)) {
+    if(Curl_win32_idn_to_ascii(host->name, &ace_hostname)) {
       host->encalloc = ace_hostname;
       /* change the name pointer to point to the encoded hostname */
       host->name = host->encalloc;
@@ -1683,7 +1679,7 @@ void Curl_free_idnconverted_hostname(struct hostname *host)
   }
 #elif defined(USE_WIN32_IDN)
   free(host->encalloc); /* must be freed with free() since this was
-                           allocated by curl_win32_idn_to_ascii */
+                           allocated by Curl_win32_idn_to_ascii */
   host->encalloc = NULL;
 #else
   (void)host;
@@ -2916,15 +2912,15 @@ CURLcode Curl_parse_login_details(const char *login, const size_t len,
           (psep && psep > osep ? (size_t)(psep - osep) :
                                  (size_t)(login + len - osep)) - 1 : 0);
 
-  /* Allocate the user portion buffer */
-  if(userp && ulen) {
+  /* Allocate the user portion buffer, which can be zero length */
+  if(userp) {
     ubuf = malloc(ulen + 1);
     if(!ubuf)
       result = CURLE_OUT_OF_MEMORY;
   }
 
   /* Allocate the password portion buffer */
-  if(!result && passwdp && plen) {
+  if(!result && passwdp && psep) {
     pbuf = malloc(plen + 1);
     if(!pbuf) {
       free(ubuf);
@@ -3507,9 +3503,9 @@ static CURLcode resolve_proxy(struct Curl_easy *data,
 }
 #endif
 
-static CURLcode resolve_ip(struct Curl_easy *data,
-                           struct connectdata *conn,
-                           bool *async)
+static CURLcode resolve_host(struct Curl_easy *data,
+                             struct connectdata *conn,
+                             bool *async)
 {
   struct Curl_dns_entry *hostaddr = NULL;
   struct hostname *connhost;
@@ -3575,7 +3571,7 @@ static CURLcode resolve_fresh(struct Curl_easy *data,
     return resolve_proxy(data, conn, async);
 #endif
 
-  return resolve_ip(data, conn, async);
+  return resolve_host(data, conn, async);
 }
 
 /*************************************************************
