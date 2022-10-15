@@ -1014,6 +1014,7 @@ endif()
 check_symbol_exists(fchmod        "${CURL_INCLUDES}" HAVE_FCHMOD)
 check_symbol_exists(basename      "${CURL_INCLUDES}" HAVE_BASENAME)
 check_symbol_exists(socket        "${CURL_INCLUDES}" HAVE_SOCKET)
+check_symbol_exists(socketpair    "${CURL_INCLUDES}" HAVE_SOCKETPAIR)
 check_symbol_exists(recv          "${CURL_INCLUDES}" HAVE_RECV)
 check_symbol_exists(send          "${CURL_INCLUDES}" HAVE_SEND)
 check_symbol_exists(select        "${CURL_INCLUDES}" HAVE_SELECT)
@@ -1038,16 +1039,15 @@ check_symbol_exists(gmtime_r      "${CURL_INCLUDES}" HAVE_GMTIME_R)
 
 check_symbol_exists(gethostbyname_r "${CURL_INCLUDES}" HAVE_GETHOSTBYNAME_R)
 
-check_symbol_exists(signal        "${CURL_INCLUDES}" HAVE_SIGNAL_FUNC)
-check_symbol_exists(SIGALRM       "${CURL_INCLUDES}" HAVE_SIGNAL_MACRO)
-if(HAVE_SIGNAL_FUNC AND HAVE_SIGNAL_MACRO)
-  set(HAVE_SIGNAL 1)
-endif()
+check_symbol_exists(signal         "${CURL_INCLUDES}" HAVE_SIGNAL)
 check_symbol_exists(strtoll        "${CURL_INCLUDES}" HAVE_STRTOLL)
 check_symbol_exists(_strtoi64      "${CURL_INCLUDES}" HAVE__STRTOI64)
 check_symbol_exists(strerror_r     "${CURL_INCLUDES}" HAVE_STRERROR_R)
 check_symbol_exists(siginterrupt   "${CURL_INCLUDES}" HAVE_SIGINTERRUPT)
 check_symbol_exists(getaddrinfo    "${CURL_INCLUDES}" HAVE_GETADDRINFO)
+if(NOT HAVE_GETADDRINFO)
+  set(HAVE_GETADDRINFO_THREADSAFE OFF)
+endif()
 check_symbol_exists(freeaddrinfo   "${CURL_INCLUDES}" HAVE_FREEADDRINFO)
 check_symbol_exists(pipe           "${CURL_INCLUDES}" HAVE_PIPE)
 check_symbol_exists(ftruncate      "${CURL_INCLUDES}" HAVE_FTRUNCATE)
@@ -1064,6 +1064,10 @@ if(NOT MSVC OR (MSVC_VERSION GREATER_EQUAL 1900))
   check_symbol_exists(snprintf       "${CURL_INCLUDES}" HAVE_SNPRINTF)
 endif()
 check_function_exists(mach_absolute_time HAVE_MACH_ABSOLUTE_TIME)
+check_symbol_exists(inet_ntop      "${CURL_INCLUDES}" HAVE_INET_NTOP)
+if(MSVC AND (MSVC_VERSION LESS_EQUAL 1600))
+  set(HAVE_INET_NTOP OFF)
+endif()
 check_symbol_exists(inet_pton      "${CURL_INCLUDES}" HAVE_INET_PTON)
 
 check_symbol_exists(fsetxattr "${CURL_INCLUDES}" HAVE_FSETXATTR)
@@ -1113,7 +1117,6 @@ foreach(CURL_TEST
     HAVE_IOCTL_FIONBIO
     HAVE_IOCTL_SIOCGIFADDR
     HAVE_SETSOCKOPT_SO_NONBLOCK
-    HAVE_SOCKADDR_IN6_SIN6_SCOPE_ID
     TIME_WITH_SYS_TIME
     HAVE_O_NONBLOCK
     HAVE_GETHOSTBYNAME_R_3
@@ -1125,7 +1128,6 @@ foreach(CURL_TEST
     HAVE_IN_ADDR_T
     HAVE_BOOL_T
     STDC_HEADERS
-    HAVE_GETADDRINFO
     HAVE_FILE_OFFSET_BITS
     HAVE_VARIADIC_MACROS_C99
     HAVE_VARIADIC_MACROS_GCC
@@ -1288,6 +1290,8 @@ if(WIN32)
 
   if(NOT HAVE_MINGW_ORIGINAL)
     list(APPEND CURL_LIBS "bcrypt")
+  else()
+    set(HAVE_FTRUNCATE OFF)
   endif()
 endif()
 

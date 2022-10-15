@@ -195,6 +195,9 @@
 /* Define to 1 if you have a working getaddrinfo function. */
 #cmakedefine HAVE_GETADDRINFO 1
 
+/* Define to 1 if the getaddrinfo function is threadsafe. */
+#cmakedefine HAVE_GETADDRINFO_THREADSAFE 1
+
 /* Define to 1 if you have the `geteuid' function. */
 #cmakedefine HAVE_GETEUID 1
 
@@ -456,6 +459,9 @@
 
 /* Define to 1 if you have the `socket' function. */
 #cmakedefine HAVE_SOCKET 1
+
+/* Define to 1 if you have the socketpair function. */
+#cmakedefine HAVE_SOCKETPAIR 1
 
 /* Define to 1 if you have the <ssl.h> header file. */
 #cmakedefine HAVE_SSL_H 1

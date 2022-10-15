@@ -2,44 +2,42 @@
 <info>
 <keywords>
 HTTP
-HTTP GET
--J
+netrc
 </keywords>
 </info>
 
 #
+# Server-side
 <reply>
-<data nocheck="yes">
+<data>
 HTTP/1.1 200 OK
 Date: Tue, 09 Nov 2010 14:49:00 GMT
 Server: test-server/fake
+Last-Modified: Tue, 13 Jun 2000 12:10:00 GMT
+ETag: "21025-dc7-39462498"
+Accept-Ranges: bytes
 Content-Length: 6
 Connection: close
 Content-Type: text/html
+Funny-head: yesyes
 
-12345
+-foo-
 </data>
 </reply>
 
 #
 # Client-side
 <client>
-# this relies on the debug feature to allow us to set directory to store the
-# -O output in, using the CURL_TESTDIR variable
-<features>
-debug
-</features>
 <server>
 http
 </server>
 <name>
-HTTP GET with -J without Content-Disposition
+user+password in URL with optional netrc
 </name>
-<setenv>
-CURL_TESTDIR=%PWD/log
-</setenv>
-<command option="no-output,no-include">
-http://%HOSTIP:%HTTPPORT/%TESTNUMBER?junk -J -O
+# the key is the URL encoded user, which needs to be sent encoded in the
+# Authorization: header
+<command>
+http://foo%40bar:secret@%HOSTIP:%HTTPPORT/%TESTNUMBER --netrc-optional
 </command>
 </client>
 
@@ -47,15 +45,12 @@ http://%HOSTIP:%HTTPPORT/%TESTNUMBER?junk -J -O
 # Verify data after the test has been "shot"
 <verify>
 <protocol>
-GET /%TESTNUMBER?junk HTTP/1.1
+GET /%TESTNUMBER HTTP/1.1
 Host: %HOSTIP:%HTTPPORT
+Authorization: Basic Zm9vQGJhcjpzZWNyZXQ=
 User-Agent: curl/%VERSION
 Accept: */*
 
 </protocol>
-<file name="log/%TESTNUMBER">
-12345
-</file>
-
 </verify>
 </testcase>

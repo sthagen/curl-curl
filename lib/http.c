@@ -3583,15 +3583,15 @@ CURLcode Curl_http_header(struct Curl_easy *data, struct connectdata *conn,
   else if(checkprefix("Retry-After:", headp)) {
     /* Retry-After = HTTP-date / delay-seconds */
     curl_off_t retry_after = 0; /* zero for unknown or "now" */
-    time_t date = Curl_getdate_capped(headp + strlen("Retry-After:"));
-    if(-1 == date) {
-      /* not a date, try it as a decimal number */
-      (void)curlx_strtoofft(headp + strlen("Retry-After:"),
-                            NULL, 10, &retry_after);
+    /* Try it as a decimal number, if it works it is not a date */
+    (void)curlx_strtoofft(headp + strlen("Retry-After:"),
+                          NULL, 10, &retry_after);
+    if(!retry_after) {
+      time_t date = Curl_getdate_capped(headp + strlen("Retry-After:"));
+      if(-1 != date)
+        /* convert date to number of seconds into the future */
+        retry_after = date - time(NULL);
     }
-    else
-      /* convert date to number of seconds into the future */
-      retry_after = date - time(NULL);
     data->info.retry_after = retry_after; /* store it */
   }
   else if(!k->http_bodyless && checkprefix("Content-Range:", headp)) {
@@ -3715,7 +3715,14 @@ CURLcode Curl_http_header(struct Curl_easy *data, struct connectdata *conn,
 #ifndef CURL_DISABLE_HSTS
   /* If enabled, the header is incoming and this is over HTTPS */
   else if(data->hsts && checkprefix("Strict-Transport-Security:", headp) &&
-          (conn->handler->flags & PROTOPT_SSL)) {
+          ((conn->handler->flags & PROTOPT_SSL) ||
+#ifdef CURLDEBUG
+           /* allow debug builds to circumvent the HTTPS restriction */
+           getenv("CURL_HSTS_HTTP")
+#else
+           0
+#endif
+            )) {
     CURLcode check =
       Curl_hsts_parse(data->hsts, data->state.up.hostname,
                       headp + strlen("Strict-Transport-Security:"));

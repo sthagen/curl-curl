@@ -189,8 +189,7 @@ static void ws_decode_clear(struct Curl_easy *data)
    out - stored pointed to extracted data
    olen - stored length of the extracted data
    oleft - number of unread bytes pending to that belongs to this frame
-   endp - stored pointer to data immediately following the parsed data, if
-          there is more data in there. NULL if there's no more data.
+   more - if there is more data in there
    flags - stored bitmask about the frame
 
    Returns CURLE_AGAIN if there is only a partial frame in the buffer. Then it
@@ -202,7 +201,7 @@ static CURLcode ws_decode(struct Curl_easy *data,
                           unsigned char *wpkt, size_t ilen,
                           unsigned char **out, size_t *olen,
                           curl_off_t *oleft,
-                          unsigned char **endp,
+                          bool *more,
                           unsigned int *flags)
 {
   bool fin;
@@ -304,16 +303,21 @@ static CURLcode ws_decode(struct Curl_easy *data,
     *oleft = total - dataindex;
     payloadsize = total - dataindex;
   }
-  else
+  else {
     *oleft = 0;
+    if(plen > total)
+      /* there is another fragment after */
+      *more = TRUE;
+  }
 
   /* point to the payload */
   *out = &p[dataindex];
 
   /* return the payload length */
   *olen = payloadsize;
-  wsp->usedbuf = total; /* number of bytes "used" from the buffer */
-  *endp = &p[total];
+
+  /* number of bytes "used" from the buffer */
+  wsp->usedbuf = dataindex + payloadsize;
   infof(data, "WS: received %zu bytes payload (%zu left)",
         payloadsize, *oleft);
   return CURLE_OK;
@@ -334,17 +338,18 @@ size_t Curl_ws_writecb(char *buffer, size_t size /* 1 */,
   else if(nitems) {
     unsigned char *frame = NULL;
     size_t flen = 0;
+    size_t wrote = 0;
     CURLcode result;
-    unsigned char *endp;
+    bool more; /* there's is more to parse in the buffer */
     curl_off_t oleft;
 
     decode:
-
+    more = FALSE;
     oleft = ws->ws.frame.bytesleft;
     if(!oleft) {
       unsigned int recvflags;
       result = ws_decode(data, (unsigned char *)buffer, nitems,
-                         &frame, &flen, &oleft, &endp, &recvflags);
+                         &frame, &flen, &oleft, &more, &recvflags);
       if(result == CURLE_AGAIN)
         /* insufficient amount of data, keep it for later */
         return nitems;
@@ -362,10 +367,10 @@ size_t Curl_ws_writecb(char *buffer, size_t size /* 1 */,
     else {
       if(nitems > (size_t)ws->ws.frame.bytesleft) {
         nitems = ws->ws.frame.bytesleft;
-        endp = (unsigned char *)&buffer[nitems];
+        more = TRUE;
       }
       else
-        endp = NULL;
+        more = FALSE;
       ws->ws.frame.offset += nitems;
       ws->ws.frame.bytesleft -= nitems;
       frame = (unsigned char *)buffer;
@@ -383,16 +388,19 @@ size_t Curl_ws_writecb(char *buffer, size_t size /* 1 */,
     }
     else {
       /* deliver the decoded frame to the user callback */
-      if(data->set.fwrite_func((char *)frame, 1, flen, writebody_ptr) != flen)
+      Curl_set_in_callback(data, true);
+      wrote = data->set.fwrite_func((char *)frame, 1, flen, writebody_ptr);
+      Curl_set_in_callback(data, false);
+      if(wrote != flen)
         return 0;
     }
     if(oleft)
       ws->ws.frame.offset += flen;
     /* the websocket frame has been delivered */
     ws_decode_clear(data);
-    if(endp) {
+    if(more) {
       /* there's more websocket data to deal with in the buffer */
-      buffer = NULL; /* don't pass in the data again */
+      buffer = NULL; /* the buffer as been drained already */
       goto decode;
     }
   }
@@ -433,14 +441,14 @@ CURL_EXTERN CURLcode curl_ws_recv(struct Curl_easy *data, void *buffer,
     if(bytes) {
       unsigned char *out;
       size_t olen;
-      unsigned char *endp;
+      bool more;
       unsigned int recvflags;
       curl_off_t oleft = wsp->frame.bytesleft;
 
       infof(data, "WS: got %u websocket bytes to decode", (int)bytes);
       if(!oleft && !drain) {
         result = ws_decode(data, (unsigned char *)inbuf, bytes,
-                           &out, &olen, &oleft, &endp, &recvflags);
+                           &out, &olen, &oleft, &more, &recvflags);
         if(result == CURLE_AGAIN)
           /* a packet fragment only */
           break;
@@ -681,12 +689,13 @@ CURL_EXTERN CURLcode curl_ws_send(struct Curl_easy *data, const void *buffer,
   out = data->state.ulbuf;
   if(buflen)
     /* for PING and PONG etc there might not be a payload */
-    ws_xor(data, buffer, (unsigned char *)out + headlen, buflen - headlen);
-  if(Curl_is_in_callback(data))
+    ws_xor(data, buffer, (unsigned char *)out + headlen, buflen);
+
+  if(data->set.connect_only)
+    result = Curl_senddata(data, out, buflen + headlen, &written);
+  else
     result = Curl_write(data, data->conn->writesockfd, out,
                         buflen + headlen, &written);
-  else
-    result = Curl_senddata(data, out, buflen + headlen, &written);
 
   infof(data, "WS: wanted to send %zu bytes, sent %zu bytes",
         headlen + buflen, written);

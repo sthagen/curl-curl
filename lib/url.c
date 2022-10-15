@@ -2089,7 +2089,7 @@ static CURLcode parseurlandfillconn(struct Curl_easy *data,
       return Curl_uc_to_curlcode(uc);
   }
 
-  if(!data->state.aptr.user) {
+  if(!data->set.str[STRING_USERNAME]) {
     /* we don't use the URL API's URL decoder option here since it rejects
        control codes and we want to allow them for some schemes in the user
        and password fields */
@@ -2997,14 +2997,6 @@ static CURLcode override_login(struct Curl_easy *data,
   char **passwdp = &conn->passwd;
   char **optionsp = &conn->options;
 
-#ifndef CURL_DISABLE_NETRC
-  if(data->set.use_netrc == CURL_NETRC_REQUIRED && data->state.aptr.user) {
-    Curl_safefree(*userp);
-    Curl_safefree(*passwdp);
-    Curl_safefree(data->state.aptr.user); /* disable user+password */
-  }
-#endif
-
   if(data->set.str[STRING_OPTIONS]) {
     free(*optionsp);
     *optionsp = strdup(data->set.str[STRING_OPTIONS]);
@@ -3013,22 +3005,23 @@ static CURLcode override_login(struct Curl_easy *data,
   }
 
 #ifndef CURL_DISABLE_NETRC
+  if(data->set.use_netrc == CURL_NETRC_REQUIRED) {
+    Curl_safefree(*userp);
+    Curl_safefree(*passwdp);
+  }
   conn->bits.netrc = FALSE;
   if(data->set.use_netrc && !data->set.str[STRING_USERNAME]) {
-    bool netrc_user_changed = FALSE;
-    bool netrc_passwd_changed = FALSE;
     int ret;
     bool url_provided = FALSE;
 
-    if(data->state.up.user) {
-      /* there was a user name in the URL */
-      userp = &data->state.up.user;
+    if(data->state.aptr.user) {
+      /* there was a user name in the URL. Use the URL decoded version */
+      userp = &data->state.aptr.user;
       url_provided = TRUE;
     }
 
     ret = Curl_parsenetrc(conn->host.name,
                           userp, passwdp,
-                          &netrc_user_changed, &netrc_passwd_changed,
                           data->set.str[STRING_NETRC_FILE]);
     if(ret > 0) {
       infof(data, "Couldn't find host %s in the %s file; using defaults",
@@ -3061,9 +3054,13 @@ static CURLcode override_login(struct Curl_easy *data,
 
   /* for updated strings, we update them in the URL */
   if(*userp) {
-    CURLcode result = Curl_setstropt(&data->state.aptr.user, *userp);
-    if(result)
-      return result;
+    CURLcode result;
+    if(data->state.aptr.user != *userp) {
+      /* nothing to do then */
+      result = Curl_setstropt(&data->state.aptr.user, *userp);
+      if(result)
+        return result;
+    }
   }
   if(data->state.aptr.user) {
     uc = curl_url_set(data->state.uh, CURLUPART_USER, data->state.aptr.user,
