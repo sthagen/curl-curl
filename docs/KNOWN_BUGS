@@ -95,7 +95,6 @@ problems may have been fixed or changed somewhat since this was written.
  7.12 FTPS directory listing hangs on Windows with Schannel
 
  8. TELNET
- 8.1 TELNET and time limitations do not work
  8.2 Microsoft telnet server
 
  9. SFTP and SCP
@@ -164,7 +163,7 @@ problems may have been fixed or changed somewhat since this was written.
  18. HTTP/3
  18.1 If the HTTP/3 server closes connection during upload curl hangs
  18.2 Transfer closed with n bytes remaining to read
- 18.4 timeout when reusing a http3 connection
+ 18.4 timeout when reusing an http3 connection
  18.9 connection migration does not work
 
 ==============================================================================
@@ -781,11 +780,6 @@ problems may have been fixed or changed somewhat since this was written.
 
 8. TELNET
 
-8.1 TELNET and time limitations do not work
-
- When using telnet, the time limitation options do not work.
- https://curl.se/bug/view.cgi?id=846
-
 8.2 Microsoft telnet server
 
  There seems to be a problem when connecting to the Microsoft telnet server.
@@ -1159,7 +1153,7 @@ problems may have been fixed or changed somewhat since this was written.
 
  https://github.com/curl/curl/issues/8523
 
-18.4 timeout when reusing a http3 connection
+18.4 timeout when reusing an http3 connection
 
  HTTP/3 with quiche seems to not work and always timeout a subsequent transfer
  that reuses an already established connection

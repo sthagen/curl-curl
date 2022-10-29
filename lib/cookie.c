@@ -458,11 +458,10 @@ static int invalid_octets(const char *p)
     "\x0b\x0c\x0d\x0e\x0f\x10\x11\x12\x13\x14"
     "\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f\x7f"
   };
-  size_t vlen, len;
+  size_t len;
   /* scan for all the octets that are *not* in cookie-octet */
   len = strcspn(p, badoctets);
-  vlen = strlen(p);
-  return (len != vlen);
+  return (p[len] != '\0');
 }
 
 /*
@@ -516,7 +515,7 @@ Curl_cookie_add(struct Curl_easy *data,
     return NULL; /* bail out if we're this low on memory */
 
   if(httpheader) {
-    /* This line was read off a HTTP-header */
+    /* This line was read off an HTTP-header */
     char name[MAX_NAME];
     char what[MAX_NAME];
     const char *ptr;
@@ -865,7 +864,7 @@ Curl_cookie_add(struct Curl_easy *data,
   }
   else {
     /*
-     * This line is NOT a HTTP header style line, we do offer support for
+     * This line is NOT an HTTP header style line, we do offer support for
      * reading the odd netscape cookies-file format here
      */
     char *ptr;

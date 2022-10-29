@@ -74,7 +74,6 @@
 #include "sockaddr.h" /* required for Curl_sockaddr_storage */
 #include "multiif.h"
 #include "url.h"
-#include "strcase.h"
 #include "speedcheck.h"
 #include "warnless.h"
 #include "http_proxy.h"
@@ -2092,7 +2091,7 @@ static CURLcode ftp_state_mdtm_resp(struct Curl_easy *data,
 
 #ifdef CURL_FTP_HTTPSTYLE_HEAD
       /* If we asked for a time of the file and we actually got one as well,
-         we "emulate" a HTTP-style header in our output. */
+         we "emulate" an HTTP-style header in our output. */
 
       if(data->set.opt_no_body &&
          ftpc->file &&
