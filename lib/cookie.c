@@ -300,12 +300,11 @@ static char *sanitize_cookie_path(const char *cookie_path)
   /* some stupid site sends path attribute with '"'. */
   len = strlen(new_path);
   if(new_path[0] == '\"') {
-    memmove((void *)new_path, (const void *)(new_path + 1), len);
+    memmove(new_path, new_path + 1, len);
     len--;
   }
   if(len && (new_path[len - 1] == '\"')) {
-    new_path[len - 1] = 0x0;
-    len--;
+    new_path[--len] = 0x0;
   }
 
   /* RFC6265 5.2.4 The Path Attribute */
@@ -605,9 +604,9 @@ Curl_cookie_add(struct Curl_easy *data,
          * only test for names where that can possibly be true.
          */
         if(nlen > 3 && name[0] == '_' && name[1] == '_') {
-          if(!strncmp("__Secure-", name, 9))
+          if(strncasecompare("__Secure-", name, 9))
             co->prefix |= COOKIE_PREFIX__SECURE;
-          else if(!strncmp("__Host-", name, 7))
+          else if(strncasecompare("__Host-", name, 7))
             co->prefix |= COOKIE_PREFIX__HOST;
         }
 
