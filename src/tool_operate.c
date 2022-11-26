@@ -1237,6 +1237,15 @@ static CURLcode single_transfer(struct GlobalConfig *global,
 
         use_proto = url_proto(per->this_url);
 
+        /* On most modern OSes, exiting works thoroughly,
+           we'll clean everything up via exit(), so don't bother with
+           slow cleanups. Crappy ones might need to skip this.
+           Note: avoid having this setopt added to the --libcurl source
+           output. */
+        result = curl_easy_setopt(curl, CURLOPT_QUICK_EXIT, 1L);
+        if(result)
+          break;
+
         if(!config->tcp_nodelay)
           my_setopt(curl, CURLOPT_TCP_NODELAY, 0L);
 
@@ -1414,9 +1423,8 @@ static CURLcode single_transfer(struct GlobalConfig *global,
 
           if(config->httpversion)
             my_setopt_enum(curl, CURLOPT_HTTP_VERSION, config->httpversion);
-          else if(curlinfo->features & CURL_VERSION_HTTP2) {
+          else if(feature_http2)
             my_setopt_enum(curl, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2TLS);
-          }
 
           /* curl 7.19.1 (the 301 version existed in 7.18.2),
              303 was added in 7.26.0 */
@@ -1531,7 +1539,7 @@ static CURLcode single_transfer(struct GlobalConfig *global,
         if(config->ssl_ec_curves)
           my_setopt_str(curl, CURLOPT_SSL_EC_CURVES, config->ssl_ec_curves);
 
-        if(curlinfo->features & CURL_VERSION_SSL) {
+        if(feature_ssl) {
           /* Check if config->cert is a PKCS#11 URI and set the
            * config->cert_type if necessary */
           if(config->cert) {
@@ -2030,7 +2038,7 @@ static CURLcode single_transfer(struct GlobalConfig *global,
           my_setopt_slist(curl, CURLOPT_CONNECT_TO, config->connect_to);
 
         /* new in 7.21.4 */
-        if(curlinfo->features & CURL_VERSION_TLSAUTH_SRP) {
+        if(feature_tls_srp) {
           if(config->tls_username)
             my_setopt_str(curl, CURLOPT_TLSAUTH_USERNAME,
                           config->tls_username);
@@ -2630,9 +2638,10 @@ CURLcode operate(struct GlobalConfig *global, int argc, argv_item_t argv[])
   CURLcode result = CURLE_OK;
   char *first_arg = argc > 1 ? curlx_convert_tchar_to_UTF8(argv[1]) : NULL;
 
-  /* Setup proper locale from environment */
 #ifdef HAVE_SETLOCALE
+  /* Override locale for number parsing (only) */
   setlocale(LC_ALL, "");
+  setlocale(LC_NUMERIC, "C");
 #endif
 
   /* Parse .curlrc if necessary */
