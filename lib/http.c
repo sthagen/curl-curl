@@ -219,7 +219,7 @@ const struct Curl_handler Curl_handler_wss = {
 #endif
 
 static CURLcode h3_setup_conn(struct Curl_easy *data,
-                                struct connectdata *conn)
+                              struct connectdata *conn)
 {
 #ifdef ENABLE_QUIC
   /* We want HTTP/3 directly, setup the filter chain ourself,
@@ -243,7 +243,7 @@ static CURLcode h3_setup_conn(struct Curl_easy *data,
 
   DEBUGF(infof(data, "HTTP/3 direct conn setup(conn #%ld, index=%d)",
          conn->connection_id, FIRSTSOCKET));
-  return Curl_conn_socket_set(data, FIRSTSOCKET);
+  return Curl_conn_socket_set(data, conn, FIRSTSOCKET);
 
 #else /* ENABLE_QUIC */
   (void)conn;
@@ -265,7 +265,7 @@ static CURLcode http_setup_conn(struct Curl_easy *data,
   if(!http)
     return CURLE_OUT_OF_MEMORY;
 
-  Curl_mime_initpart(&http->form, data);
+  Curl_mime_initpart(&http->form);
   data->req.p.http = http;
 
   if(data->state.httpwant == CURL_HTTP_VERSION_3) {
@@ -2303,7 +2303,7 @@ CURLcode Curl_http_body(struct Curl_easy *data, struct connectdata *conn,
       cthdr = "multipart/form-data";
 
     curl_mime_headers(http->sendit, data->set.headers, 0);
-    result = Curl_mime_prepare_headers(http->sendit, cthdr,
+    result = Curl_mime_prepare_headers(data, http->sendit, cthdr,
                                        NULL, MIMESTRATEGY_FORM);
     curl_mime_headers(http->sendit, NULL, 0);
     if(!result)

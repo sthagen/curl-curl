@@ -104,7 +104,6 @@ problems may have been fixed or changed somewhat since this was written.
  11.9 DoH does not inherit all transfer options
  11.10 Blocking socket operations in non-blocking API
  11.11 A shared connection cache is not thread-safe
- 11.14 Multi perform hangs waiting for threaded resolver
  11.15 CURLOPT_OPENSOCKETPAIRFUNCTION is missing
  11.16 libcurl uses renames instead of locking for atomic operations
 
@@ -115,7 +114,6 @@ problems may have been fixed or changed somewhat since this was written.
  12.4 LDAPS with NSS is slow
 
  13. TCP/IP
- 13.1 --interface for ipv6 binds to unusable IP address
  13.2 Trying local ports fails on Windows
 
  14. DICT
@@ -764,15 +762,6 @@ problems may have been fixed or changed somewhat since this was written.
 
  See https://github.com/curl/curl/issues/4915 and lib1541.c
 
-11.14 Multi perform hangs waiting for threaded resolver
-
- If a threaded resolver takes a long time to complete, libcurl can be blocked
- waiting for it for a longer time than expected - and longer than the set
- timeouts.
-
- See https://github.com/curl/curl/issues/2975 and
- https://github.com/curl/curl/issues/4852
-
 11.15 CURLOPT_OPENSOCKETPAIRFUNCTION is missing
 
  When libcurl creates sockets with socketpair(), those are not "exposed" in
@@ -828,14 +817,6 @@ problems may have been fixed or changed somewhat since this was written.
  See https://github.com/curl/curl/issues/5874
 
 13. TCP/IP
-
-13.1 --interface for ipv6 binds to unusable IP address
-
- Since IPv6 provides a lot of addresses with different scope, binding to an
- IPv6 address needs to take the proper care so that it does not bind to a
- locally scoped address as that is bound to fail.
-
- https://github.com/curl/curl/issues/686
 
 13.2 Trying local ports fails on Windows
 

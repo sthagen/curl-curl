@@ -15,10 +15,8 @@ on:
 
 concurrency:
   # Hardcoded workflow filename as workflow name above is just Linux again
-  group: ngtcp2-wolfssl-${{ github.event.pull_request.number || github.sha }}
+  group: ngtcp2-openssl-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
-
-permissions: {}
 
 jobs:
   autotools:
@@ -29,7 +27,7 @@ jobs:
       fail-fast: false
       matrix:
         build:
-        - name: wolfssl
+        - name: quictls
           install: >-
             libpsl-dev libbrotli-dev libzstd-dev zlib1g-dev libev-dev libc-ares-dev
           configure: >-
@@ -38,9 +36,6 @@ jobs:
             --with-test-nghttpx="$HOME/all/bin/nghttpx"
           ngtcp2-configure: >-
             --prefix=$HOME/all PKG_CONFIG_PATH="$HOME/all/lib/pkgconfig" --enable-lib-only
-          wolfssl-configure: >-
-            --enable-quic --enable-session-ticket --enable-earlydata --enable-psk
-            --enable-harden --enable-altcertchains
 
     steps:
     - run: |
@@ -48,14 +43,6 @@ jobs:
         sudo apt-get install libtool autoconf automake pkg-config stunnel4 ${{ matrix.build.install }}
         sudo python3 -m pip install impacket
       name: 'install prereqs and impacket'
-
-    - run: |
-        git clone https://github.com/wolfSSL/wolfssl.git
-        cd wolfssl
-        ./autogen.sh
-        ./configure ${{ matrix.build.wolfssl-configure }} --prefix=$HOME/all
-        make install
-      name: 'install wolfssl'
 
     - run: |
         git clone --depth=1 -b openssl-3.0.7+quic https://github.com/quictls/openssl
@@ -76,7 +63,7 @@ jobs:
         git clone --depth=1 https://github.com/ngtcp2/ngtcp2
         cd ngtcp2
         autoreconf -fi
-        ./configure ${{ matrix.build.ngtcp2-configure }} --with-openssl  --with-wolfssl
+        ./configure ${{ matrix.build.ngtcp2-configure }} --with-openssl
         make install
       name: 'install ngtcp2'
 
@@ -93,7 +80,7 @@ jobs:
     - run: autoreconf -fi
       name: 'autoreconf'
 
-    - run: ./configure --with-wolfssl=$HOME/all ${{ matrix.build.configure }}
+    - run: ./configure --with-openssl=$HOME/all ${{ matrix.build.configure }}
       name: 'configure'
 
     - run: make V=1
