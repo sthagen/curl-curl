@@ -76,10 +76,8 @@
 
 #define HAVE_ALARM 1
 #define HAVE_ARPA_INET_H 1
-#define HAVE_ASSERT_H 1
 #define HAVE_BASENAME 1
 #define HAVE_BOOL_T 1
-#define HAVE_ERRNO_H 1
 #define HAVE_FCNTL 1
 #define HAVE_FCNTL_H 1
 #define HAVE_FREEADDRINFO 1

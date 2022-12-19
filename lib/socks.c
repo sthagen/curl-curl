@@ -526,10 +526,11 @@ static CURLproxycode do_SOCKS5(struct Curl_cfilter *cf,
     (conn->socks_proxy.proxytype == CURLPROXY_SOCKS5) ? TRUE : FALSE;
   const size_t hostname_len = strlen(sx->hostname);
   ssize_t len = 0;
-  const unsigned long auth = data->set.socks5auth;
+  const unsigned char auth = data->set.socks5auth;
   bool allow_gssapi = FALSE;
   struct Curl_dns_entry *dns = NULL;
 
+  DEBUGASSERT(auth & (CURLAUTH_BASIC | CURLAUTH_GSSAPI));
   switch(sx->state) {
   case CONNECT_SOCKS_INIT:
     if(conn->bits.httpproxy)
@@ -545,7 +546,7 @@ static CURLproxycode do_SOCKS5(struct Curl_cfilter *cf,
 
     if(auth & ~(CURLAUTH_BASIC | CURLAUTH_GSSAPI))
       infof(data,
-            "warning: unsupported value passed to CURLOPT_SOCKS5_AUTH: %lu",
+            "warning: unsupported value passed to CURLOPT_SOCKS5_AUTH: %u",
             auth);
     if(!(auth & CURLAUTH_BASIC))
       /* disable username/password auth */
@@ -689,7 +690,7 @@ static CURLproxycode do_SOCKS5(struct Curl_cfilter *cf,
     socksreq[len++] = (unsigned char) proxy_user_len;
     if(sx->proxy_user && proxy_user_len) {
       /* the length must fit in a single byte */
-      if(proxy_user_len >= 255) {
+      if(proxy_user_len > 255) {
         failf(data, "Excessive user name length for proxy auth");
         return CURLPX_LONG_USER;
       }
