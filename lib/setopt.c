@@ -732,13 +732,6 @@ CURLcode Curl_vsetopt(struct Curl_easy *data, CURLoption option, va_list param)
     data->set.sep_headers = (bool)((arg & CURLHEADER_SEPARATE)? TRUE: FALSE);
     break;
 
-  case CURLOPT_HTTP200ALIASES:
-    /*
-     * Set a list of aliases for HTTP 200 in response header
-     */
-    data->set.http200aliases = va_arg(param, struct curl_slist *);
-    break;
-
 #if !defined(CURL_DISABLE_COOKIES)
   case CURLOPT_COOKIE:
     /*
@@ -760,18 +753,18 @@ CURLcode Curl_vsetopt(struct Curl_easy *data, CURLoption option, va_list param)
         return CURLE_BAD_FUNCTION_ARGUMENT;
       /* append the cookie file name to the list of file names, and deal with
          them later */
-      cl = curl_slist_append(data->state.cookielist, argptr);
+      cl = curl_slist_append(data->set.cookielist, argptr);
       if(!cl) {
-        curl_slist_free_all(data->state.cookielist);
-        data->state.cookielist = NULL;
+        curl_slist_free_all(data->set.cookielist);
+        data->set.cookielist = NULL;
         return CURLE_OUT_OF_MEMORY;
       }
-      data->state.cookielist = cl; /* store the list for later use */
+      data->set.cookielist = cl; /* store the list for later use */
     }
     else {
       /* clear the list of cookie files */
-      curl_slist_free_all(data->state.cookielist);
-      data->state.cookielist = NULL;
+      curl_slist_free_all(data->set.cookielist);
+      data->set.cookielist = NULL;
 
       if(!data->share || !data->share->cookies) {
         /* throw away all existing cookies if this isn't a shared cookie
@@ -943,6 +936,13 @@ CURLcode Curl_vsetopt(struct Curl_easy *data, CURLoption option, va_list param)
 #else
     data->set.http09_allowed = arg ? TRUE : FALSE;
 #endif
+    break;
+
+  case CURLOPT_HTTP200ALIASES:
+    /*
+     * Set a list of aliases for HTTP 200 in response header
+     */
+    data->set.http200aliases = va_arg(param, struct curl_slist *);
     break;
 #endif   /* CURL_DISABLE_HTTP */
 
@@ -1309,6 +1309,7 @@ CURLcode Curl_vsetopt(struct Curl_easy *data, CURLoption option, va_list param)
     data->set.krb = (data->set.str[STRING_KRB_LEVEL]) ? TRUE : FALSE;
     break;
 #endif
+#if !defined(CURL_DISABLE_FTP) || defined(USE_SSH)
   case CURLOPT_FTP_CREATE_MISSING_DIRS:
     /*
      * An FTP/SFTP option that modifies an upload to create missing
@@ -1322,6 +1323,26 @@ CURLcode Curl_vsetopt(struct Curl_easy *data, CURLoption option, va_list param)
     else
       data->set.ftp_create_missing_dirs = (unsigned char)arg;
     break;
+
+  case CURLOPT_POSTQUOTE:
+    /*
+     * List of RAW FTP commands to use after a transfer
+     */
+    data->set.postquote = va_arg(param, struct curl_slist *);
+    break;
+  case CURLOPT_PREQUOTE:
+    /*
+     * List of RAW FTP commands to use prior to RETR (Wesley Laxton)
+     */
+    data->set.prequote = va_arg(param, struct curl_slist *);
+    break;
+  case CURLOPT_QUOTE:
+    /*
+     * List of RAW FTP commands to use before a transfer
+     */
+    data->set.quote = va_arg(param, struct curl_slist *);
+    break;
+#endif
   case CURLOPT_READDATA:
     /*
      * FILE pointer to read the file to be uploaded from. Or possibly
@@ -1506,24 +1527,6 @@ CURLcode Curl_vsetopt(struct Curl_easy *data, CURLoption option, va_list param)
                             va_arg(param, char *));
     break;
 
-  case CURLOPT_POSTQUOTE:
-    /*
-     * List of RAW FTP commands to use after a transfer
-     */
-    data->set.postquote = va_arg(param, struct curl_slist *);
-    break;
-  case CURLOPT_PREQUOTE:
-    /*
-     * List of RAW FTP commands to use prior to RETR (Wesley Laxton)
-     */
-    data->set.prequote = va_arg(param, struct curl_slist *);
-    break;
-  case CURLOPT_QUOTE:
-    /*
-     * List of RAW FTP commands to use before a transfer
-     */
-    data->set.quote = va_arg(param, struct curl_slist *);
-    break;
   case CURLOPT_RESOLVE:
     /*
      * List of HOST:PORT:[addresses] strings to populate the DNS cache with
@@ -1871,16 +1874,15 @@ CURLcode Curl_vsetopt(struct Curl_easy *data, CURLoption option, va_list param)
     arg = va_arg(param, long);
     if((arg < 0) || (arg > 65535))
       return CURLE_BAD_FUNCTION_ARGUMENT;
-    data->set.localportrange = curlx_sltosi(arg);
+    data->set.localportrange = curlx_sltous(arg);
     break;
   case CURLOPT_GSSAPI_DELEGATION:
     /*
      * GSS-API credential delegation bitmask
      */
-    arg = va_arg(param, long);
-    if(arg < CURLGSSAPI_DELEGATION_NONE)
-      return CURLE_BAD_FUNCTION_ARGUMENT;
-    data->set.gssapi_delegation = arg;
+    uarg = va_arg(param, unsigned long);
+    data->set.gssapi_delegation = (unsigned char)uarg&
+      (CURLGSSAPI_DELEGATION_POLICY_FLAG|CURLGSSAPI_DELEGATION_FLAG);
     break;
   case CURLOPT_SSL_VERIFYPEER:
     /*
@@ -2544,6 +2546,7 @@ CURLcode Curl_vsetopt(struct Curl_easy *data, CURLoption option, va_list param)
     data->set.ssh_hostkeyfunc_userp = va_arg(param, void *);
     break;
 #endif
+
   case CURLOPT_SSH_KEYFUNCTION:
     /* setting to NULL is fine since the ssh.c functions themselves will
        then revert to use the internal default */
@@ -2590,7 +2593,8 @@ CURLcode Curl_vsetopt(struct Curl_easy *data, CURLoption option, va_list param)
       return CURLE_BAD_FUNCTION_ARGUMENT;
     data->set.new_file_perms = (unsigned int)arg;
     break;
-
+#endif
+#ifdef USE_SSH
   case CURLOPT_NEW_DIRECTORY_PERMS:
     /*
      * Uses these permissions instead of 0755

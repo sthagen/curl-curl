@@ -158,7 +158,8 @@ my $GOPHER6PORT=$noport; # Gopher IPv6 server port
 my $HTTPTLSPORT=$noport; # HTTP TLS (non-stunnel) server port
 my $HTTPTLS6PORT=$noport; # HTTP TLS (non-stunnel) IPv6 server port
 my $HTTPPROXYPORT=$noport; # HTTP proxy port, when using CONNECT
-my $HTTP2PORT=$noport;   # HTTP/2 server port
+my $HTTP2PORT=$noport;   # HTTP/2 no-tls server port
+my $HTTP2TLSPORT=$noport;  # HTTP/2 tls server port
 my $HTTP3PORT=$noport;   # HTTP/3 server port
 my $DICTPORT=$noport;    # DICT server port
 my $SMBPORT=$noport;     # SMB server port
@@ -864,7 +865,7 @@ sub stopserver {
         # given a ssh server, also kill socks piggybacking one
         push @killservers, "socks${2}";
     }
-    if($server eq "http") {
+    if($server eq "http" or $server eq "https") {
         # since the http2+3 server is a proxy that needs to know about the
         # dynamic http port it too needs to get restarted when the http server
         # is killed
@@ -1561,9 +1562,11 @@ sub runhttp2server {
 
     my ($http2pid, $pid2);
     my $port = 23113;
+    my $port2 = 23114;
     for(1 .. 10) {
         $port += int(rand(900));
-        my $aflags = "--port $port $flags";
+        $port2 += int(rand(900));
+        my $aflags = "--port $port --port2 $port2 $flags";
 
         my $cmd = "$exe $aflags";
         ($http2pid, $pid2) = startnew($cmd, $pidfile, 15, 0);
@@ -1578,14 +1581,16 @@ sub runhttp2server {
         $doesntrun{$pidfile} = 0;
 
         if($verbose) {
-            logmsg "RUN: $srvrname server PID $http2pid port $port\n";
+            logmsg "RUN: $srvrname server PID $http2pid ".
+                   "http-port $port https-port $port2 ".
+                   "backend $HOSTIP:$HTTPPORT\n";
         }
         last;
     }
 
     logmsg "RUN: failed to start the $srvrname server\n" if(!$http2pid);
 
-    return ($http2pid, $pid2, $port);
+    return ($http2pid, $pid2, $port, $port2);
 }
 
 #######################################################################
@@ -3507,6 +3512,7 @@ sub subVariables {
     $$thing =~ s/${prefix}HTTPSPORT/$HTTPSPORT/g;
     $$thing =~ s/${prefix}HTTPSPROXYPORT/$HTTPSPROXYPORT/g;
     $$thing =~ s/${prefix}HTTP2PORT/$HTTP2PORT/g;
+    $$thing =~ s/${prefix}HTTP2TLSPORT/$HTTP2TLSPORT/g;
     $$thing =~ s/${prefix}HTTP3PORT/$HTTP3PORT/g;
     $$thing =~ s/${prefix}HTTPPORT/$HTTPPORT/g;
     $$thing =~ s/${prefix}PROXYPORT/$HTTPPROXYPORT/g;
@@ -5122,7 +5128,8 @@ sub startservers {
         }
         elsif($what eq "http/2") {
             if(!$run{'http/2'}) {
-                ($pid, $pid2, $HTTP2PORT) = runhttp2server($verbose);
+                ($pid, $pid2, $HTTP2PORT, $HTTP2TLSPORT) =
+                    runhttp2server($verbose);
                 if($pid <= 0) {
                     return "failed starting HTTP/2 server";
                 }

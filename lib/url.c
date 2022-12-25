@@ -431,6 +431,7 @@ CURLcode Curl_close(struct Curl_easy **datap)
   Curl_dyn_free(&data->state.headerb);
   Curl_safefree(data->state.ulbuf);
   Curl_flush_cookies(data, TRUE);
+  curl_slist_free_all(data->set.cookielist); /* clean up list */
   Curl_altsvc_save(data, data->asi, data->set.str[STRING_ALTSVC]);
   Curl_altsvc_cleanup(&data->asi);
   Curl_hsts_save(data, data->hsts, data->set.str[STRING_HSTS]);
@@ -531,11 +532,11 @@ CURLcode Curl_init_userdefined(struct Curl_easy *data)
   /* Timeout every 24 hours by default */
   set->general_ssl.ca_cache_timeout = 24 * 60 * 60;
 
-  set->proxyport = 0;
-  set->proxytype = CURLPROXY_HTTP; /* defaults to HTTP proxy */
   set->httpauth = CURLAUTH_BASIC;  /* defaults to basic */
 
 #ifndef CURL_DISABLE_PROXY
+  set->proxyport = 0;
+  set->proxytype = CURLPROXY_HTTP; /* defaults to HTTP proxy */
   set->proxyauth = CURLAUTH_BASIC; /* defaults to basic */
   /* SOCKS5 proxy auth defaults to username/password + GSS-API */
   set->socks5auth = CURLAUTH_BASIC | CURLAUTH_GSSAPI;
@@ -559,8 +560,11 @@ CURLcode Curl_init_userdefined(struct Curl_easy *data)
 #ifdef USE_TLS_SRP
   set->ssl.primary.authtype = CURL_TLSAUTH_NONE;
 #endif
-   /* defaults to any auth type */
+#ifdef USE_SSH
+  /* defaults to any auth type */
   set->ssh_auth_types = CURLSSH_AUTH_DEFAULT;
+  set->new_directory_perms = 0755; /* Default permissions */
+#endif
   set->ssl.primary.sessionid = TRUE; /* session ID caching enabled by
                                         default */
 #ifndef CURL_DISABLE_PROXY
@@ -568,7 +572,6 @@ CURLcode Curl_init_userdefined(struct Curl_easy *data)
 #endif
 
   set->new_file_perms = 0644;    /* Default permissions */
-  set->new_directory_perms = 0755; /* Default permissions */
   set->allowed_protocols = (curl_prot_t) CURLPROTO_ALL;
   set->redir_protocols = CURLPROTO_HTTP | CURLPROTO_HTTPS | CURLPROTO_FTP |
                          CURLPROTO_FTPS;
@@ -777,7 +780,9 @@ static void conn_free(struct Curl_easy *data, struct connectdata *conn)
   Curl_safefree(conn->sasl_authzid);
   Curl_safefree(conn->options);
   Curl_safefree(conn->oauth_bearer);
+#ifndef CURL_DISABLE_HTTP
   Curl_dyn_free(&conn->trailer);
+#endif
   Curl_safefree(conn->host.rawalloc); /* host name buffer */
   Curl_safefree(conn->conn_to_host.rawalloc); /* host name buffer */
   Curl_safefree(conn->hostname_resolve);

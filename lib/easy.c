@@ -113,7 +113,7 @@ static curl_simple_lock s_lock = CURL_SIMPLE_LOCK_INIT;
 #if defined(_WIN32_WCE)
 #define system_strdup _strdup
 #elif !defined(HAVE_STRDUP)
-#define system_strdup curlx_strdup
+#define system_strdup Curl_strdup
 #else
 #define system_strdup strdup
 #endif
@@ -913,11 +913,9 @@ struct Curl_easy *curl_easy_duphandle(struct Curl_easy *data)
       goto fail;
   }
 
-  /* duplicate all values in 'change' */
-  if(data->state.cookielist) {
-    outcurl->state.cookielist =
-      Curl_slist_duplicate(data->state.cookielist);
-    if(!outcurl->state.cookielist)
+  if(data->set.cookielist) {
+    outcurl->set.cookielist = Curl_slist_duplicate(data->set.cookielist);
+    if(!outcurl->set.cookielist)
       goto fail;
   }
 #endif
@@ -1003,8 +1001,8 @@ struct Curl_easy *curl_easy_duphandle(struct Curl_easy *data)
 
   if(outcurl) {
 #ifndef CURL_DISABLE_COOKIES
-    curl_slist_free_all(outcurl->state.cookielist);
-    outcurl->state.cookielist = NULL;
+    curl_slist_free_all(outcurl->set.cookielist);
+    outcurl->set.cookielist = NULL;
 #endif
     Curl_safefree(outcurl->state.buffer);
     Curl_dyn_free(&outcurl->state.headerb);
