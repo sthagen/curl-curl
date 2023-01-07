@@ -5,7 +5,7 @@
 #                            | (__| |_| |  _ <| |___
 #                             \___|\___/|_| \_\_____|
 #
-# Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+# Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
 #
 # This software is licensed as described in the file COPYING, which
 # you should have received as part of this distribution. The terms
@@ -60,7 +60,7 @@
 # to ON or OFF), the symbol detection will be skipped.  If the
 # variable is NOT DEFINED, the symbol detection will be performed.
 
-cmake_minimum_required(VERSION 3.2...3.16 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.7...3.16 FATAL_ERROR)
 
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/CMake;${CMAKE_MODULE_PATH}")
 include(Utilities)
@@ -1048,6 +1048,7 @@ check_symbol_exists(socket        "${CURL_INCLUDES}" HAVE_SOCKET)
 check_symbol_exists(socketpair    "${CURL_INCLUDES}" HAVE_SOCKETPAIR)
 check_symbol_exists(recv          "${CURL_INCLUDES}" HAVE_RECV)
 check_symbol_exists(send          "${CURL_INCLUDES}" HAVE_SEND)
+check_symbol_exists(sendmsg       "${CURL_INCLUDES}" HAVE_SENDMSG)
 check_symbol_exists(select        "${CURL_INCLUDES}" HAVE_SELECT)
 check_symbol_exists(strdup        "${CURL_INCLUDES}" HAVE_STRDUP)
 check_symbol_exists(strtok_r      "${CURL_INCLUDES}" HAVE_STRTOK_R)
@@ -1092,7 +1093,7 @@ check_symbol_exists(setrlimit      "${CURL_INCLUDES}" HAVE_SETRLIMIT)
 
 if(NOT MSVC OR (MSVC_VERSION GREATER_EQUAL 1900))
   # earlier MSVC compilers had faulty snprintf implementations
-  check_symbol_exists(snprintf       "${CURL_INCLUDES}" HAVE_SNPRINTF)
+  check_symbol_exists(snprintf       "stdio.h" HAVE_SNPRINTF)
 endif()
 check_function_exists(mach_absolute_time HAVE_MACH_ABSOLUTE_TIME)
 check_symbol_exists(inet_ntop      "${CURL_INCLUDES}" HAVE_INET_NTOP)

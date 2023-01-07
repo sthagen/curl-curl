@@ -1,4 +1,4 @@
-# Copyright (C) 2000 - 2022 Daniel Stenberg, <daniel@haxx.se>, et al.
+# Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
 #
 # SPDX-License-Identifier: curl
 
@@ -9,9 +9,13 @@ on:
     branches:
     - master
     - '*/ci'
+    paths-ignore:
+    - '**/*.md'
   pull_request:
     branches:
     - master
+    paths-ignore:
+    - '**/*.md'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
@@ -135,7 +139,7 @@ jobs:
 
     - if: ${{ contains(matrix.build.install_steps, 'libressl') }}
       run: |
-        git clone --depth=1 -b v3.5.3 https://github.com/libressl-portable/portable.git libressl-git
+        git clone --depth=1 -b v3.6.1 https://github.com/libressl-portable/portable.git libressl-git
         cd libressl-git
         ./autogen.sh
         ./configure --prefix=$HOME/libressl
@@ -144,7 +148,7 @@ jobs:
 
     - if: ${{ contains(matrix.build.install_steps, 'mbedtls') }}
       run: |
-        git clone --depth=1 -b v3.1.0 https://github.com/ARMmbed/mbedtls
+        git clone --depth=1 -b v3.3.0 https://github.com/ARMmbed/mbedtls
         cd mbedtls
         make DESTDIR=$HOME/mbed install
       name: 'install mbedtls'
@@ -159,7 +163,7 @@ jobs:
 
     - if: ${{ contains(matrix.build.install_steps, 'quictls') }}
       run: |
-        git clone --depth=1 -b OpenSSL_1_1_1j+quic https://github.com/quictls/openssl
+        git clone --depth=1 -b OpenSSL_1_1_1s+quic https://github.com/quictls/openssl
         cd openssl
         ./config enable-tls1_3 --prefix=$HOME/quictls
         make install_sw
@@ -229,3 +233,26 @@ jobs:
       name: 'run tests'
       env:
         TFLAGS: "${{ matrix.build.tflags }}"
+
+  slackware-15_0:
+    # Containers must run in Linux based operating systems
+    runs-on: ubuntu-latest
+    # Docker Hub image that `container-job` executes in
+    container: andy5995/slackware-build-essential:15.0
+    steps:
+    - uses: actions/checkout@v3
+
+    - run: autoreconf -fi
+      name: 'autoreconf'
+
+    - run: ./configure --enable-warnings --enable-werror --with-openssl
+      name: 'configure'
+
+    - run: make V=1 -j$(expr $(nproc) - 1)
+      name: 'make'
+
+    - run: make V=1 examples -j$(expr $(nproc) - 1)
+      name: 'make examples'
+
+    - run: make V=1 -C tests -j$(expr $(nproc) - 1)
+      name: 'make tests'

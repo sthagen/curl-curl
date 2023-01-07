@@ -1,5 +1,5 @@
-#ifndef HEADER_CURL_VQUIC_MSH3_H
-#define HEADER_CURL_VQUIC_MSH3_H
+#ifndef HEADER_CURL_VQUIC_QUIC_INT_H
+#define HEADER_CURL_VQUIC_QUIC_INT_H
 /***************************************************************************
  *                                  _   _ ____  _
  *  Project                     ___| | | |  _ \| |
@@ -7,7 +7,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -26,15 +26,8 @@
 
 #include "curl_setup.h"
 
-#ifdef USE_MSH3
+#ifdef ENABLE_QUIC
 
-#include <msh3.h>
+#endif /* !ENABLE_QUIC */
 
-struct quicsocket {
-  MSH3_API* api;
-  MSH3_CONNECTION* conn;
-};
-
-#endif /* USE_MSQUIC */
-
-#endif /* HEADER_CURL_VQUIC_MSH3_H */
+#endif /* HEADER_CURL_VQUIC_QUIC_INT_H */

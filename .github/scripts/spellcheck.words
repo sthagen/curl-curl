@@ -1,4 +1,4 @@
-# Copyright (C) 2022 Daniel Stenberg, <daniel@haxx.se>, et al.
+# Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
 #
 # SPDX-License-Identifier: curl
 #
@@ -265,6 +265,7 @@ GSKit
 gskit
 GSS
 GSSAPI
+GTFO
 Guenter
 Gunderson
 Gustafsson
@@ -573,6 +574,7 @@ PSL
 pthreads
 PTR
 ptr
+punycode
 py
 pycurl
 QNX

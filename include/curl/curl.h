@@ -7,7 +7,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -167,7 +167,7 @@ typedef enum {
   CURLSSLBACKEND_SECURETRANSPORT = 9,
   CURLSSLBACKEND_AXTLS                  CURL_DEPRECATED(7.61.0, "") = 10,
   CURLSSLBACKEND_MBEDTLS = 11,
-  CURLSSLBACKEND_MESALINK = 12,
+  CURLSSLBACKEND_MESALINK               CURL_DEPRECATED(7.82.0, "") = 12,
   CURLSSLBACKEND_BEARSSL = 13,
   CURLSSLBACKEND_RUSTLS = 14
 } curl_sslbackend;
@@ -2953,6 +2953,7 @@ typedef enum {
   CURL_LOCK_DATA_SSL_SESSION,
   CURL_LOCK_DATA_CONNECT,
   CURL_LOCK_DATA_PSL,
+  CURL_LOCK_DATA_HSTS,
   CURL_LOCK_DATA_LAST
 } curl_lock_data;
 

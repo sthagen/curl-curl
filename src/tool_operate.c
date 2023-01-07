@@ -5,7 +5,7 @@
  *                            | (__| |_| |  _ <| |___
  *                             \___|\___/|_| \_\_____|
  *
- * Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+ * Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
  *
  * This software is licensed as described in the file COPYING, which
  * you should have received as part of this distribution. The terms
@@ -971,18 +971,19 @@ static CURLcode single_transfer(struct GlobalConfig *global,
             FILE *newfile;
 
             /*
-             * this checks if the previous transfer had the same
-             * OperationConfig, which would mean, that an output file has
-             * already been created and data can be appended to it, instead
-             * of overwriting it.
+             * Since every transfer has its own file handle for dumping
+             * the headers, we need to open it in append mode, since transfers
+             * might finish in any order.
+             * The first transfer just clears the file.
              * TODO: Consider placing the file handle inside the
              * OperationConfig, so that it does not need to be opened/closed
              * for every transfer.
              */
-            if(per->prev && per->prev->config == config)
-              newfile = fopen(config->headerfile, "ab+");
-            else
+            if(!per->prev || per->prev->config != config) {
               newfile = fopen(config->headerfile, "wb+");
+              fclose(newfile);
+            }
+            newfile = fopen(config->headerfile, "ab+");
 
             if(!newfile) {
               warnf(global, "Failed to open %s\n", config->headerfile);
@@ -1552,6 +1553,9 @@ static CURLcode single_transfer(struct GlobalConfig *global,
 
         if(config->ssl_ec_curves)
           my_setopt_str(curl, CURLOPT_SSL_EC_CURVES, config->ssl_ec_curves);
+
+        if(config->writeout)
+          my_setopt_str(curl, CURLOPT_CERTINFO, 1L);
 
         if(feature_ssl) {
           /* Check if config->cert is a PKCS#11 URI and set the
@@ -2721,6 +2725,7 @@ CURLcode operate(struct GlobalConfig *global, int argc, argv_item_t argv[])
         curl_share_setopt(share, CURLSHOPT_SHARE, CURL_LOCK_DATA_SSL_SESSION);
         curl_share_setopt(share, CURLSHOPT_SHARE, CURL_LOCK_DATA_CONNECT);
         curl_share_setopt(share, CURLSHOPT_SHARE, CURL_LOCK_DATA_PSL);
+        curl_share_setopt(share, CURLSHOPT_SHARE, CURL_LOCK_DATA_HSTS);
 
         /* Get the required arguments for each operation */
         do {

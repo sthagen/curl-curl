@@ -5,7 +5,7 @@
 #                            | (__| |_| |  _ <| |___
 #                             \___|\___/|_| \_\_____|
 #
-# Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+# Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
 #
 # This software is licensed as described in the file COPYING, which
 # you should have received as part of this distribution. The terms
@@ -33,7 +33,7 @@ XC_OVR_ZZ60
 CURL_OVERRIDE_AUTOCONF
 
 dnl configure script copyright
-AC_COPYRIGHT([Copyright (c) 1998 - 2022 Daniel Stenberg, <daniel@haxx.se>
+AC_COPYRIGHT([Copyright (C) Daniel Stenberg, <daniel@haxx.se>
 This configure script may be copied, distributed and modified under the
 terms of the curl license; see COPYING for more details])
 
@@ -4215,6 +4215,13 @@ if test "x$want_ech" != "xno"; then
   else
     AC_MSG_ERROR([--enable-ech ignored: No ECH support found])
   fi
+fi
+
+dnl *************************************************************
+dnl check whether OpenSSL (lookalikes) have SSL_set0_wbio
+dnl
+if test "x$OPENSSL_ENABLED" = "x1"; then
+  AC_CHECK_FUNCS([SSL_set0_wbio])
 fi
 
 dnl *************************************************************

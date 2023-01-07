@@ -5,7 +5,7 @@
 #                            | (__| |_| |  _ <| |___
 #                             \___|\___/|_| \_\_____|
 #
-# Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+# Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
 #
 # This software is licensed as described in the file COPYING, which
 # you should have received as part of this distribution. The terms
@@ -68,10 +68,11 @@ test380 test381 test383 test384 test385 test386 test387 test388 test389 \
 test390 test391 test392 test393 test394 test395 test396 test397 test398 \
 test399 test400 test401 test402 test403 test404 test405 test406 test407 \
 test408 test409 test410 test411 test412 test413 test414 test415 test416 \
+test417 \
 \
 test430 test431 test432 test433 test434 test435 test436 \
 \
-test440 test441 test442 test443 test444 test445 \
+test440 test441 test442 test443 test444 test445 test446 \
 \
 test490 test491 test492 test493 test494 test495 test496 \
 \
@@ -159,7 +160,7 @@ test1239 test1240 test1241 test1242 test1243 test1244 test1245 test1246 \
 test1247 test1248 test1249 test1250 test1251 test1252 test1253 test1254 \
 test1255 test1256 test1257 test1258 test1259 test1260 test1261 test1262 \
 test1263 test1264 test1265 test1266 test1267 test1268 test1269 test1270 \
-test1271 test1272 test1273 test1274 test1275 test1276 \
+test1271 test1272 test1273 test1274 test1275 test1276 test1277 \
 \
 test1280 test1281 test1282 test1283 test1284 test1285 test1286 test1287 \
 test1288 test1289 test1290 test1291 test1292 test1293 test1294 test1295 \
@@ -245,7 +246,7 @@ test2300 test2301 test2302 test2303 test2304 \
 \
 test2400 test2401 test2402 \
 \
-test2500 \
+test2500 test2501 test2502 \
 \
 test3000 test3001 test3002 test3003 test3004 test3005 test3006 test3007 \
 test3008 test3009 test3010 test3011 test3012 test3013 test3014 test3015 \

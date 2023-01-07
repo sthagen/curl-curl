@@ -1,4 +1,4 @@
-# Copyright (C) 2000 - 2022 Daniel Stenberg, <daniel@haxx.se>, et al.
+# Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
 #
 # SPDX-License-Identifier: curl
 
@@ -9,9 +9,13 @@ on:
     branches:
     - master
     - '*/ci'
+    paths-ignore:
+    - '**/*.md'
   pull_request:
     branches:
     - master
+    paths-ignore:
+    - '**/*.md'
 
 concurrency:
   # Hardcoded workflow filename as workflow name above is just Linux again
@@ -69,7 +73,7 @@ jobs:
       name: 'install nettle'
 
     - run: |
-        git clone --depth=1 -b 3.7.7 https://github.com/gnutls/gnutls.git
+        git clone --depth=1 -b 3.7.8 https://github.com/gnutls/gnutls.git
         cd gnutls
         ./bootstrap
         ./configure ${{ matrix.build.gnutls-configure }} --prefix=$HOME/all

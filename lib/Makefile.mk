@@ -5,7 +5,7 @@
 #                            | (__| |_| |  _ <| |___
 #                             \___|\___/|_| \_\_____|
 #
-# Copyright (C) 1999 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+# Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
 #
 # This software is licensed as described in the file COPYING, which
 # you should have received as part of this distribution. The terms
@@ -198,7 +198,7 @@ ifneq ($(findstring -ssl,$(CFG)),)
   endif
   SSLLIBS += 1
 else ifneq ($(findstring -wolfssl,$(CFG)),)
-  WOLFSSL_PATH ?= $(PROOT)/../zlib
+  WOLFSSL_PATH ?= $(PROOT)/../wolfssl
   CPPFLAGS += -DUSE_WOLFSSL
   CPPFLAGS += -DSIZEOF_LONG_LONG=8
   CPPFLAGS += -I"$(WOLFSSL_PATH)/include"
@@ -208,7 +208,7 @@ else ifneq ($(findstring -wolfssl,$(CFG)),)
   SSLLIBS += 1
 endif
 ifneq ($(findstring -mbedtls,$(CFG)),)
-  MBEDTLS_PATH ?= $(PROOT)/../zlib
+  MBEDTLS_PATH ?= $(PROOT)/../mbedtls
   CPPFLAGS += -DUSE_MBEDTLS
   CPPFLAGS += -I"$(MBEDTLS_PATH)/include"
   _LDFLAGS += -L"$(MBEDTLS_PATH)/lib"

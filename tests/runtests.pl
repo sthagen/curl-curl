@@ -6,7 +6,7 @@
 #                            | (__| |_| |  _ <| |___
 #                             \___|\___/|_| \_\_____|
 #
-# Copyright (C) 1998 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+# Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
 #
 # This software is licensed as described in the file COPYING, which
 # you should have received as part of this distribution. The terms
@@ -75,7 +75,8 @@ BEGIN {
 }
 
 use strict;
-use warnings;
+# Promote all warnings to fatal
+use warnings FATAL => 'all';
 use Cwd;
 use Digest::MD5 qw(md5);
 use MIME::Base64;
@@ -1542,7 +1543,7 @@ sub runhttp2server {
 
     # don't retry if the server doesn't work
     if ($doesntrun{$pidfile}) {
-        return (0, 0, 0);
+        return (0, 0, 0, 0);
     }
 
     my $pid = processexists($pidfile);
@@ -3015,6 +3016,7 @@ sub setupfeatures {
     $feature{"manual"} = $has_manual;
     $feature{"MinGW"} = $has_mingw;
     $feature{"MultiSSL"} = $has_multissl;
+    $feature{"mbedtls"} = $has_mbedtls;
     $feature{"NSS"} = $has_nss;
     $feature{"NTLM"} = $has_ntlm;
     $feature{"NTLM_WB"} = $has_ntlm_wb;
@@ -3126,45 +3128,45 @@ sub checksystem {
                 $has_win32 = 1;
                 $has_mingw = 1 if ($curl =~ /-pc-mingw32/);
             }
-           if ($libcurl =~ /(winssl|schannel)/i) {
+           if ($libcurl =~ /\s(winssl|schannel)\b/i) {
                $has_schannel=1;
                $has_sslpinning=1;
            }
-           elsif ($libcurl =~ /openssl/i) {
+           elsif ($libcurl =~ /\sopenssl\b/i) {
                $has_openssl=1;
                $has_sslpinning=1;
            }
-           elsif ($libcurl =~ /gnutls/i) {
+           elsif ($libcurl =~ /\sgnutls\b/i) {
                $has_gnutls=1;
                $has_sslpinning=1;
            }
-           elsif ($libcurl =~ /rustls-ffi/i) {
+           elsif ($libcurl =~ /\srustls-ffi\b/i) {
                $has_rustls=1;
            }
-           elsif ($libcurl =~ /nss/i) {
+           elsif ($libcurl =~ /\snss\b/i) {
                $has_nss=1;
                $has_sslpinning=1;
            }
-           elsif ($libcurl =~ /wolfssl/i) {
+           elsif ($libcurl =~ /\swolfssl\b/i) {
                $has_wolfssl=1;
                $has_sslpinning=1;
            }
-           elsif ($libcurl =~ /bearssl/i) {
+           elsif ($libcurl =~ /\sbearssl\b/i) {
                $has_bearssl=1;
            }
-           elsif ($libcurl =~ /securetransport/i) {
+           elsif ($libcurl =~ /\ssecuretransport\b/i) {
                $has_sectransp=1;
                $has_sslpinning=1;
            }
-           elsif ($libcurl =~ /BoringSSL/i) {
+           elsif ($libcurl =~ /\sBoringSSL\b/i) {
                $has_boringssl=1;
                $has_sslpinning=1;
            }
-           elsif ($libcurl =~ /libressl/i) {
+           elsif ($libcurl =~ /\slibressl\b/i) {
                $has_libressl=1;
                $has_sslpinning=1;
            }
-           elsif ($libcurl =~ /mbedTLS/i) {
+           elsif ($libcurl =~ /\smbedTLS\b/i) {
                $has_mbedtls=1;
                $has_sslpinning=1;
            }
@@ -4748,6 +4750,11 @@ sub singletest {
             for(@out) {
                 eval $strip;
             }
+        }
+
+        if($hash{'crlf'} ||
+           ($has_hyper && ($keywords{"HTTP"} || $keywords{"HTTPS"}))) {
+            map subNewlines(0, \$_), @protstrip;
         }
 
         $res = compare($testnum, $testname, "proxy", \@out, \@protstrip);
