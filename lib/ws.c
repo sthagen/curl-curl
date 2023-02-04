@@ -479,7 +479,6 @@ CURL_EXTERN CURLcode curl_ws_recv(struct Curl_easy *data, void *buffer,
 
       /* update buffer and frame info */
       wsp->frame.offset += datalen;
-      DEBUGASSERT(wsp->frame.bytesleft >= (curl_off_t)datalen);
       if(wsp->frame.bytesleft)
         wsp->frame.bytesleft -= datalen;
       DEBUGASSERT(datalen <= wsp->stillblen);
@@ -709,6 +708,17 @@ void Curl_ws_done(struct Curl_easy *data)
   struct websocket *wsp = &data->req.p.http->ws;
   DEBUGASSERT(wsp);
   Curl_dyn_free(&wsp->buf);
+}
+
+CURLcode Curl_ws_disconnect(struct Curl_easy *data,
+                            struct connectdata *conn,
+                            bool dead_connection)
+{
+  (void)data;
+  (void)dead_connection;
+  /* make sure this is non-blocking to avoid getting stuck in shutdown */
+  (void)curlx_nonblock(conn->sock[FIRSTSOCKET], TRUE);
+  return CURLE_OK;
 }
 
 CURL_EXTERN struct curl_ws_frame *curl_ws_meta(struct Curl_easy *data)
