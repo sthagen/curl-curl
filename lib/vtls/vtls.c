@@ -1954,7 +1954,7 @@ CURLcode Curl_alpn_to_proto_buf(struct alpn_proto_buf *buf,
   memset(buf, 0, sizeof(*buf));
   for(i = 0; spec && i < spec->count; ++i) {
     len = strlen(spec->entries[i]);
-    if(len > 255)
+    if(len >= ALPN_NAME_MAX)
       return CURLE_FAILED_INIT;
     blen = (unsigned  char)len;
     if(off + blen + 1 >= (int)sizeof(buf->data))
@@ -1976,7 +1976,7 @@ CURLcode Curl_alpn_to_proto_str(struct alpn_proto_buf *buf,
   memset(buf, 0, sizeof(*buf));
   for(i = 0; spec && i < spec->count; ++i) {
     len = strlen(spec->entries[i]);
-    if(len > 255)
+    if(len >= ALPN_NAME_MAX)
       return CURLE_FAILED_INIT;
     if(off + len + 2 >= (int)sizeof(buf->data))
       return CURLE_FAILED_INIT;
@@ -2022,13 +2022,13 @@ CURLcode Curl_alpn_set_negotiated(struct Curl_cfilter *cf,
 #endif
     else {
       cf->conn->alpn = CURL_HTTP_VERSION_NONE;
-      failf(data, "unsupported ALPN protocol: '%.*s'", proto_len, proto);
+      failf(data, "unsupported ALPN protocol: '%.*s'", (int)proto_len, proto);
       /* TODO: do we want to fail this? Previous code just ignored it and
        * some vtls backends even ignore the return code of this function. */
       /* return CURLE_NOT_BUILT_IN; */
       goto out;
     }
-    infof(data, VTLS_INFOF_ALPN_ACCEPTED_LEN_1STR, proto_len, proto);
+    infof(data, VTLS_INFOF_ALPN_ACCEPTED_LEN_1STR, (int)proto_len, proto);
   }
   else {
     cf->conn->alpn = CURL_HTTP_VERSION_NONE;

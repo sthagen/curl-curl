@@ -39,13 +39,11 @@ log = logging.getLogger(__name__)
 class TestUpload:
 
     @pytest.fixture(autouse=True, scope='class')
-    def _class_scope(self, env, nghttpx):
+    def _class_scope(self, env, httpd, nghttpx):
         if env.have_h3():
             nghttpx.start_if_needed()
-        s90 = "01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678\n"
-        with open(os.path.join(env.gen_dir, "data-100k"), 'w') as f:
-            for i in range(1000):
-                f.write(f"{i:09d}-{s90}")
+        env.make_data_file(indir=env.gen_dir, fname="data-100k", fsize=100*1024)
+        env.make_data_file(indir=env.gen_dir, fname="data-10m", fsize=10*1024*1024)
 
     # upload small data, check that this is what was echoed
     @pytest.mark.parametrize("proto", ['http/1.1', 'h2', 'h3'])
@@ -92,13 +90,48 @@ class TestUpload:
             respdata = open(curl.response_file(i)).readlines()
             assert respdata == [data]
 
+    # upload data parallel, check that they were echoed
+    @pytest.mark.parametrize("proto", ['http/1.1', 'h2', 'h3'])
+    def test_07_11_upload_parallel(self, env: Env, httpd, nghttpx, repeat, proto):
+        if proto == 'h3' and not env.have_h3():
+            pytest.skip("h3 not supported")
+        count = 50
+        data = '0123456789'
+        curl = CurlClient(env=env)
+        url = f'https://{env.authority_for(env.domain1, proto)}/curltest/echo?id=[0-{count-1}]'
+        r = curl.http_upload(urls=[url], data=data, alpn_proto=proto,
+                             extra_args=['--parallel'])
+        assert r.exit_code == 0, f'{r}'
+        r.check_stats(count=count, exp_status=200)
+        for i in range(count):
+            respdata = open(curl.response_file(i)).readlines()
+            assert respdata == [data]
+
     # upload large data sequentially, check that this is what was echoed
     @pytest.mark.parametrize("proto", ['http/1.1', 'h2', 'h3'])
-    def test_07_11_upload_seq_large(self, env: Env, httpd, nghttpx, repeat, proto):
+    def test_07_20_upload_seq_large(self, env: Env, httpd, nghttpx, repeat, proto):
         if proto == 'h3' and not env.have_h3():
             pytest.skip("h3 not supported")
         fdata = os.path.join(env.gen_dir, 'data-100k')
         count = 50
+        curl = CurlClient(env=env)
+        url = f'https://{env.authority_for(env.domain1, proto)}/curltest/echo?id=[0-{count-1}]'
+        r = curl.http_upload(urls=[url], data=f'@{fdata}', alpn_proto=proto)
+        assert r.exit_code == 0, f'{r}'
+        r.check_stats(count=count, exp_status=200)
+        indata = open(fdata).readlines()
+        r.check_stats(count=count, exp_status=200)
+        for i in range(count):
+            respdata = open(curl.response_file(i)).readlines()
+            assert respdata == indata
+
+    # upload very large data sequentially, check that this is what was echoed
+    @pytest.mark.parametrize("proto", ['http/1.1', 'h2', 'h3'])
+    def test_07_12_upload_seq_large(self, env: Env, httpd, nghttpx, repeat, proto):
+        if proto == 'h3' and not env.have_h3():
+            pytest.skip("h3 not supported")
+        fdata = os.path.join(env.gen_dir, 'data-10m')
+        count = 2
         curl = CurlClient(env=env)
         url = f'https://{env.authority_for(env.domain1, proto)}/curltest/echo?id=[0-{count-1}]'
         r = curl.http_upload(urls=[url], data=f'@{fdata}', alpn_proto=proto)
@@ -133,9 +166,9 @@ class TestUpload:
         if proto == 'h3' and not env.have_h3():
             pytest.skip("h3 not supported")
         if proto == 'h3' and env.curl_uses_lib('quiche'):
-            pytest.skip("quiche stalls on parallel, large uploads")
+            pytest.skip("quiche stalls on parallel, large uploads, unless --trace is used???")
         fdata = os.path.join(env.gen_dir, 'data-100k')
-        count = 3
+        count = 50
         curl = CurlClient(env=env)
         url = f'https://{env.authority_for(env.domain1, proto)}/curltest/echo?id=[0-{count-1}]'
         r = curl.http_upload(urls=[url], data=f'@{fdata}', alpn_proto=proto,

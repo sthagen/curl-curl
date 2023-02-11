@@ -82,14 +82,14 @@ class EnvConfig:
                         lib.lower() for lib in m.group('libs').split(' ')
                     ]
                     self.curl_props['libs'] = [
-                        re.sub(r'/.*', '',lib) for lib in self.curl_props['lib_versions']
+                        re.sub(r'/.*', '', lib) for lib in self.curl_props['lib_versions']
                     ]
             if l.startswith('Features: '):
                 self.curl_props['features'] = [
                     feat.lower() for feat in l[10:].split(' ')
                 ]
             if l.startswith('Protocols: '):
-                self.curl_props['protocols'] =  [
+                self.curl_props['protocols'] = [
                     prot.lower() for prot in l[11:].split(' ')
                 ]
         self.nghttpx_with_h3 = re.match(r'.* nghttp3/.*', p.stdout.strip())
@@ -136,8 +136,8 @@ class EnvConfig:
                 log.debug(f'nghttpx -v: {p.stdout}')
 
         self.caddy = self.config['caddy']['caddy']
-        if len(self.caddy) == 0:
-            self.caddy = 'caddy'
+        if len(self.caddy.strip()) == 0:
+            self.caddy = None
         if self.caddy is not None:
             try:
                 p = subprocess.run(args=[self.caddy, 'version'],
@@ -147,7 +147,8 @@ class EnvConfig:
                     self.caddy = None
             except:
                 self.caddy = None
-        self.caddy_port = self.config['caddy']['port']
+        self.caddy_http_port = self.config['caddy']['http_port']
+        self.caddy_https_port = self.config['caddy']['https_port']
 
     @property
     def httpd_version(self):
@@ -222,11 +223,11 @@ class Env:
         return 'unknown'
 
     @staticmethod
-    def curl_os() -> bool:
+    def curl_os() -> str:
         return Env.CONFIG.curl_props['os']
 
     @staticmethod
-    def curl_version() -> bool:
+    def curl_version() -> str:
         return Env.CONFIG.curl_props['version']
 
     @staticmethod
@@ -240,6 +241,10 @@ class Env:
     @staticmethod
     def httpd_is_at_least(minv) -> bool:
         return Env.CONFIG.httpd_is_at_least(minv)
+
+    @staticmethod
+    def has_caddy() -> bool:
+        return Env.CONFIG.caddy is not None
 
     def __init__(self, pytestconfig=None):
         self._verbose = pytestconfig.option.verbose \
@@ -306,8 +311,12 @@ class Env:
         return self.CONFIG.caddy
 
     @property
-    def caddy_port(self) -> str:
-        return self.CONFIG.caddy_port
+    def caddy_https_port(self) -> str:
+        return self.CONFIG.caddy_https_port
+
+    @property
+    def caddy_http_port(self) -> str:
+        return self.CONFIG.caddy_http_port
 
     @property
     def curl(self) -> str:
@@ -336,3 +345,17 @@ class Env:
         if alpn_proto in ['h3']:
             return f'{domain}:{self.h3_port}'
         return f'{domain}:{self.http_port}'
+
+    def make_data_file(self, indir: str, fname: str, fsize: int) -> str:
+        fpath = os.path.join(indir, fname)
+        s10 = "0123456789"
+        s = (101 * s10) + s10[0:3]
+        with open(fpath, 'w') as fd:
+            for i in range(int(fsize / 1024)):
+                fd.write(f"{i:09d}-{s}\n")
+            remain = int(fsize % 1024)
+            if remain != 0:
+                i = int(fsize / 1024) + 1
+                s = f"{i:09d}-{s}\n"
+                fd.write(s[0:remain])
+        return fpath
