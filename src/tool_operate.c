@@ -661,7 +661,7 @@ static CURLcode post_per_transfer(struct GlobalConfig *global,
 
   /* Write the --write-out data before cleanup but after result is final */
   if(config->writeout)
-    ourWriteOut(config->writeout, per, result);
+    ourWriteOut(config, per, result);
 
   /* Close function-local opened file descriptors */
   if(per->heads.fopened && per->heads.stream)
@@ -984,12 +984,13 @@ static CURLcode single_transfer(struct GlobalConfig *global,
              */
             if(!per->prev || per->prev->config != config) {
               newfile = fopen(config->headerfile, "wb+");
-              fclose(newfile);
+              if(newfile)
+                fclose(newfile);
             }
             newfile = fopen(config->headerfile, "ab+");
 
             if(!newfile) {
-              warnf(global, "Failed to open %s\n", config->headerfile);
+              errorf(global, "Failed to open %s\n", config->headerfile);
               result = CURLE_WRITE_ERROR;
               break;
             }
@@ -1301,15 +1302,16 @@ static CURLcode single_transfer(struct GlobalConfig *global,
         my_setopt(curl, CURLOPT_SEEKDATA, input);
         my_setopt(curl, CURLOPT_SEEKFUNCTION, tool_seek_cb);
 
-#ifdef CURLDEBUG
-        if(getenv("CURL_BUFFERSIZE")) {
-          long size = strtol(getenv("CURL_BUFFERSIZE"), NULL, 10);
-          if(size)
-            my_setopt(curl, CURLOPT_BUFFERSIZE, size);
-        }
-        else
-#endif
         {
+#ifdef CURLDEBUG
+          char *env = getenv("CURL_BUFFERSIZE");
+          if(env) {
+            long size = strtol(env, NULL, 10);
+            if(size)
+              my_setopt(curl, CURLOPT_BUFFERSIZE, size);
+          }
+          else
+#endif
           if(config->recvpersecond &&
              (config->recvpersecond < BUFFER_SIZE))
             /* use a smaller sized buffer for better sleeps */
@@ -2470,8 +2472,10 @@ static CURLcode serial_transfers(struct GlobalConfig *global,
     else {
       /* setup the next one just before we delete this */
       result = create_transfer(global, share, &added);
-      if(result)
+      if(result) {
+        returncode = result;
         bailout = TRUE;
+      }
     }
 
     per = del_per_transfer(per);
@@ -2513,7 +2517,8 @@ static CURLcode transfer_per_config(struct GlobalConfig *global,
 
   /* Check we have a url */
   if(!config->url_list || !config->url_list->url) {
-    helpf(global->errors, "no URL specified!\n");
+    helpf(global->errors, "(%d) no URL specified!\n",
+          CURLE_FAILED_INIT);
     return CURLE_FAILED_INIT;
   }
 

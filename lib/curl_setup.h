@@ -441,8 +441,8 @@
 #  endif
 #endif
 
-#if (SIZEOF_CURL_OFF_T == 4)
-#  define CURL_OFF_T_MAX CURL_OFF_T_C(0x7FFFFFFF)
+#if (SIZEOF_CURL_OFF_T < 8)
+#error "too small curl_off_t"
 #else
    /* assume SIZEOF_CURL_OFF_T == 8 */
 #  define CURL_OFF_T_MAX CURL_OFF_T_C(0x7FFFFFFFFFFFFFFF)
@@ -860,6 +860,12 @@ int getpwuid_r(uid_t uid, struct passwd *pwd, char *buf,
      } SOCKADDR_UN, *PSOCKADDR_UN;
 #    define WIN32_SOCKADDR_UN
 #  endif
+#endif
+
+/* OpenSSLv3 marks DES, MD5 and ENGINE functions deprecated but we have no
+   replacements (yet) so tell the compiler to not warn for them. */
+#ifdef USE_OPENSSL
+#define OPENSSL_SUPPRESS_DEPRECATED
 #endif
 
 #endif /* HEADER_CURL_SETUP_H */
