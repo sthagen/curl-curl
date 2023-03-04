@@ -224,6 +224,7 @@ class Httpd:
                 f'LogLevel proxy_http:trace4',
                 f'H2MinWorkers 16',
                 f'H2MaxWorkers 128',
+                f'H2Direct on',
                 f'Listen {self.env.http_port}',
                 f'Listen {self.env.https_port}',
                 f'Listen {self.env.proxy_port}',
@@ -235,6 +236,7 @@ class Httpd:
                 f'    ServerName {domain1}',
                 f'    ServerAlias localhost',
                 f'    DocumentRoot "{self._docs_dir}"',
+                f'    Protocols h2c http/1.1',
             ])
             conf.extend(self._curltest_conf())
             conf.extend([
@@ -322,6 +324,9 @@ class Httpd:
             return [
                 f'    <Location /curltest/echo>',
                 f'      SetHandler curltest-echo',
+                f'    </Location>',
+                f'    <Location /curltest/put>',
+                f'      SetHandler curltest-put',
                 f'    </Location>',
                 f'    <Location /curltest/tweak>',
                 f'      SetHandler curltest-tweak',

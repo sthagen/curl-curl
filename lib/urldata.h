@@ -168,7 +168,7 @@ typedef CURLcode (*Curl_datastream)(struct Curl_easy *data,
 #include "rtsp.h"
 #include "smb.h"
 #include "mqtt.h"
-#include "wildcard.h"
+#include "ftplistparser.h"
 #include "multihandle.h"
 #include "c-hyper.h"
 #include "cf-socket.h"
@@ -686,6 +686,10 @@ struct SingleRequest {
   } p;
 #ifndef CURL_DISABLE_DOH
   struct dohdata *doh; /* DoH specific data for this request */
+#endif
+#if defined(WIN32) && defined(USE_WINSOCK)
+  struct curltime last_sndbuf_update;  /* last time readwrite_upload called
+                                          win_update_buffer_size */
 #endif
   unsigned char setcookies;
   unsigned char writer_stack_depth; /* Unencoding stack depth. */
@@ -1739,6 +1743,7 @@ struct UserDefined {
   curl_fnmatch_callback fnmatch; /* callback to decide which file corresponds
                                     to pattern (e.g. if WILDCARDMATCH is on) */
   void *fnmatch_data;
+  void *wildcardptr;
 #endif
  /* GSS-API credential delegation, see the documentation of
     CURLOPT_GSSAPI_DELEGATION */
@@ -1934,7 +1939,7 @@ struct Curl_easy {
   struct UrlState state;       /* struct for fields used for state info and
                                   other dynamic purposes */
 #ifndef CURL_DISABLE_FTP
-  struct WildcardData wildcard; /* wildcard download state info */
+  struct WildcardData *wildcard; /* wildcard download state info */
 #endif
   struct PureInfo info;        /* stats, reports and info data */
   struct curl_tlssessioninfo tsi; /* Information about the TLS session, only

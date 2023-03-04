@@ -4654,8 +4654,8 @@ AC_CONFIG_FILES([Makefile \
            tests/server/Makefile \
            tests/libtest/Makefile \
            tests/unit/Makefile \
-           tests/tests-httpd/config.ini \
-           tests/tests-httpd/Makefile \
+           tests/http/config.ini \
+           tests/http/Makefile \
            packages/Makefile \
            packages/vms/Makefile \
            curl-config \
@@ -4664,8 +4664,6 @@ AC_CONFIG_FILES([Makefile \
 AC_OUTPUT
 
 CURL_GENERATE_CONFIGUREHELP_PM
-
-XC_AMEND_DISTCLEAN([lib src tests/unit tests/server tests/libtest docs/examples])
 
 AC_MSG_NOTICE([Configured to build curl/libcurl:
 

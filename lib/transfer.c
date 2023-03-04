@@ -980,7 +980,15 @@ static CURLcode readwrite_upload(struct Curl_easy *data,
     if(result)
       return result;
 
-    win_update_buffer_size(conn->writesockfd);
+#if defined(WIN32) && defined(USE_WINSOCK)
+    {
+      struct curltime n = Curl_now();
+      if(Curl_timediff(n, k->last_sndbuf_update) > 1000) {
+        win_update_buffer_size(conn->writesockfd);
+        k->last_sndbuf_update = n;
+      }
+    }
+#endif
 
     if(k->pendingheader) {
       /* parts of what was sent was header */
@@ -1394,7 +1402,13 @@ CURLcode Curl_pretransfer(struct Curl_easy *data)
 #ifndef CURL_DISABLE_FTP
     data->state.wildcardmatch = data->set.wildcard_enabled;
     if(data->state.wildcardmatch) {
-      struct WildcardData *wc = &data->wildcard;
+      struct WildcardData *wc;
+      if(!data->wildcard) {
+        data->wildcard = calloc(1, sizeof(struct WildcardData));
+        if(!data->wildcard)
+          return CURLE_OUT_OF_MEMORY;
+      }
+      wc = data->wildcard;
       if(wc->state < CURLWC_INIT) {
         result = Curl_wildcard_init(wc); /* init wildcard structures */
         if(result)
