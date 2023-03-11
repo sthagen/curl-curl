@@ -3,13 +3,13 @@
 <keywords>
 HTTP
 cookies
-FLUSH
+CURLOPT_COOKIEFILE
 </keywords>
 </info>
 
 # Server-side
 <reply>
-<data nocheck="yes">
+<data nocheck="yes" crlf="yes">
 HTTP/1.1 200 OK
 Date: Tue, 09 Nov 2010 14:49:00 GMT
 Server: test-server/fake
@@ -27,7 +27,7 @@ Set-Cookie: secondcookie=present;
 http
 </server>
  <name>
-CURLOPT_COOKIELIST set to "FLUSH" of a shared cookie object
+CURLOPT_COOKIEFILE then reset then set again
  </name>
 <tool>
 lib%TESTNUMBER
@@ -35,19 +35,6 @@ lib%TESTNUMBER
 <command>
 http://%HOSTIP:%HTTPPORT/we/want/%TESTNUMBER
 </command>
-<features>
-cookies
-</features>
-</client>
-
-# Verify data after the test has been "shot"
-<verify>
-<protocol>
-GET /we/want/%TESTNUMBER HTTP/1.1
-Host: %HOSTIP:%HTTPPORT
-Accept: */*
-
-</protocol>
 <file name="log/cookies%TESTNUMBER" mode="text">
 # Netscape HTTP Cookie File
 # https://curl.se/docs/http-cookies.html
@@ -56,5 +43,9 @@ Accept: */*
 %HOSTIP	FALSE	/we/want/	FALSE	0	secondcookie	present
 %HOSTIP	FALSE	/we/want/	FALSE	0	foobar	name
 </file>
+</client>
+
+# Verify data after the test has been "shot"
+<verify>
 </verify>
 </testcase>

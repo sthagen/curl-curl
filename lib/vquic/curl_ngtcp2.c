@@ -953,7 +953,7 @@ static int cb_h3_stream_close(nghttp3_conn *conn, int64_t stream_id,
 }
 
 /*
- * write_resp_raw() copies resonse data in raw format to the `data`'s
+ * write_resp_raw() copies response data in raw format to the `data`'s
   * receive buffer. If not enough space is available, it appends to the
  * `data`'s overflow buffer.
  */
@@ -2109,13 +2109,6 @@ static CURLcode cf_ngtcp2_data_event(struct Curl_cfilter *cf,
       }
     }
     break;
-  case CF_CTRL_CONN_REPORT_STATS:
-    if(cf->sockindex == FIRSTSOCKET) {
-      if(ctx->got_first_byte)
-        Curl_pgrsTimeWas(data, TIMER_CONNECT, ctx->first_byte_at);
-      Curl_pgrsTimeWas(data, TIMER_APPCONNECT, ctx->handshake_at);
-    }
-    break;
   default:
     break;
   }
@@ -2431,6 +2424,18 @@ static CURLcode cf_ngtcp2_query(struct Curl_cfilter *cf,
     else
       *pres1 = -1;
     return CURLE_OK;
+  case CF_QUERY_TIMER_CONNECT: {
+    struct curltime *when = pres2;
+    if(ctx->got_first_byte)
+      *when = ctx->first_byte_at;
+    return CURLE_OK;
+  }
+  case CF_QUERY_TIMER_APPCONNECT: {
+    struct curltime *when = pres2;
+    if(cf->connected)
+      *when = ctx->handshake_at;
+    return CURLE_OK;
+  }
   default:
     break;
   }
@@ -2439,6 +2444,32 @@ static CURLcode cf_ngtcp2_query(struct Curl_cfilter *cf,
     CURLE_UNKNOWN_OPTION;
 }
 
+static bool cf_ngtcp2_conn_is_alive(struct Curl_cfilter *cf,
+                                    struct Curl_easy *data,
+                                    bool *input_pending)
+{
+  bool alive = TRUE;
+
+  *input_pending = FALSE;
+  if(!cf->next || !cf->next->cft->is_alive(cf->next, data, input_pending))
+    return FALSE;
+
+  if(*input_pending) {
+    /* This happens before we've sent off a request and the connection is
+       not in use by any other transfer, there shouldn't be any data here,
+       only "protocol frames" */
+    *input_pending = FALSE;
+    Curl_attach_connection(data, cf->conn);
+    if(cf_process_ingress(cf, data))
+      alive = FALSE;
+    else {
+      alive = TRUE;
+    }
+    Curl_detach_connection(data);
+  }
+
+  return alive;
+}
 
 struct Curl_cftype Curl_cft_http3 = {
   "HTTP/3",
@@ -2453,7 +2484,7 @@ struct Curl_cftype Curl_cft_http3 = {
   cf_ngtcp2_send,
   cf_ngtcp2_recv,
   cf_ngtcp2_data_event,
-  Curl_cf_def_conn_is_alive,
+  cf_ngtcp2_conn_is_alive,
   Curl_cf_def_conn_keep_alive,
   cf_ngtcp2_query,
 };

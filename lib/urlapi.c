@@ -629,7 +629,7 @@ static CURLUcode hostname_check(struct Curl_URL *u, char *hostname,
   }
   else {
     /* letters from the second string are not ok */
-    len = strcspn(hostname, " \r\n\t/:#?!@{}[]\\$\'\"^`*<>=;,+&()");
+    len = strcspn(hostname, " \r\n\t/:#?!@{}[]\\$\'\"^`*<>=;,+&()%");
     if(hlen != len)
       /* hostname with bad content */
       return CURLUE_BAD_HOSTNAME;
@@ -1350,7 +1350,7 @@ void curl_url_cleanup(CURLU *u)
     }                                           \
   } while(0)
 
-CURLU *curl_url_dup(CURLU *in)
+CURLU *curl_url_dup(const CURLU *in)
 {
   struct Curl_URL *u = calloc(sizeof(struct Curl_URL), 1);
   if(u) {
@@ -1371,10 +1371,10 @@ CURLU *curl_url_dup(CURLU *in)
   return NULL;
 }
 
-CURLUcode curl_url_get(CURLU *u, CURLUPart what,
+CURLUcode curl_url_get(const CURLU *u, CURLUPart what,
                        char **part, unsigned int flags)
 {
-  char *ptr;
+  const char *ptr;
   CURLUcode ifmissing = CURLUE_UNKNOWN_PART;
   char portbuf[7];
   bool urldecode = (flags & CURLU_URLDECODE)?1:0;
@@ -1441,11 +1441,8 @@ CURLUcode curl_url_get(CURLU *u, CURLUPart what,
     break;
   case CURLUPART_PATH:
     ptr = u->path;
-    if(!ptr) {
-      ptr = u->path = strdup("/");
-      if(!u->path)
-        return CURLUE_OUT_OF_MEMORY;
-    }
+    if(!ptr)
+      ptr = "/";
     break;
   case CURLUPART_QUERY:
     ptr = u->query;
@@ -1555,8 +1552,7 @@ CURLUcode curl_url_get(CURLU *u, CURLUPart what,
               return CURLUE_OUT_OF_MEMORY;
             host++;
           }
-          free(u->host);
-          u->host = Curl_dyn_ptr(&enc);
+          allochost = Curl_dyn_ptr(&enc);
         }
       }
 

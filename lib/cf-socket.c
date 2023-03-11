@@ -325,20 +325,6 @@ int Curl_socket_close(struct Curl_easy *data, struct connectdata *conn,
   return socket_close(data, conn, FALSE, sock);
 }
 
-bool Curl_socket_is_dead(curl_socket_t sock)
-{
-  int sval;
-  bool ret_val = TRUE;
-
-  sval = SOCKET_READABLE(sock, 0);
-  if(sval == 0)
-    /* timeout */
-    ret_val = FALSE;
-
-  return ret_val;
-}
-
-
 #ifdef USE_WINSOCK
 /* When you run a program that uses the Windows Sockets API, you may
    experience slow performance when you copy data to a TCP server.
@@ -1441,22 +1427,6 @@ static CURLcode cf_socket_cntrl(struct Curl_cfilter *cf,
   case CF_CTRL_CONN_INFO_UPDATE:
     cf_socket_active(cf, data);
     break;
-  case CF_CTRL_CONN_REPORT_STATS:
-    switch(ctx->transport) {
-    case TRNSPRT_UDP:
-    case TRNSPRT_QUIC:
-      /* Since UDP connected sockets work different from TCP, we use the
-       * time of the first byte from the peer as the "connect" time. */
-      if(ctx->got_first_byte) {
-        Curl_pgrsTimeWas(data, TIMER_CONNECT, ctx->first_byte_at);
-        break;
-      }
-      /* FALLTHROUGH */
-    default:
-      Curl_pgrsTimeWas(data, TIMER_CONNECT, ctx->connected_at);
-      break;
-    }
-    break;
   case CF_CTRL_DATA_SETUP:
     Curl_persistconninfo(data, cf->conn, ctx->l_ip, ctx->l_port);
     break;
@@ -1465,12 +1435,14 @@ static CURLcode cf_socket_cntrl(struct Curl_cfilter *cf,
 }
 
 static bool cf_socket_conn_is_alive(struct Curl_cfilter *cf,
-                                    struct Curl_easy *data)
+                                    struct Curl_easy *data,
+                                    bool *input_pending)
 {
   struct cf_socket_ctx *ctx = cf->ctx;
   struct pollfd pfd[1];
   int r;
 
+  *input_pending = FALSE;
   (void)data;
   if(!ctx || ctx->sock == CURL_SOCKET_BAD)
     return FALSE;
@@ -1495,6 +1467,7 @@ static bool cf_socket_conn_is_alive(struct Curl_cfilter *cf,
   }
 
   DEBUGF(LOG_CF(data, cf, "is_alive: valid events, looks alive"));
+  *input_pending = TRUE;
   return TRUE;
 }
 
@@ -1517,6 +1490,24 @@ static CURLcode cf_socket_query(struct Curl_cfilter *cf,
     else
       *pres1 = -1;
     return CURLE_OK;
+  case CF_QUERY_TIMER_CONNECT: {
+    struct curltime *when = pres2;
+    switch(ctx->transport) {
+    case TRNSPRT_UDP:
+    case TRNSPRT_QUIC:
+      /* Since UDP connected sockets work different from TCP, we use the
+       * time of the first byte from the peer as the "connect" time. */
+      if(ctx->got_first_byte) {
+        *when = ctx->first_byte_at;
+        break;
+      }
+      /* FALLTHROUGH */
+    default:
+      *when = ctx->connected_at;
+      break;
+    }
+    return CURLE_OK;
+  }
   default:
     break;
   }
