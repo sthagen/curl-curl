@@ -727,8 +727,6 @@ static void conn_free(struct Curl_easy *data, struct connectdata *conn)
   Curl_safefree(conn->conn_to_host.rawalloc); /* host name buffer */
   Curl_safefree(conn->hostname_resolve);
   Curl_safefree(conn->secondaryhostname);
-
-  Curl_llist_destroy(&conn->easyq, NULL);
   Curl_safefree(conn->localdev);
   Curl_free_primary_ssl_config(&conn->ssl_config);
 
@@ -1292,11 +1290,24 @@ ConnectionExists(struct Curl_easy *data,
           || ((check->httpversion >= 30) &&
            (data->state.httpwant < CURL_HTTP_VERSION_3))))
         continue;
-
-      if(get_protocol_family(needle->handler) & PROTO_FAMILY_SSH) {
+#ifdef USE_SSH
+      else if(get_protocol_family(needle->handler) & PROTO_FAMILY_SSH) {
         if(!ssh_config_matches(needle, check))
           continue;
       }
+#endif
+#ifndef CURL_DISABLE_FTP
+      else if(get_protocol_family(needle->handler) & PROTO_FAMILY_FTP) {
+        /* Also match ACCOUNT, ALTERNATIVE-TO-USER, USE_SSL and CCC options */
+        if(Curl_timestrcmp(needle->proto.ftpc.account,
+                           check->proto.ftpc.account) ||
+           Curl_timestrcmp(needle->proto.ftpc.alternative_to_user,
+                           check->proto.ftpc.alternative_to_user) ||
+           (needle->proto.ftpc.use_ssl != check->proto.ftpc.use_ssl) ||
+           (needle->proto.ftpc.ccc != check->proto.ftpc.ccc))
+          continue;
+      }
+#endif
 
       if((needle->handler->flags&PROTOPT_SSL)
 #ifndef CURL_DISABLE_PROXY
@@ -1583,7 +1594,6 @@ static struct connectdata *allocate_conn(struct Curl_easy *data)
   return conn;
   error:
 
-  Curl_llist_destroy(&conn->easyq, NULL);
   free(conn->localdev);
   free(conn);
   return NULL;

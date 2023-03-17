@@ -7,7 +7,7 @@
 #                            | (__| |_| |  _ <| |___
 #                             \___|\___/|_| \_\_____|
 #
-# Copyright (C) 2008 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+# Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
 #
 # This software is licensed as described in the file COPYING, which
 # you should have received as part of this distribution. The terms
@@ -57,6 +57,9 @@ class TestPush:
             f'</Location>',
         ])
         # activate the new config
+        httpd.reload()
+        yield
+        httpd.clear_extra_configs()
         httpd.reload()
 
     # download a file that triggers a "103 Early Hints" response

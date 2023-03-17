@@ -7,7 +7,7 @@
 #                            | (__| |_| |  _ <| |___
 #                             \___|\___/|_| \_\_____|
 #
-# Copyright (C) 2008 - 2022, Daniel Stenberg, <daniel@haxx.se>, et al.
+# Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
 #
 # This software is licensed as described in the file COPYING, which
 # you should have received as part of this distribution. The terms
@@ -96,8 +96,6 @@ class EnvConfig:
                 self.curl_props['protocols'] = [
                     prot.lower() for prot in l[11:].split(' ')
                 ]
-        self.nghttpx_with_h3 = re.match(r'.* nghttp3/.*', p.stdout.strip())
-        log.debug(f'nghttpx -v: {p.stdout}')
 
         self.ports = alloc_ports(port_specs={
             'http': socket.SOCK_STREAM,
@@ -133,10 +131,10 @@ class EnvConfig:
         ]
 
         self.nghttpx = self.config['nghttpx']['nghttpx']
+        if len(self.nghttpx.strip()) == 0:
+            self.nghttpx = None
         self._nghttpx_version = None
         self.nghttpx_with_h3 = False
-        if len(self.nghttpx) == 0:
-            self.nghttpx = 'nghttpx'
         if self.nghttpx is not None:
             p = subprocess.run(args=[self.nghttpx, '-v'],
                                capture_output=True, text=True)
@@ -234,6 +232,10 @@ class Env:
     @staticmethod
     def curl_uses_lib(libname: str) -> bool:
         return libname.lower() in Env.CONFIG.curl_props['libs']
+
+    @staticmethod
+    def curl_has_feature(feature: str) -> bool:
+        return feature.lower() in Env.CONFIG.curl_props['features']
 
     @staticmethod
     def curl_lib_version(libname: str) -> str:
