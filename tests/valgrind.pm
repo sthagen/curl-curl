@@ -22,14 +22,17 @@
 #
 ###########################################################################
 
+use strict;
+use warnings;
+
 use File::Basename;
 
 sub valgrindparse {
     my ($file) = @_;
     my @o;
-    open(VAL, "<$file");
-    @o = <VAL>;
-    close(VAL);
+    open(my $val, "<", "$file");
+    @o = <$val>;
+    close($val);
     return @o;
 }
 

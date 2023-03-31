@@ -26,7 +26,6 @@ package sshhelp;
 
 use strict;
 use warnings;
-use Exporter;
 use File::Spec;
 
 
@@ -34,7 +33,6 @@ use File::Spec;
 # Global symbols allowed without explicit package name
 #
 use vars qw(
-    @ISA
     @EXPORT_OK
     $sshdexe
     $sshexe
@@ -64,7 +62,7 @@ use vars qw(
 #***************************************************************************
 # Inherit Exporter's capabilities
 #
-@ISA = qw(Exporter);
+use base qw(Exporter);
 
 
 #***************************************************************************
@@ -212,12 +210,12 @@ sub dump_array {
     if(!$filename) {
         $error = 'Error: Missing argument 1 for dump_array()';
     }
-    elsif(open(TEXTFH, ">$filename")) {
+    elsif(open(my $textfh, ">", "$filename")) {
         foreach my $line (@arr) {
-            $line .= "\n" unless($line =~ /\n$/);
-            print TEXTFH $line;
+            $line .= "\n" if($line !~ /\n$/);
+            print $textfh $line;
         }
-        if(!close(TEXTFH)) {
+        if(!close($textfh)) {
             $error = "Error: cannot close file $filename";
         }
     }
@@ -245,11 +243,11 @@ sub logmsg {
 sub display_file {
     my $filename = $_[0];
     print "=== Start of file $filename\n";
-    if(open(DISPLAYFH, "<$filename")) {
-        while(my $line = <DISPLAYFH>) {
+    if(open(my $displayfh, "<", "$filename")) {
+        while(my $line = <$displayfh>) {
             print "$line";
         }
-        close DISPLAYFH;
+        close $displayfh;
     }
     print "=== End of file $filename\n";
 }
@@ -319,6 +317,7 @@ sub find_file {
             return $file;
         }
     }
+    return "";
 }
 
 
@@ -337,6 +336,7 @@ sub find_exe_file {
             return $file if(($xext) && (lc($file) =~ /\Q$xext\E$/));
         }
     }
+    return "";
 }
 
 
@@ -420,6 +420,7 @@ sub find_httptlssrv {
         }
         return $p if($found);
     }
+    return "";
 }
 
 

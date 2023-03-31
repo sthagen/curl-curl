@@ -346,7 +346,6 @@ static void up_free(struct Curl_easy *data)
 
 CURLcode Curl_close(struct Curl_easy **datap)
 {
-  struct Curl_multi *m;
   struct Curl_easy *data;
 
   if(!datap || !*datap)
@@ -360,8 +359,7 @@ CURLcode Curl_close(struct Curl_easy **datap)
   /* Detach connection if any is left. This should not be normal, but can be
      the case for example with CONNECT_ONLY + recv/send (test 556) */
   Curl_detach_connection(data);
-  m = data->multi;
-  if(m)
+  if(data->multi)
     /* This handle is still part of a multi handle, take care of this first
        and detach this handle from there. */
     curl_multi_remove_handle(data->multi, data);
@@ -372,11 +370,6 @@ CURLcode Curl_close(struct Curl_easy **datap)
     curl_multi_cleanup(data->multi_easy);
     data->multi_easy = NULL;
   }
-
-  /* Destroy the timeout list that is held in the easy handle. It is
-     /normally/ done by curl_multi_remove_handle() but this is "just in
-     case" */
-  Curl_llist_destroy(&data->state.timeoutlist, NULL);
 
   data->magic = 0; /* force a clear AFTER the possibly enforced removal from
                       the multi handle, since that function uses the magic

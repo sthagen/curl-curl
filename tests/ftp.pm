@@ -22,6 +22,9 @@
 #
 ###########################################################################
 
+use strict;
+use warnings;
+
 BEGIN {
     # portable sleeping needs Time::HiRes
     eval {
@@ -34,9 +37,6 @@ BEGIN {
         require Win32;
     }
 }
-
-use strict;
-use warnings;
 
 use serverhelp qw(
     servername_id
@@ -79,10 +79,10 @@ sub pidfromfile {
     my $pidfile = $_[0];
     my $pid = 0;
 
-    if(-f $pidfile && -s $pidfile && open(PIDFH, "<$pidfile")) {
-        $pid = 0 + <PIDFH>;
-        close(PIDFH);
-        $pid = 0 unless($pid > 0);
+    if(-f $pidfile && -s $pidfile && open(my $pidfh, "<", "$pidfile")) {
+        $pid = 0 + <$pidfh>;
+        close($pidfh);
+        $pid = 0 if($pid < 0);
     }
     return $pid;
 }
@@ -230,8 +230,8 @@ sub processexists {
 # with a SIGTERM signal and SIGKILLs those which haven't died on time.
 #
 sub killpid {
-    use POSIX ":sys_wait_h";
     my ($verbose, $pidlist) = @_;
+    use POSIX ":sys_wait_h";
     my @requested;
     my @signalled;
     my @reapchild;
@@ -380,11 +380,11 @@ sub killallsockfilters {
 sub set_advisor_read_lock {
     my ($filename) = @_;
 
-    if(open(FILEH, ">$filename")) {
-        close(FILEH);
+    my $fileh;
+    if(open($fileh, ">", "$filename") && close($fileh)) {
         return;
     }
-    printf "Error creating lock file $filename error: $!";
+    printf "Error creating lock file $filename error: $!\n";
 }
 
 
