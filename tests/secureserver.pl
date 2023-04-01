@@ -27,15 +27,17 @@
 # harness. Actually just a layer that runs stunnel properly using the
 # non-secure test harness servers.
 
+use strict;
+use warnings;
+
 BEGIN {
     push(@INC, $ENV{'srcdir'}) if(defined $ENV{'srcdir'});
     push(@INC, ".");
 }
 
-use strict;
-use warnings;
 use Cwd;
 use Cwd 'abs_path';
+use File::Basename;
 
 use serverhelp qw(
     server_pidfilename
@@ -77,6 +79,7 @@ my $certfile;         # certificate chain PEM file
 my $path   = getcwd();
 my $srcdir = $path;
 my $logdir = $path .'/log';
+my $piddir;
 
 #***************************************************************************
 # Signal handler to remove our stunnel 4.00 and newer configuration file.
@@ -182,14 +185,20 @@ while(@ARGV) {
 #***************************************************************************
 # Initialize command line option dependent variables
 #
-if(!$pidfile) {
-    $pidfile = "$path/". server_pidfilename($proto, $ipvnum, $idnum);
+if($pidfile) {
+    # Use our pidfile directory to store the conf files
+    $piddir = dirname($pidfile);
+}
+else {
+    # Use the current directory to store the conf files
+    $piddir = $path;
+    $pidfile = server_pidfilename($piddir, $proto, $ipvnum, $idnum);
 }
 if(!$logfile) {
     $logfile = server_logfilename($logdir, $proto, $ipvnum, $idnum);
 }
 
-$conffile = "$logdir/${proto}_stunnel.conf";
+$conffile = "$piddir/${proto}_stunnel.conf";
 
 $capath = abs_path($path);
 $certfile = "$srcdir/". ($stuncert?"certs/$stuncert":"stunnel.pem");
