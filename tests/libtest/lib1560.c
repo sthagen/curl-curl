@@ -141,6 +141,9 @@ struct clearurlcase {
 };
 
 static const struct testcase get_parts_list[] ={
+  {"https://user@example.net?hello# space ",
+   "https | user | [12] | [13] | example.net | [15] | / | hello | %20space%20",
+   CURLU_ALLOW_SPACE|CURLU_URLENCODE, 0, CURLUE_OK},
   {"https://test%test", "", 0, 0, CURLUE_BAD_HOSTNAME},
   {"https://example.com%252f%40@example.net",
    "https | example.com%2f@ | [12] | [13] | example.net | [15] | / "
@@ -528,13 +531,14 @@ static const struct urltestcase get_url_list[] = {
   {"https://a127.0.0.1", "https://a127.0.0.1/", 0, 0, CURLUE_OK},
   {"https://\xff.127.0.0.1", "https://%FF.127.0.0.1/", 0, CURLU_URLENCODE,
    CURLUE_OK},
-  {"https://127.-0.0.1", "https://127.-0.0.1/", 0, 0, CURLUE_OK},
+  {"https://127.-0.0.1", "https://127.-0.0.1/", 0, 0, CURLUE_BAD_HOSTNAME},
   {"https://127.0. 1", "https://127.0.0.1/", 0, 0, CURLUE_BAD_HOSTNAME},
-  {"https://1.0x1000000", "https://1.0x1000000/", 0, 0, CURLUE_OK},
-  {"https://1.2.3.256", "https://1.2.3.256/", 0, 0, CURLUE_OK},
-  {"https://1.2.3.4.5", "https://1.2.3.4.5/", 0, 0, CURLUE_OK},
-  {"https://1.2.0x100.3", "https://1.2.0x100.3/", 0, 0, CURLUE_OK},
-  {"https://4294967296", "https://4294967296/", 0, 0, CURLUE_OK},
+  {"https://1.0x1000000", "https://1.0x1000000/", 0, 0, CURLUE_BAD_HOSTNAME},
+  {"https://1.2.3.256", "https://1.2.3.256/", 0, 0, CURLUE_BAD_HOSTNAME},
+  {"https://1.2.3.4.5", "https://1.2.3.4.5/", 0, 0, CURLUE_BAD_HOSTNAME},
+  {"https://1.2.0x100.3", "https://1.2.0x100.3/", 0, 0, CURLUE_BAD_HOSTNAME},
+  {"https://4294967296", "https://4294967296/", 0, 0, CURLUE_BAD_HOSTNAME},
+  {"https://123host", "https://123host/", 0, 0, CURLUE_OK},
   /* 40 bytes scheme is the max allowed */
   {"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA://hostname/path",
    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa://hostname/path",

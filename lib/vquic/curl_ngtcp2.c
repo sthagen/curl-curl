@@ -186,9 +186,9 @@ struct stream_ctx {
 };
 
 #define H3_STREAM_CTX(d)    ((struct stream_ctx *)(((d) && (d)->req.p.http)? \
-                             ((struct HTTP *)(d)->req.p.http)->impl_ctx \
+                             ((struct HTTP *)(d)->req.p.http)->h3_ctx \
                                : NULL))
-#define H3_STREAM_LCTX(d)   ((struct HTTP *)(d)->req.p.http)->impl_ctx
+#define H3_STREAM_LCTX(d)   ((struct HTTP *)(d)->req.p.http)->h3_ctx
 #define H3_STREAM_ID(d)     (H3_STREAM_CTX(d)? \
                              H3_STREAM_CTX(d)->id : -2)
 
@@ -197,6 +197,11 @@ static CURLcode h3_data_setup(struct Curl_cfilter *cf,
 {
   struct cf_ngtcp2_ctx *ctx = cf->ctx;
   struct stream_ctx *stream = H3_STREAM_CTX(data);
+
+  if(!data || !data->req.p.http) {
+    failf(data, "initialization failure, transfer not http initialized");
+    return CURLE_FAILED_INIT;
+  }
 
   if(stream)
     return CURLE_OK;
@@ -1090,33 +1095,6 @@ static int cb_h3_deferred_consume(nghttp3_conn *conn, int64_t stream3_id,
   return 0;
 }
 
-/* Decode HTTP status code.  Returns -1 if no valid status code was
-   decoded. (duplicate from http2.c) */
-static int decode_status_code(const uint8_t *value, size_t len)
-{
-  int i;
-  int res;
-
-  if(len != 3) {
-    return -1;
-  }
-
-  res = 0;
-
-  for(i = 0; i < 3; ++i) {
-    char c = value[i];
-
-    if(c < '0' || c > '9') {
-      return -1;
-    }
-
-    res *= 10;
-    res += c - '0';
-  }
-
-  return res;
-}
-
 static int cb_h3_end_headers(nghttp3_conn *conn, int64_t stream_id,
                              int fin, void *user_data, void *stream_user_data)
 {
@@ -1167,8 +1145,10 @@ static int cb_h3_recv_header(nghttp3_conn *conn, int64_t stream_id,
     char line[14]; /* status line is always 13 characters long */
     size_t ncopy;
 
-    stream->status_code = decode_status_code(h3val.base, h3val.len);
-    DEBUGASSERT(stream->status_code != -1);
+    result = Curl_http_decode_status(&stream->status_code,
+                                     (const char *)h3val.base, h3val.len);
+    if(result)
+      return -1;
     ncopy = msnprintf(line, sizeof(line), "HTTP/3 %03d \r\n",
                       stream->status_code);
     DEBUGF(LOG_CF(data, cf, "[h3sid=%" PRId64 "] status: %s",
@@ -1542,7 +1522,7 @@ static CURLcode h3_stream_open(struct Curl_cfilter *cf,
                                size_t len)
 {
   struct cf_ngtcp2_ctx *ctx = cf->ctx;
-  struct stream_ctx *stream = H3_STREAM_CTX(data);
+  struct stream_ctx *stream = NULL;
   size_t nheader;
   CURLcode result = CURLE_OK;
   nghttp3_nv *nva = NULL;
@@ -1551,6 +1531,11 @@ static CURLcode h3_stream_open(struct Curl_cfilter *cf,
   struct h2h3req *hreq = NULL;
   nghttp3_data_reader reader;
   nghttp3_data_reader *preader = NULL;
+
+  result = h3_data_setup(cf, data);
+  if(result)
+    goto out;
+  stream = H3_STREAM_CTX(data);
 
   rc = ngtcp2_conn_open_bidi_stream(ctx->qconn, &stream->id, NULL);
   if(rc) {
@@ -1604,7 +1589,7 @@ static CURLcode h3_stream_open(struct Curl_cfilter *cf,
                 stream->id, data->state.url));
 
 out:
-  if(!result && rc) {
+  if(stream && !result && rc) {
     switch(rc) {
     case NGHTTP3_ERR_CONN_CLOSING:
       DEBUGF(LOG_CF(data, cf, "h3sid[%"PRId64"] failed to send, "
@@ -1637,13 +1622,13 @@ static ssize_t cf_ngtcp2_send(struct Curl_cfilter *cf, struct Curl_easy *data,
   DEBUGASSERT(ctx->h3conn);
   *err = CURLE_OK;
 
-  if(stream->closed) {
+  if(stream && stream->closed) {
     *err = CURLE_HTTP3;
     sent = -1;
     goto out;
   }
 
-  if(stream->id < 0) {
+  if(!stream || stream->id < 0) {
     CURLcode result = h3_stream_open(cf, data, buf, len);
     if(result) {
       DEBUGF(LOG_CF(data, cf, "failed to open stream -> %d", result));
@@ -2095,10 +2080,8 @@ static CURLcode cf_ngtcp2_data_event(struct Curl_cfilter *cf,
   (void)arg1;
   (void)arg2;
   switch(event) {
-  case CF_CTRL_DATA_SETUP: {
-    result = h3_data_setup(cf, data);
+  case CF_CTRL_DATA_SETUP:
     break;
-  }
   case CF_CTRL_DATA_DONE: {
     h3_data_done(cf, data);
     break;
@@ -2257,10 +2240,6 @@ static CURLcode cf_connect_start(struct Curl_cfilter *cf,
   quic_settings(ctx, data);
 
   result = vquic_ctx_init(&ctx->q);
-  if(result)
-    return result;
-
-  result = h3_data_setup(cf, data);
   if(result)
     return result;
 
@@ -2539,7 +2518,7 @@ out:
   *pcf = (!result)? cf : NULL;
   if(result) {
     if(udp_cf)
-      Curl_conn_cf_discard(udp_cf, data);
+      Curl_conn_cf_discard_sub(cf, udp_cf, data, TRUE);
     Curl_safefree(cf);
     Curl_safefree(ctx);
   }

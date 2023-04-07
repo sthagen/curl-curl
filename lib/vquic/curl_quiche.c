@@ -197,9 +197,9 @@ struct stream_ctx {
 };
 
 #define H3_STREAM_CTX(d)    ((struct stream_ctx *)(((d) && (d)->req.p.http)? \
-                             ((struct HTTP *)(d)->req.p.http)->impl_ctx \
+                             ((struct HTTP *)(d)->req.p.http)->h3_ctx \
                                : NULL))
-#define H3_STREAM_LCTX(d)   ((struct HTTP *)(d)->req.p.http)->impl_ctx
+#define H3_STREAM_LCTX(d)   ((struct HTTP *)(d)->req.p.http)->h3_ctx
 #define H3_STREAM_ID(d)     (H3_STREAM_CTX(d)? \
                              H3_STREAM_CTX(d)->id : -2)
 
@@ -1547,7 +1547,7 @@ out:
   *pcf = (!result)? cf : NULL;
   if(result) {
     if(udp_cf)
-      Curl_conn_cf_discard(udp_cf, data);
+      Curl_conn_cf_discard_sub(cf, udp_cf, data, TRUE);
     Curl_safefree(cf);
     Curl_safefree(ctx);
   }
