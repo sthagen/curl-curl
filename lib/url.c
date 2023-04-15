@@ -1209,17 +1209,19 @@ ConnectionExists(struct Curl_easy *data,
         if(needle->bits.tunnel_proxy != check->bits.tunnel_proxy)
           continue;
 
-        if(needle->http_proxy.proxytype == CURLPROXY_HTTPS) {
+        if(IS_HTTPS_PROXY(needle->http_proxy.proxytype)) {
           /* use https proxy */
-          if(needle->handler->flags&PROTOPT_SSL) {
+          if(needle->http_proxy.proxytype !=
+             check->http_proxy.proxytype)
+            continue;
+          else if(needle->handler->flags&PROTOPT_SSL) {
             /* use double layer ssl */
             if(!Curl_ssl_config_matches(&needle->proxy_ssl_config,
                                         &check->proxy_ssl_config))
               continue;
           }
-
-          if(!Curl_ssl_config_matches(&needle->ssl_config,
-                                      &check->ssl_config))
+          else if(!Curl_ssl_config_matches(&needle->ssl_config,
+                                           &check->ssl_config))
             continue;
         }
       }
@@ -1508,7 +1510,7 @@ static struct connectdata *allocate_conn(struct Curl_easy *data)
   conn->created = Curl_now();
 
   /* Store current time to give a baseline to keepalive connection times. */
-  conn->keepalive = Curl_now();
+  conn->keepalive = conn->created;
 
 #ifndef CURL_DISABLE_PROXY
   conn->http_proxy.proxytype = data->set.proxytype;
@@ -1521,8 +1523,8 @@ static struct connectdata *allocate_conn(struct Curl_easy *data)
   conn->bits.httpproxy = (conn->bits.proxy &&
                           (conn->http_proxy.proxytype == CURLPROXY_HTTP ||
                            conn->http_proxy.proxytype == CURLPROXY_HTTP_1_0 ||
-                           conn->http_proxy.proxytype == CURLPROXY_HTTPS)) ?
-                           TRUE : FALSE;
+                           IS_HTTPS_PROXY(conn->http_proxy.proxytype))) ?
+    TRUE : FALSE;
   conn->bits.socksproxy = (conn->bits.proxy &&
                            !conn->bits.httpproxy) ? TRUE : FALSE;
 
@@ -1581,7 +1583,7 @@ static struct connectdata *allocate_conn(struct Curl_easy *data)
      it may live on without (this specific) Curl_easy */
   conn->fclosesocket = data->set.fclosesocket;
   conn->closesocket_client = data->set.closesocket_client;
-  conn->lastused = Curl_now(); /* used now */
+  conn->lastused = conn->created;
   conn->gssapi_delegation = data->set.gssapi_delegation;
 
   return conn;
@@ -2154,8 +2156,12 @@ static CURLcode parse_proxy(struct Curl_easy *data,
       goto error;
     }
 
-    if(strcasecompare("https", scheme))
-      proxytype = CURLPROXY_HTTPS;
+    if(strcasecompare("https", scheme)) {
+      if(proxytype != CURLPROXY_HTTPS2)
+        proxytype = CURLPROXY_HTTPS;
+      else
+        proxytype = CURLPROXY_HTTPS2;
+    }
     else if(strcasecompare("socks5h", scheme))
       proxytype = CURLPROXY_SOCKS5_HOSTNAME;
     else if(strcasecompare("socks5", scheme))
@@ -2183,9 +2189,9 @@ static CURLcode parse_proxy(struct Curl_easy *data,
 #ifdef USE_SSL
   if(!Curl_ssl_supports(data, SSLSUPP_HTTPS_PROXY))
 #endif
-    if(proxytype == CURLPROXY_HTTPS) {
+    if(IS_HTTPS_PROXY(proxytype)) {
       failf(data, "Unsupported proxy \'%s\', libcurl is built without the "
-                  "HTTPS-proxy support.", proxy);
+            "HTTPS-proxy support.", proxy);
       result = CURLE_NOT_BUILT_IN;
       goto error;
     }
@@ -2242,7 +2248,7 @@ static CURLcode parse_proxy(struct Curl_easy *data,
          given */
       port = (int)data->set.proxyport;
     else {
-      if(proxytype == CURLPROXY_HTTPS)
+      if(IS_HTTPS_PROXY(proxytype))
         port = CURL_DEFAULT_HTTPS_PROXY_PORT;
       else
         port = CURL_DEFAULT_PROXY_PORT;
@@ -2322,22 +2328,17 @@ static CURLcode parse_proxy_auth(struct Curl_easy *data,
     data->state.aptr.proxyuser : "";
   const char *proxypasswd = data->state.aptr.proxypasswd ?
     data->state.aptr.proxypasswd : "";
-  CURLcode result = CURLE_OK;
-
-  if(proxyuser) {
-    result = Curl_urldecode(proxyuser, 0, &conn->http_proxy.user, NULL,
-                            REJECT_ZERO);
-    if(!result)
-      result = Curl_setstropt(&data->state.aptr.proxyuser,
-                              conn->http_proxy.user);
-  }
-  if(!result && proxypasswd) {
+  CURLcode result = Curl_urldecode(proxyuser, 0, &conn->http_proxy.user, NULL,
+                                   REJECT_ZERO);
+  if(!result)
+    result = Curl_setstropt(&data->state.aptr.proxyuser,
+                            conn->http_proxy.user);
+  if(!result)
     result = Curl_urldecode(proxypasswd, 0, &conn->http_proxy.passwd,
                             NULL, REJECT_ZERO);
-    if(!result)
-      result = Curl_setstropt(&data->state.aptr.proxypasswd,
-                              conn->http_proxy.passwd);
-  }
+  if(!result)
+    result = Curl_setstropt(&data->state.aptr.proxypasswd,
+                            conn->http_proxy.passwd);
   return result;
 }
 
@@ -2562,29 +2563,13 @@ CURLcode Curl_parse_login_details(const char *login, const size_t len,
   size_t plen;
   size_t olen;
 
-  /* the input length check is because this is called directly from setopt
-     and isn't going through the regular string length check */
-  size_t llen = strlen(login);
-  if(llen > CURL_MAX_INPUT_LENGTH)
-    return CURLE_BAD_FUNCTION_ARGUMENT;
-
   /* Attempt to find the password separator */
-  if(passwdp) {
-    psep = strchr(login, ':');
-
-    /* Within the constraint of the login string */
-    if(psep >= login + len)
-      psep = NULL;
-  }
+  if(passwdp)
+    psep = memchr(login, ':', len);
 
   /* Attempt to find the options separator */
-  if(optionsp) {
-    osep = strchr(login, ';');
-
-    /* Within the constraint of the login string */
-    if(osep >= login + len)
-      osep = NULL;
-  }
+  if(optionsp)
+    osep = memchr(login, ';', len);
 
   /* Calculate the portion lengths */
   ulen = (psep ?
@@ -2909,12 +2894,11 @@ static CURLcode parse_connect_to_host_port(struct Curl_easy *data,
   }
 
   /* now, clone the cleaned host name */
-  if(hostptr) {
-    *hostname_result = strdup(hostptr);
-    if(!*hostname_result) {
-      result = CURLE_OUT_OF_MEMORY;
-      goto error;
-    }
+  DEBUGASSERT(hostptr);
+  *hostname_result = strdup(hostptr);
+  if(!*hostname_result) {
+    result = CURLE_OUT_OF_MEMORY;
+    goto error;
   }
 
   *port_result = port;

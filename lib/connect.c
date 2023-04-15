@@ -1223,7 +1223,7 @@ connect_sub_chain:
 
   if(ctx->state < CF_SETUP_CNNCT_HTTP_PROXY && cf->conn->bits.httpproxy) {
 #ifdef USE_SSL
-    if(cf->conn->http_proxy.proxytype == CURLPROXY_HTTPS
+    if(IS_HTTPS_PROXY(cf->conn->http_proxy.proxytype)
        && !Curl_conn_is_ssl(cf->conn, cf->sockindex)) {
       result = Curl_cf_ssl_proxy_insert_after(cf, data);
       if(result)
@@ -1409,9 +1409,8 @@ CURLcode Curl_conn_setup(struct Curl_easy *data,
 
 #if !defined(CURL_DISABLE_HTTP) && !defined(USE_HYPER)
   if(!conn->cfilter[sockindex] &&
-     conn->handler->protocol == CURLPROTO_HTTPS &&
-     (ssl_mode == CURL_CF_SSL_ENABLE || ssl_mode != CURL_CF_SSL_DISABLE)) {
-
+     conn->handler->protocol == CURLPROTO_HTTPS) {
+    DEBUGASSERT(ssl_mode != CURL_CF_SSL_DISABLE);
     result = Curl_cf_https_setup(data, conn, sockindex, remotehost);
     if(result)
       goto out;
