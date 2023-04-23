@@ -61,6 +61,7 @@ BEGIN {
             serverfortest
             stopserver
             stopservers
+            subvariables
         )
     );
 }
@@ -103,6 +104,7 @@ use pathhelp qw(
 
 use processhelp;
 use globalconfig;
+use testutil;
 
 
 my %serverpidfile; # all server pid file names, identified by server id
@@ -116,7 +118,16 @@ my $server_response_maxtime=13;
 my $httptlssrv = find_httptlssrv();
 my %run;          # running server
 my %runcert;      # cert file currently in use by an ssl running server
-my $serverstartretries=10; # number of times to attempt to start server
+my $CLIENTIP="127.0.0.1";  # address which curl uses for incoming connections
+my $CLIENT6IP="[::1]";     # address which curl uses for incoming connections
+my $posix_pwd=$pwd;        # current working directory
+my $h2cver = "h2c"; # this version is decided by the nghttp2 lib being used
+my $serverstartretries=10; # number of times to attempt to start server;
+                           # don't increase without making sure generated port
+                           # numbers will always be valid (<=65535)
+my $portrange = 999;       # space from which to choose a random port
+                           # don't increase without making sure generated port
+                           # numbers will always be valid (<=65535)
 
 # Variables shared with runtests.pl
 our $HOSTIP="127.0.0.1";   # address on which the test server listens
@@ -139,20 +150,6 @@ our $stunnel; # path to stunnel command
 
 sub logmsg {
     return main::logmsg(@_);
-}
-
-#######################################################################
-# Call main's runclient
-# TODO: move this into a helper package
-sub runclient {
-    return main::runclient(@_);
-}
-
-#######################################################################
-# Call main's runclientoutput
-# TODO: move this into a helper package
-sub runclientoutput {
-    return main::runclientoutput(@_);
 }
 
 #######################################################################
@@ -1208,11 +1205,13 @@ sub runhttp2server {
     $flags .= $verbose_flag if($debugprotocol);
 
     my ($http2pid, $pid2);
-    my $port = 23113;
-    my $port2 = 23114;
+    my $port = 32813;
+    my $port2 = 32814;
+    my %usedports = reverse %PORT;
     for(1 .. $serverstartretries) {
-        $port += int(rand(900));
-        $port2 += int(rand(900));
+        $port += 1 + int(rand($portrange));
+        $port2 += 1 + int(rand($portrange));
+        next if exists $usedports{$port} || $usedports{$port2};
         my $aflags = "--port $port --port2 $port2 $flags";
 
         my $cmd = "$exe $aflags";
@@ -1278,9 +1277,11 @@ sub runhttp3server {
     $flags .= $verbose_flag if($debugprotocol);
 
     my ($http3pid, $pid3);
-    my $port = 24113;
+    my $port = 33813;
+    my %usedports = reverse %PORT;
     for(1 .. $serverstartretries) {
-        $port += int(rand(900));
+        $port += 1 + int(rand($portrange));
+        next if exists $usedports{$port};
         my $aflags = "--port $port $flags";
 
         my $cmd = "$exe $aflags";
@@ -1364,9 +1365,11 @@ sub runhttpsserver {
 
     my $pid2;
     my $httpspid;
-    my $port = 24512; # start attempt
+    my $port = 34813;
+    my %usedports = reverse %PORT;
     for (1 .. $serverstartretries) {
-        $port += int(rand(600));
+        $port += 1 + int(rand($portrange));
+        next if exists $usedports{$port};
         my $options = "$flags --accept $port";
 
         my $cmd = "$perl $srcdir/secureserver.pl $options";
@@ -1374,11 +1377,14 @@ sub runhttpsserver {
 
         if($httpspid <= 0 || !pidexists($httpspid)) {
             # it is NOT alive
-            stopserver($server, "$pid2");
+            # don't call stopserver since that will also kill the dependent
+            # server that has already been started properly
             $doesntrun{$pidfile} = 1;
             $httpspid = $pid2 = 0;
             next;
         }
+
+        $doesntrun{$pidfile} = 0;
         # we have a server!
         if($verb) {
             logmsg "RUN: $srvrname server is PID $httpspid port $port\n";
@@ -1430,10 +1436,12 @@ sub runhttptlsserver {
     $flags .= "--srppasswd $srcdir/certs/srp-verifier-db ";
     $flags .= "--srppasswdconf $srcdir/certs/srp-verifier-conf";
 
-    my $port = 24367;
+    my $port = 35813;
+    my %usedports = reverse %PORT;
     my ($httptlspid, $pid2);
     for (1 .. $serverstartretries) {
-        $port += int(rand(800));
+        $port += 1 + int(rand($portrange));
+        next if exists $usedports{$port};
         my $allflags = "--port $port $flags";
 
         my $cmd = "$httptlssrv $allflags > $logfile 2>&1";
@@ -1580,18 +1588,23 @@ sub runsecureserver {
 
     my $protospid;
     my $pid2;
-    my $port = 26713 + ord $proto;
+    # this calculation happens to be a perfect hash function for spreading
+    # out the port ranges for the 4 possible protocols (at the time of this
+    # writing) that will be used here
+    my $port = 36813 + 1000 * ((ord $proto) % 4);
     my %usedports = reverse %PORT;
     for (1 .. $serverstartretries) {
-        $port += int(rand(700));
+        $port += 1 + int(rand($portrange));
         next if exists $usedports{$port};
         my $options = "$flags --accept $port";
+
         my $cmd = "$perl $srcdir/secureserver.pl $options";
         ($protospid, $pid2) = startnew($cmd, $pidfile, 15, 0);
 
         if($protospid <= 0 || !pidexists($protospid)) {
             # it is NOT alive
-            stopserver($server, "$pid2");
+            # don't call stopserver since that will also kill the dependent
+            # server that has already been started properly
             $doesntrun{$pidfile} = 1;
             $protospid = $pid2 = 0;
             next;
@@ -1772,7 +1785,6 @@ sub runsshserver {
     my $proto = 'ssh';
     my $ipvnum = 4;
     my $idnum = ($id && ($id =~ /^(\d+)$/) && ($id > 1)) ? $id : 1;
-    my $port = 20000; # no lower port
 
     if(!$USER) {
         logmsg "Can't start ssh server due to lack of USER name";
@@ -1816,12 +1828,14 @@ sub runsshserver {
 
     my $wport = 0,
     my @tports;
+    my $port = 40813;
+    my %usedports = reverse %PORT;
     for(1 .. $serverstartretries) {
-
         # sshd doesn't have a way to pick an unused random port number, so
         # instead we iterate over possible port numbers to use until we find
         # one that works
-        $port += int(rand(500));
+        $port += 1 + int(rand($portrange));
+        next if exists $usedports{$port};
         push @tports, $port;
 
         my $options = "$flags --sshport $port";
@@ -2065,10 +2079,12 @@ sub rundictserver {
     $flags .= "--srcdir \"$srcdir\" ";
     $flags .= "--host $HOSTIP";
 
-    my $port = 29000;
+    my $port = 41813;
+    my %usedports = reverse %PORT;
     my ($dictpid, $pid2);
     for(1 .. $serverstartretries) {
-        $port += int(rand(900));
+        $port += 1 + int(rand($portrange));
+        next if exists $usedports{$port};
         my $aflags = "--port $port $flags";
         my $cmd = "$srcdir/dictserver.py $aflags";
         ($dictpid, $pid2) = startnew($cmd, $pidfile, 15, 0);
@@ -2132,9 +2148,11 @@ sub runsmbserver {
     $flags .= "--host $HOSTIP";
 
     my ($smbpid, $pid2);
-    my $port = 31923;
+    my $port = 42813;
+    my %usedports = reverse %PORT;
     for(1 .. $serverstartretries) {
-        $port += int(rand(760));
+        $port += 1 + int(rand($portrange));
+        next if exists $usedports{$port};
         my $aflags = "--port $port $flags";
         my $cmd = "$srcdir/smbserver.py $aflags";
         ($smbpid, $pid2) = startnew($cmd, $pidfile, 15, 0);
@@ -2197,9 +2215,11 @@ sub runnegtelnetserver {
     $flags .= "--srcdir \"$srcdir\"";
 
     my ($ntelpid, $pid2);
-    my $port = 32000;
+    my $port = 43813;
+    my %usedports = reverse %PORT;
     for(1 .. $serverstartretries) {
-        $port += int(rand(800));
+        $port += 1 + int(rand($portrange));
+        next if exists $usedports{$port};
         my $aflags = "--port $port $flags";
         my $cmd = "$srcdir/negtelnetserver.py $aflags";
         ($ntelpid, $pid2) = startnew($cmd, $pidfile, 15, 0);
@@ -2940,6 +2960,100 @@ sub stopservers {
     }
 
     return $result;
+}
+
+
+#######################################################################
+# substitute the variable stuff into either a joined up file or
+# a command, in either case passed by reference
+#
+sub subvariables {
+    my ($thing, $testnum, $prefix) = @_;
+    my $port;
+
+    if(!$prefix) {
+        $prefix = "%";
+    }
+
+    # test server ports
+    # Substitutes variables like %HTTPPORT and %SMTP6PORT with the server ports
+    foreach my $proto ('DICT',
+                       'FTP', 'FTP6', 'FTPS',
+                       'GOPHER', 'GOPHER6', 'GOPHERS',
+                       'HTTP', 'HTTP6', 'HTTPS',
+                       'HTTPSPROXY', 'HTTPTLS', 'HTTPTLS6',
+                       'HTTP2', 'HTTP2TLS',
+                       'HTTP3',
+                       'IMAP', 'IMAP6', 'IMAPS',
+                       'MQTT',
+                       'NOLISTEN',
+                       'POP3', 'POP36', 'POP3S',
+                       'RTSP', 'RTSP6',
+                       'SMB', 'SMBS',
+                       'SMTP', 'SMTP6', 'SMTPS',
+                       'SOCKS',
+                       'SSH',
+                       'TELNET',
+                       'TFTP', 'TFTP6') {
+        $port = protoport(lc $proto);
+        $$thing =~ s/${prefix}(?:$proto)PORT/$port/g;
+    }
+    # Special case: for PROXYPORT substitution, use httpproxy.
+    $port = protoport('httpproxy');
+    $$thing =~ s/${prefix}PROXYPORT/$port/g;
+
+    # server Unix domain socket paths
+    $$thing =~ s/${prefix}HTTPUNIXPATH/$HTTPUNIXPATH/g;
+    $$thing =~ s/${prefix}SOCKSUNIXPATH/$SOCKSUNIXPATH/g;
+
+    # client IP addresses
+    $$thing =~ s/${prefix}CLIENT6IP/$CLIENT6IP/g;
+    $$thing =~ s/${prefix}CLIENTIP/$CLIENTIP/g;
+
+    # server IP addresses
+    $$thing =~ s/${prefix}HOST6IP/$HOST6IP/g;
+    $$thing =~ s/${prefix}HOSTIP/$HOSTIP/g;
+
+    # misc
+    $$thing =~ s/${prefix}CURL/$CURL/g;
+    $$thing =~ s/${prefix}LOGDIR/$LOGDIR/g;
+    $$thing =~ s/${prefix}PWD/$pwd/g;
+    $$thing =~ s/${prefix}POSIX_PWD/$posix_pwd/g;
+    $$thing =~ s/${prefix}VERSION/$CURLVERSION/g;
+    $$thing =~ s/${prefix}TESTNUMBER/$testnum/g;
+
+    my $file_pwd = $pwd;
+    if($file_pwd !~ /^\//) {
+        $file_pwd = "/$file_pwd";
+    }
+    my $ssh_pwd = $posix_pwd;
+    # this only works after the SSH server has been started
+    # TODO: call sshversioninfo early and store $sshdid so this substitution
+    # always works
+    if ($sshdid && $sshdid =~ /OpenSSH-Windows/) {
+        $ssh_pwd = $file_pwd;
+    }
+
+    $$thing =~ s/${prefix}FILE_PWD/$file_pwd/g;
+    $$thing =~ s/${prefix}SSH_PWD/$ssh_pwd/g;
+    $$thing =~ s/${prefix}SRCDIR/$srcdir/g;
+    $$thing =~ s/${prefix}USER/$USER/g;
+
+    $$thing =~ s/${prefix}SSHSRVMD5/$SSHSRVMD5/g;
+    $$thing =~ s/${prefix}SSHSRVSHA256/$SSHSRVSHA256/g;
+
+    # The purpose of FTPTIME2 and FTPTIME3 is to provide times that can be
+    # used for time-out tests and that would work on most hosts as these
+    # adjust for the startup/check time for this particular host. We needed to
+    # do this to make the test suite run better on very slow hosts.
+    my $ftp2 = $ftpchecktime * 2;
+    my $ftp3 = $ftpchecktime * 3;
+
+    $$thing =~ s/${prefix}FTPTIME2/$ftp2/g;
+    $$thing =~ s/${prefix}FTPTIME3/$ftp3/g;
+
+    # HTTP2
+    $$thing =~ s/${prefix}H2CVER/$h2cver/g;
 }
 
 

@@ -20,38 +20,33 @@
  *
  * SPDX-License-Identifier: curl
  *
- *
  ***************************************************************************/
+/* <DESC>
+ * Outputs all protocols and features supported
+ * </DESC>
+ */
+#include <stdio.h>
+#include <curl/curl.h>
 
-/* OS/400 additional definitions. */
-
-#ifndef __OS400_SYS_
-#define __OS400_SYS_
-
-
-/* Per-thread item identifiers. */
-
-typedef enum {
-        LK_GSK_ERROR,
-        LK_LDAP_ERROR,
-        LK_CURL_VERSION,
-        LK_VERSION_INFO,
-        LK_VERSION_INFO_DATA,
-        LK_EASY_STRERROR,
-        LK_SHARE_STRERROR,
-        LK_MULTI_STRERROR,
-        LK_URL_STRERROR,
-        LK_ZLIB_VERSION,
-        LK_ZLIB_MSG,
-        LK_LAST
-}               localkey_t;
-
-
-extern char *   (* Curl_thread_buffer)(localkey_t key, long size);
-
-
-/* Maximum string expansion factor due to character code conversion. */
-
-#define MAX_CONV_EXPANSION      4       /* Can deal with UTF-8. */
-
+#if !CURL_AT_LEAST_VERSION(7,87,0)
+#error "too old libcurl"
 #endif
+
+int main(void)
+{
+  curl_version_info_data *ver;
+  const char *const *ptr;
+
+  curl_global_init(CURL_GLOBAL_ALL);
+
+  ver = curl_version_info(CURLVERSION_NOW);
+  printf("Protocols:\n");
+  for(ptr = ver->protocols; *ptr; ++ptr)
+    printf("  %s\n", *ptr);
+  printf("Features:\n");
+  for(ptr = ver->feature_names; *ptr; ++ptr)
+    printf("  %s\n", *ptr);
+
+  curl_global_cleanup();
+  return 0;
+}
