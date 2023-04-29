@@ -33,19 +33,22 @@ BEGIN {
     use base qw(Exporter);
 
     our @EXPORT = qw(
+        checktestcmd
         prepro
         restore_test_env
+        runner_clearlocks
+        runner_stopservers
         runner_test_preprocess
         runner_test_run
-        checktestcmd
+        setlogfunc
         $DBGCURL
+        $gdb
         $gdbthis
         $gdbxwin
         $shallow
         $tortalloc
         $valgrind_logfile
         $valgrind_tool
-        $gdb
     );
 
     # these are for debugging only
@@ -61,11 +64,23 @@ use pathhelp qw(
 use processhelp qw(
     portable_sleep
     );
-
-use servers;
+use servers qw(
+    checkcmd
+    clearlocks
+    serverfortest
+    stopserver
+    stopservers
+    subvariables
+    );
 use getpart;
 use globalconfig;
-use testutil;
+use testutil qw(
+    clearlogs
+    logmsg
+    runclient
+    subbase64
+    subnewlines
+    );
 
 
 #######################################################################
@@ -89,20 +104,6 @@ my $SERVERLOGS_LOCK="$LOGDIR/serverlogs.lock"; # server logs advisor read lock
 my $defserverlogslocktimeout = 2; # timeout to await server logs lock removal
 my $defpostcommanddelay = 0; # delay between command and postcheck sections
 
-
-#######################################################################
-# Log an informational message
-# This just calls main's logmsg for now.
-sub logmsg {
-    return main::logmsg(@_);
-}
-
-#######################################################################
-# Call main's displaylogs
-# TODO: this will eventually stop being called in this package
-sub displaylogs{
-    return main::displaylogs(@_);
-}
 
 #######################################################################
 # Check for a command in the PATH of the machine running curl.
@@ -360,6 +361,7 @@ sub torture {
         }
     }
 
+    logmsg "\n" if($verbose);
     logmsg "torture OK\n";
     return 0;
 }
@@ -388,25 +390,31 @@ sub restore_test_env {
 sub singletest_startservers {
     my ($testnum, $testtimings) = @_;
 
-    # remove test server commands file before servers are started/verified
-    unlink($FTPDCMD) if(-f $FTPDCMD);
+    # remove old test server files before servers are started/verified
+    unlink($FTPDCMD);
+    unlink($SERVERIN);
+    unlink($SERVER2IN);
+    unlink($PROXYIN);
 
     # timestamp required servers verification start
     $$testtimings{"timesrvrini"} = Time::HiRes::time();
 
     my $why;
+    my $error;
     if (!$listonly) {
         my @what = getpart("client", "server");
         if(!$what[0]) {
             warn "Test case $testnum has no server(s) specified";
             $why = "no server specified";
+            $error = -1;
         } else {
             my $err;
             ($why, $err) = serverfortest(@what);
             if($err == 1) {
-                # Error indicates an actual problem starting the server, so
-                # display the server logs
-                displaylogs($testnum);
+                # Error indicates an actual problem starting the server
+                $error = -2;
+            } else {
+                $error = -1;
             }
         }
     }
@@ -414,12 +422,7 @@ sub singletest_startservers {
     # timestamp required servers verification end
     $$testtimings{"timesrvrend"} = Time::HiRes::time();
 
-    # remove server output logfile after servers are started/verified
-    unlink($SERVERIN);
-    unlink($SERVER2IN);
-    unlink($PROXYIN);
-
-    return $why;
+    return ($why, $error);
 }
 
 
@@ -464,16 +467,16 @@ sub singletest_setenv {
             else {
                 if($var =~ /^LD_PRELOAD/) {
                     if(exe_ext('TOOL') && (exe_ext('TOOL') eq '.exe')) {
-                        # print "Skipping LD_PRELOAD due to lack of OS support\n";
+                        logmsg "Skipping LD_PRELOAD due to lack of OS support\n" if($verbose);
                         next;
                     }
                     if($feature{"debug"} || !$has_shared) {
-                        # print "Skipping LD_PRELOAD due to no release shared build\n";
+                        logmsg "Skipping LD_PRELOAD due to no release shared build\n" if($verbose);
                         next;
                     }
                 }
                 $ENV{$var} = "$content";
-                print "setenv $var = $content\n" if($verbose);
+                logmsg "setenv $var = $content\n" if($verbose);
             }
         }
     }
@@ -531,6 +534,11 @@ sub singletest_prepare {
         unlink($memdump);
     }
     unlink("core");
+
+    # remove server output logfiles after servers are started/verified
+    unlink($SERVERIN);
+    unlink($SERVER2IN);
+    unlink($PROXYIN);
 
     # if this section exists, it might be FTP server instructions:
     my @ftpservercmd = getpart("reply", "servercmd");
@@ -899,6 +907,10 @@ sub runner_test_preprocess {
     my ($testnum)=@_;
     my %testtimings;
 
+    if(clearlogs()) {
+        logmsg "Warning: log messages were lost\n";
+    }
+
     # timestamp test preparation start
     # TODO: this metric now shows only a portion of the prep time; better would
     # be to time singletest_preprocess below instead
@@ -914,7 +926,7 @@ sub runner_test_preprocess {
 
     ###################################################################
     # Start the servers needed to run this test case
-    my $why = singletest_startservers($testnum, \%testtimings);
+    my ($why, $error) = singletest_startservers($testnum, \%testtimings);
 
     if(!$why) {
 
@@ -932,31 +944,35 @@ sub runner_test_preprocess {
         # Check that the test environment is fine to run this test case
         if (!$listonly) {
             $why = singletest_precheck($testnum);
+            $error = -1;
         }
     }
-    return ($why, \%testtimings);
+    return ($why, $error, clearlogs(), \%testtimings);
 }
 
 
 ###################################################################
 # Run a single test case with an environment that already been prepared
 # Returns 0=success, -1=skippable failure, -2=permanent error,
-#   1=unskippable test failure, as first integer, plus more return
-#   values when error is 0
+#   1=unskippable test failure, as first integer, plus any log messages,
+#   plus more return values when error is 0
 sub runner_test_run {
     my ($testnum)=@_;
 
-    my %testtimings;
+    if(clearlogs()) {
+        logmsg "Warning: log messages were lost\n";
+    }
 
     #######################################################################
     # Prepare the test environment to run this test case
     my $error = singletest_prepare($testnum);
     if($error) {
-        return -2;
+        return (-2, clearlogs());
     }
 
     #######################################################################
     # Run the test command
+    my %testtimings;
     my $cmdres;
     my $dumped_core;
     my $CURLOUT;
@@ -964,29 +980,50 @@ sub runner_test_run {
     my $usedvalgrind;
     ($error, $cmdres, $dumped_core, $CURLOUT, $tool, $usedvalgrind) = singletest_run($testnum, \%testtimings);
     if($error) {
-        return (-2, \%testtimings);
+        return (-2, clearlogs(), \%testtimings);
     }
 
     #######################################################################
     # Clean up after test command
     $error = singletest_clean($testnum, $dumped_core, \%testtimings);
     if($error) {
-        return ($error, \%testtimings);
+        return ($error, clearlogs(), \%testtimings);
     }
 
     #######################################################################
     # Verify that the postcheck succeeded
     $error = singletest_postcheck($testnum);
     if($error) {
-        return ($error, \%testtimings);
+        return ($error, clearlogs(), \%testtimings);
     }
 
     #######################################################################
     # restore environment variables that were modified
     restore_test_env(0);
 
-
-    return (0, \%testtimings, $cmdres, $CURLOUT, $tool, $usedvalgrind);
+    return (0, clearlogs(), \%testtimings, $cmdres, $CURLOUT, $tool, $usedvalgrind);
 }
+
+
+###################################################################
+# Kill the server processes that still have lock files in a directory
+sub runner_clearlocks {
+    my ($lockdir)=@_;
+    if(clearlogs()) {
+        logmsg "Warning: log messages were lost\n";
+    }
+    clearlocks($lockdir);
+    return clearlogs();
+}
+
+
+###################################################################
+# Kill all server processes
+sub runner_stopservers {
+    my $error = stopservers($verbose);
+    my $logs = clearlogs();
+    return ($error, $logs);
+}
+
 
 1;

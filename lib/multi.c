@@ -2021,7 +2021,7 @@ static CURLMcode multi_runsingle(struct Curl_multi *multi,
       else
 #endif
         if(conn->bits.conn_to_host)
-        hostname = conn->conn_to_host.name;
+          hostname = conn->conn_to_host.name;
       else
         hostname = conn->host.name;
 
@@ -3180,6 +3180,9 @@ static CURLMcode multi_socket(struct Curl_multi *multi,
   struct Curl_easy *data = NULL;
   struct Curl_tree *t;
   struct curltime now = Curl_now();
+  bool first = FALSE;
+  bool nosig = FALSE;
+  SIGPIPE_VARIABLE(pipe_st);
 
   if(checkall) {
     /* *perform() deals with running_handles on its own */
@@ -3222,7 +3225,7 @@ static CURLMcode multi_socket(struct Curl_multi *multi,
 
         if(data->conn && !(data->conn->handler->flags & PROTOPT_DIRLOCK))
           /* set socket event bitmask if they're not locked */
-          data->conn->cselect_bits = ev_bitmask;
+          data->conn->cselect_bits = (unsigned char)ev_bitmask;
 
         Curl_expire(data, 0, EXPIRE_RUN_NOW);
       }
@@ -3254,18 +3257,24 @@ static CURLMcode multi_socket(struct Curl_multi *multi,
   do {
     /* the first loop lap 'data' can be NULL */
     if(data) {
-      SIGPIPE_VARIABLE(pipe_st);
-
-      sigpipe_ignore(data, &pipe_st);
+      if(!first) {
+        first = TRUE;
+        nosig = data->set.no_signal; /* initial state */
+        sigpipe_ignore(data, &pipe_st);
+      }
+      else if(data->set.no_signal != nosig) {
+        sigpipe_restore(&pipe_st);
+        sigpipe_ignore(data, &pipe_st);
+        nosig = data->set.no_signal; /* remember new state */
+      }
       result = multi_runsingle(multi, &now, data);
-      sigpipe_restore(&pipe_st);
 
       if(CURLM_OK >= result) {
         /* get the socket(s) and check if the state has been changed since
            last */
         result = singlesocket(multi, data);
         if(result)
-          return result;
+          break;
       }
     }
 
@@ -3279,6 +3288,8 @@ static CURLMcode multi_socket(struct Curl_multi *multi,
     }
 
   } while(t);
+  if(first)
+    sigpipe_restore(&pipe_st);
 
   *running_handles = multi->num_alive;
   return result;

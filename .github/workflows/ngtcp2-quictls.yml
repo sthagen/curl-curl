@@ -42,6 +42,8 @@ concurrency:
   group: ngtcp2-openssl-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
+permissions: {}
+
 jobs:
   autotools:
     name: ${{ matrix.build.name }}
@@ -66,7 +68,6 @@ jobs:
         sudo apt-get update
         sudo apt-get install libtool autoconf automake pkg-config stunnel4 ${{ matrix.build.install }}
         sudo apt-get install apache2 apache2-dev
-        sudo python3 -m pip install impacket pytest cryptography multipart
       name: 'install prereqs and impacket, pytest, crypto'
 
     - run: |
@@ -110,6 +111,10 @@ jobs:
       name: 'install mod_h2'
 
     - uses: actions/checkout@v3
+
+    - run: |
+        sudo python3 -m pip install -r tests/requirements.txt -r tests/http/requirements.txt
+      name: 'install python test prereqs'
 
     - run: autoreconf -fi
       name: 'autoreconf'

@@ -1348,7 +1348,7 @@ static CURLcode ftp_state_prepare_transfer(struct Curl_easy *data)
                                data->set.str[STRING_CUSTOMREQUEST]?
                                data->set.str[STRING_CUSTOMREQUEST]:
                                (data->state.list_only?"NLST":"LIST"));
-      else if(data->set.upload)
+      else if(data->state.upload)
         result = Curl_pp_sendf(data, &ftpc->pp, "PRET STOR %s",
                                conn->proto.ftpc.file);
       else
@@ -3384,7 +3384,7 @@ static CURLcode ftp_done(struct Curl_easy *data, CURLcode status,
     /* the response code from the transfer showed an error already so no
        use checking further */
     ;
-  else if(data->set.upload) {
+  else if(data->state.upload) {
     if((-1 != data->state.infilesize) &&
        (data->state.infilesize != data->req.writebytecount) &&
        !data->set.crlf &&
@@ -3640,7 +3640,7 @@ static CURLcode ftp_do_more(struct Curl_easy *data, int *completep)
                            connected back to us */
       }
     }
-    else if(data->set.upload) {
+    else if(data->state.upload) {
       result = ftp_nb_type(data, conn, data->state.prefer_ascii,
                            FTP_STOR_TYPE);
       if(result)
@@ -4134,7 +4134,7 @@ CURLcode ftp_parse_url_path(struct Curl_easy *data)
     case FTPFILE_NOCWD: /* fastest, but less standard-compliant */
 
       if((pathLen > 0) && (rawPath[pathLen - 1] != '/'))
-          fileName = rawPath;  /* this is a full file path */
+        fileName = rawPath;  /* this is a full file path */
       /*
         else: ftpc->file is not used anywhere other than for operations on
               a file. In other words, never for directory operations.
@@ -4180,7 +4180,7 @@ CURLcode ftp_parse_url_path(struct Curl_easy *data)
       size_t dirAlloc = 0;
       const char *str = rawPath;
       for(; *str != 0; ++str)
-        if (*str == '/')
+        if(*str == '/')
           ++dirAlloc;
 
       if(dirAlloc) {
@@ -4225,7 +4225,7 @@ CURLcode ftp_parse_url_path(struct Curl_easy *data)
     ftpc->file = NULL; /* instead of point to a zero byte,
                             we make it a NULL pointer */
 
-  if(data->set.upload && !ftpc->file && (ftp->transfer == PPTRANSFER_BODY)) {
+  if(data->state.upload && !ftpc->file && (ftp->transfer == PPTRANSFER_BODY)) {
     /* We need a file name when uploading. Return error! */
     failf(data, "Uploading to a URL without a file name");
     free(rawPath);

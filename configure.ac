@@ -333,7 +333,7 @@ if test x"$request_httpd" = "xcheck" -o x"$request_httpd" = "xyes"; then
     HTTPD="/usr/sbin/apache2"
     APACHECTL="/usr/sbin/apache2ctl"
     AC_PATH_PROG([APXS], [apxs])
-    if test "x$APXS" != "x"; then
+    if test "x$APXS" = "x"; then
       AC_MSG_NOTICE([apache2-dev not installed, httpd tests disabled])
       HTTPD_ENABLED="no"
     fi
@@ -4693,6 +4693,7 @@ AC_CONFIG_FILES([Makefile \
            tests/unit/Makefile \
            tests/http/config.ini \
            tests/http/Makefile \
+           tests/http/clients/Makefile \
            packages/Makefile \
            packages/vms/Makefile \
            curl-config \

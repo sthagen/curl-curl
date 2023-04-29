@@ -709,11 +709,6 @@ static void report_consumed_data(struct Curl_cfilter *cf,
                                          consumed);
     ngtcp2_conn_extend_max_offset(ctx->qconn, consumed);
   }
-  if(!stream->closed && data->state.drain &&
-     Curl_bufq_is_empty(&stream->recvbuf)) {
-     /* nothing buffered any more */
-     data->state.drain = 0;
-  }
 }
 
 static int cb_recv_stream_data(ngtcp2_conn *tconn, uint32_t flags,
@@ -995,12 +990,18 @@ static int cf_ngtcp2_get_select_socks(struct Curl_cfilter *cf,
   return rv;
 }
 
-static void notify_drain(struct Curl_cfilter *cf,
+static void drain_stream(struct Curl_cfilter *cf,
                          struct Curl_easy *data)
 {
+  struct stream_ctx *stream = H3_STREAM_CTX(data);
+  unsigned char bits;
+
   (void)cf;
-  if(!data->state.drain) {
-    data->state.drain = 1;
+  bits = CURL_CSELECT_IN;
+  if(stream && !stream->upload_done)
+    bits |= CURL_CSELECT_OUT;
+  if(data->state.dselect_bits != bits) {
+    data->state.dselect_bits = bits;
     Curl_expire(data, 0, EXPIRE_RUN_NOW);
   }
 }
@@ -1028,7 +1029,7 @@ static int cb_h3_stream_close(nghttp3_conn *conn, int64_t stream_id,
   if(app_error_code == NGHTTP3_H3_INTERNAL_ERROR) {
     stream->reset = TRUE;
   }
-  notify_drain(cf, data);
+  drain_stream(cf, data);
   return 0;
 }
 
@@ -1082,9 +1083,7 @@ static int cb_h3_recv_data(nghttp3_conn *conn, int64_t stream3_id,
   (void)stream3_id;
 
   result = write_resp_raw(cf, data, buf, buflen, TRUE);
-  if(CF_DATA_CURRENT(cf) != data) {
-    notify_drain(cf, data);
-  }
+  drain_stream(cf, data);
   return result? -1 : 0;
 }
 
@@ -1129,9 +1128,7 @@ static int cb_h3_end_headers(nghttp3_conn *conn, int64_t stream_id,
   if(stream->status_code / 100 != 1) {
     stream->resp_hds_complete = TRUE;
   }
-  if(CF_DATA_CURRENT(cf) != data) {
-    notify_drain(cf, data);
-  }
+  drain_stream(cf, data);
   return 0;
 }
 
@@ -1358,7 +1355,6 @@ static ssize_t recv_closed_stream(struct Curl_cfilter *cf,
   nread = 0;
 
 out:
-  data->state.drain = 0;
   return nread;
 }
 
@@ -1413,16 +1409,13 @@ static ssize_t cf_ngtcp2_recv(struct Curl_cfilter *cf, struct Curl_easy *data,
   }
 
   if(nread > 0) {
-    if(1 || !Curl_bufq_is_empty(&stream->recvbuf)) {
-      notify_drain(cf, data);
-    }
+    drain_stream(cf, data);
   }
   else {
     if(stream->closed) {
       nread = recv_closed_stream(cf, data, err);
       goto out;
     }
-    data->state.drain = FALSE;
     *err = CURLE_AGAIN;
     nread = -1;
   }
@@ -1468,7 +1461,7 @@ static int cb_h3_acked_req_body(nghttp3_conn *conn, int64_t stream_id,
     if((data->req.keepon & KEEP_SEND_HOLD) &&
        (data->req.keepon & KEEP_SEND)) {
       data->req.keepon &= ~KEEP_SEND_HOLD;
-      notify_drain(cf, data);
+      drain_stream(cf, data);
       DEBUGF(LOG_CF(data, cf, "[h3sid=%" PRId64 "] unpausing acks",
                     stream_id));
     }
@@ -1717,7 +1710,7 @@ static CURLcode qng_verify_peer(struct Curl_cfilter *cf,
   Curl_conn_get_host(data, cf->sockindex, &hostname, &disp_hostname, &port);
   snihost = Curl_ssl_snihost(data, hostname, NULL);
   if(!snihost)
-      return CURLE_PEER_FAILED_VERIFICATION;
+    return CURLE_PEER_FAILED_VERIFICATION;
 
   cf->conn->bits.multiplex = TRUE; /* at least potentially multiplexed */
   cf->conn->httpversion = 30;
@@ -2103,6 +2096,19 @@ static bool cf_ngtcp2_data_pending(struct Curl_cfilter *cf,
   return stream && !Curl_bufq_is_empty(&stream->recvbuf);
 }
 
+static CURLcode h3_data_pause(struct Curl_cfilter *cf,
+                              struct Curl_easy *data,
+                              bool pause)
+{
+  /* TODO: there seems right now no API in ngtcp2 to shrink/enlarge
+   * the streams windows. As we do in HTTP/2. */
+  if(!pause) {
+    drain_stream(cf, data);
+    Curl_expire(data, 0, EXPIRE_RUN_NOW);
+  }
+  return CURLE_OK;
+}
+
 static CURLcode cf_ngtcp2_data_event(struct Curl_cfilter *cf,
                                      struct Curl_easy *data,
                                      int event, int arg1, void *arg2)
@@ -2116,6 +2122,9 @@ static CURLcode cf_ngtcp2_data_event(struct Curl_cfilter *cf,
   (void)arg2;
   switch(event) {
   case CF_CTRL_DATA_SETUP:
+    break;
+  case CF_CTRL_DATA_PAUSE:
+    result = h3_data_pause(cf, data, (arg1 != 0));
     break;
   case CF_CTRL_DATA_DONE: {
     h3_data_done(cf, data);

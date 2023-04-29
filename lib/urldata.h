@@ -1030,7 +1030,7 @@ struct connectdata {
     struct mqtt_conn mqtt;
 #endif
 #ifdef USE_WEBSOCKETS
-    struct ws_conn ws;
+    struct websocket *ws;
 #endif
   } proto;
 
@@ -1049,7 +1049,6 @@ struct connectdata {
      wrong connections. */
   char *localdev;
   unsigned short localportrange;
-  int cselect_bits; /* bitmask of socket events */
   int waitfor;      /* current READ/WRITE bits to wait for */
 #if defined(HAVE_GSSAPI) || defined(USE_WINDOWS_SSPI)
   int socks5_gssapi_enctype;
@@ -1065,6 +1064,7 @@ struct connectdata {
   unsigned short localport;
   unsigned short secondary_port; /* secondary socket remote port to connect to
                                     (ftp) */
+  unsigned char cselect_bits; /* bitmask of socket events */
   unsigned char alpn; /* APLN TLS negotiated protocol, a CURL_HTTP_VERSION*
                          value */
 #ifndef CURL_DISABLE_PROXY
@@ -1344,11 +1344,6 @@ struct UrlState {
 
   /* a place to store the most recently set (S)FTP entrypath */
   char *most_recent_ftp_entrypath;
-  unsigned char httpwant; /* when non-zero, a specific HTTP version requested
-                             to be used in the library's request(s) */
-  unsigned char httpversion; /* the lowest HTTP version*10 reported by any
-                                server involved in this request */
-
 #if !defined(WIN32) && !defined(MSDOS) && !defined(__EMX__)
 /* do FTP line-end conversions on most platforms */
 #define CURL_DO_LINEEND_CONV
@@ -1374,9 +1369,6 @@ struct UrlState {
   curl_off_t infilesize; /* size of file to upload, -1 means unknown.
                             Copied from set.filesize at start of operation */
 #if defined(USE_HTTP2) || defined(USE_HTTP3)
-  size_t drain; /* Increased when this stream has data to read, even if its
-                   socket is not necessarily is readable. Decreased when
-                   checked. */
   struct Curl_data_priority priority; /* shallow copy of data->set */
 #endif
 
@@ -1384,8 +1376,6 @@ struct UrlState {
   void *in;                      /* CURLOPT_READDATA */
   CURLU *uh; /* URL handle for the current parsed URL */
   struct urlpieces up;
-  unsigned char httpreq; /* Curl_HttpReq; what kind of HTTP request (if any)
-                            is this */
   char *url;        /* work URL, copied from UserDefined */
   char *referer;    /* referer string */
   struct curl_slist *resolve; /* set to point to the set.resolve list when
@@ -1426,6 +1416,15 @@ struct UrlState {
     char *proxypasswd;
   } aptr;
 
+  unsigned char httpwant; /* when non-zero, a specific HTTP version requested
+                             to be used in the library's request(s) */
+  unsigned char httpversion; /* the lowest HTTP version*10 reported by any
+                                server involved in this request */
+  unsigned char httpreq; /* Curl_HttpReq; what kind of HTTP request (if any)
+                            is this */
+  unsigned char dselect_bits; /* != 0 -> bitmask of socket events for this
+                                 transfer overriding anything the socket may
+                                 report */
 #ifdef CURLDEBUG
   BIT(conncache_lock);
 #endif
@@ -1462,6 +1461,7 @@ struct UrlState {
   BIT(rewindbeforesend);/* TRUE when the sending couldn't be stopped even
                            though it will be discarded. We must call the data
                            rewind callback before trying to send again. */
+  BIT(upload);         /* upload request */
 };
 
 /*
@@ -1562,6 +1562,7 @@ enum dupstring {
   STRING_DNS_LOCAL_IP4,
   STRING_DNS_LOCAL_IP6,
   STRING_SSL_EC_CURVES,
+  STRING_AWS_SIGV4, /* Parameters for V4 signature */
 
   /* -- end of null-terminated strings -- */
 
@@ -1570,8 +1571,6 @@ enum dupstring {
   /* -- below this are pointers to binary data that cannot be strdup'ed. --- */
 
   STRING_COPYPOSTFIELDS,  /* if POST, set the fields' values here */
-
-  STRING_AWS_SIGV4, /* Parameters for V4 signature */
 
   STRING_LAST /* not used, just an end-of-list marker */
 };
@@ -1838,7 +1837,6 @@ struct UserDefined {
   BIT(http_auto_referer); /* set "correct" referer when following
                              location: */
   BIT(opt_no_body);    /* as set with CURLOPT_NOBODY */
-  BIT(upload);         /* upload request */
   BIT(verbose);        /* output verbosity */
   BIT(krb);            /* Kerberos connection requested */
   BIT(reuse_forbid);   /* forbidden to be reused, close after use */
