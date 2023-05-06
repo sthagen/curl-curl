@@ -37,16 +37,7 @@ BEGIN {
     our @EXPORT = (
         # variables
         qw(
-            $HOSTIP
-            $HOST6IP
-            $HTTPUNIXPATH
-            $sshdid
-            $SSHSRVMD5
-            $SSHSRVSHA256
-            $SOCKSUNIXPATH
             $SOCKSIN
-            $USER
-            $ftpchecktime
             $err_unexpected
             $debugprotocol
             $stunnel
@@ -142,21 +133,21 @@ my $serverstartretries=10; # number of times to attempt to start server;
 my $portrange = 999;       # space from which to choose a random port
                            # don't increase without making sure generated port
                            # numbers will always be valid (<=65535)
+my $HOSTIP="127.0.0.1";    # address on which the test server listens
+my $HOST6IP="[::1]";       # address on which the test server listens
+my $HTTPUNIXPATH;          # HTTP server Unix domain socket path
+my $SOCKSUNIXPATH;         # socks server Unix domain socket path
+my $SSHSRVMD5 = "[uninitialized]";    # MD5 of ssh server public key
+my $SSHSRVSHA256 = "[uninitialized]"; # SHA256 of ssh server public key
+my $USER;                  # name of the current user
+my $sshdid;                # for socks server, ssh daemon version id
+my $ftpchecktime=1;        # time it took to verify our test FTP server
 
 # Variables shared with runtests.pl
-our $HOSTIP="127.0.0.1";   # address on which the test server listens
-our $HOST6IP="[::1]";      # address on which the test server listens
-our $HTTPUNIXPATH; # HTTP server Unix domain socket path
-our $sshdid;      # for socks server, ssh daemon version id
-our $SSHSRVMD5 = "[uninitialized]"; # MD5 of ssh server public key
-our $SSHSRVSHA256 = "[uninitialized]"; # SHA256 of ssh server public key
-our $SOCKSUNIXPATH;  # socks server Unix domain socket path
-our $SOCKSIN; # what curl sent to the SOCKS proxy
-our $USER; # name of the current user
-our $ftpchecktime=1; # time it took to verify our test FTP server
+our $SOCKSIN="socksd-request.log"; # what curl sent to the SOCKS proxy
 our $err_unexpected; # error instead of warning on server unexpectedly alive
-our $debugprotocol; # nonzero for verbose server logs
-our $stunnel; # path to stunnel command
+our $debugprotocol;  # nonzero for verbose server logs
+our $stunnel;        # path to stunnel command
 
 
 #######################################################################
@@ -179,9 +170,8 @@ sub checkcmd {
 #######################################################################
 # Initialize configuration variables
 sub initserverconfig {
-    $SOCKSIN="$LOGDIR/socksd-request.log"; # what curl sent to the SOCKS proxy
-    $SOCKSUNIXPATH = "$PIDDIR/socks.sock"; # SOCKS server Unix domain socket path
-    $HTTPUNIXPATH = "$PIDDIR/http.sock";   # HTTP server Unix domain socket path
+    $SOCKSUNIXPATH = "$LOGDIR/$PIDDIR/socks.sock"; # SOCKS Unix domain socket
+    $HTTPUNIXPATH = "$LOGDIR/$PIDDIR/http.sock";   # HTTP Unix domain socket
     $stunnel = checkcmd("stunnel4") || checkcmd("tstunnel") || checkcmd("stunnel");
 
     # get the name of the current user
@@ -205,9 +195,11 @@ sub init_serverpidfile_hash {
       for my $ipvnum ((4, 6)) {
         for my $idnum ((1, 2, 3)) {
           my $serv = servername_id("$proto$ssl", $ipvnum, $idnum);
-          my $pidf = server_pidfilename($PIDDIR, "$proto$ssl", $ipvnum, $idnum);
+          my $pidf = server_pidfilename("$LOGDIR/$PIDDIR", "$proto$ssl",
+                                        $ipvnum, $idnum);
           $serverpidfile{$serv} = $pidf;
-          my $portf = server_portfilename($PIDDIR, "$proto$ssl", $ipvnum, $idnum);
+          my $portf = server_portfilename("$LOGDIR/$PIDDIR", "$proto$ssl",
+                                          $ipvnum, $idnum);
           $serverportfile{$serv} = $portf;
         }
       }
@@ -218,9 +210,11 @@ sub init_serverpidfile_hash {
     for my $ipvnum ((4, 6)) {
       for my $idnum ((1, 2)) {
         my $serv = servername_id($proto, $ipvnum, $idnum);
-        my $pidf = server_pidfilename($PIDDIR, $proto, $ipvnum, $idnum);
+        my $pidf = server_pidfilename("$LOGDIR/$PIDDIR", $proto, $ipvnum,
+                                      $idnum);
         $serverpidfile{$serv} = $pidf;
-        my $portf = server_portfilename($PIDDIR, $proto, $ipvnum, $idnum);
+        my $portf = server_portfilename("$LOGDIR/$PIDDIR", $proto, $ipvnum,
+                                        $idnum);
         $serverportfile{$serv} = $portf;
       }
     }
@@ -228,9 +222,11 @@ sub init_serverpidfile_hash {
   for my $proto (('http', 'imap', 'pop3', 'smtp', 'http/2', 'http/3')) {
     for my $ssl (('', 's')) {
       my $serv = servername_id("$proto$ssl", "unix", 1);
-      my $pidf = server_pidfilename($PIDDIR, "$proto$ssl", "unix", 1);
+      my $pidf = server_pidfilename("$LOGDIR/$PIDDIR", "$proto$ssl",
+                                    "unix", 1);
       $serverpidfile{$serv} = $pidf;
-      my $portf = server_portfilename($PIDDIR, "$proto$ssl", "unix", 1);
+      my $portf = server_portfilename("$LOGDIR/$PIDDIR", "$proto$ssl",
+                                      "unix", 1);
       $serverportfile{$serv} = $portf;
     }
   }
@@ -428,7 +424,7 @@ sub stopserver {
         my $proto  = $1;
         my $idnum  = ($2 && ($2 > 1)) ? $2 : 1;
         my $ipvnum = ($3 && ($3 =~ /6$/)) ? 6 : 4;
-        killsockfilters($PIDDIR, $proto, $ipvnum, $idnum, $verbose);
+        killsockfilters("$LOGDIR/$PIDDIR", $proto, $ipvnum, $idnum, $verbose);
     }
     #
     # All servers relative to the given one must be stopped also
@@ -737,7 +733,8 @@ sub verifyrtsp {
 #
 sub verifyssh {
     my ($proto, $ipvnum, $idnum, $ip, $port) = @_;
-    my $pidfile = server_pidfilename($PIDDIR, $proto, $ipvnum, $idnum);
+    my $pidfile = server_pidfilename("$LOGDIR/$PIDDIR", $proto, $ipvnum,
+                                     $idnum);
     my $pid = processexists($pidfile);
     if($pid < 0) {
         logmsg "RUN: SSH server has died after starting up\n";
@@ -767,7 +764,7 @@ sub verifysftp {
     }
     # Connect to sftp server, authenticate and run a remote pwd
     # command using our generated configuration and key files
-    my $cmd = "\"$sftp\" -b $PIDDIR/$sftpcmds -F $PIDDIR/$sftpconfig -S \"$ssh\" $ip > $sftplog 2>&1";
+    my $cmd = "\"$sftp\" -b $LOGDIR/$PIDDIR/$sftpcmds -F $LOGDIR/$PIDDIR/$sftpconfig -S \"$ssh\" $ip > $sftplog 2>&1";
     my $res = runclient($cmd);
     # Search for pwd command response in log file
     if(open(my $sftplogfile, "<", "$sftplog")) {
@@ -791,7 +788,8 @@ sub verifysftp {
 sub verifyhttptls {
     my ($proto, $ipvnum, $idnum, $ip, $port) = @_;
     my $server = servername_id($proto, $ipvnum, $idnum);
-    my $pidfile = server_pidfilename($PIDDIR, $proto, $ipvnum, $idnum);
+    my $pidfile = server_pidfilename("$LOGDIR/$PIDDIR", $proto, $ipvnum,
+                                     $idnum);
 
     my $verifyout = "$LOGDIR/".
         servername_canon($proto, $ipvnum, $idnum) .'_verify.out';
@@ -868,7 +866,8 @@ sub verifyhttptls {
 #
 sub verifysocks {
     my ($proto, $ipvnum, $idnum, $ip, $port) = @_;
-    my $pidfile = server_pidfilename($PIDDIR, $proto, $ipvnum, $idnum);
+    my $pidfile = server_pidfilename("$LOGDIR/$PIDDIR", $proto, $ipvnum,
+                                     $idnum);
     my $pid = processexists($pidfile);
     if($pid < 0) {
         logmsg "RUN: SOCKS server has died after starting up\n";
@@ -1130,7 +1129,7 @@ sub runhttpserver {
     $flags .= "--pidfile \"$pidfile\" --logfile \"$logfile\" ";
     $flags .= "--logdir \"$LOGDIR\" ";
     $flags .= "--portfile $portfile ";
-    $flags .= "--config $FTPDCMD ";
+    $flags .= "--config $LOGDIR/$FTPDCMD ";
     $flags .= "--id $idnum " if($idnum > 1);
     if($ipvnum eq "unix") {
         $flags .= "--unix-socket '$port_or_path' ";
@@ -1897,7 +1896,7 @@ sub runsshserver {
     }
 
     my $hostfile;
-    if(!open($hostfile, "<", $PIDDIR . "/" . $hstpubmd5f) ||
+    if(!open($hostfile, "<", "$LOGDIR/$PIDDIR/$hstpubmd5f") ||
        (read($hostfile, $SSHSRVMD5, 32) != 32) ||
        !close($hostfile) ||
        ($SSHSRVMD5 !~ /^[a-f0-9]{32}$/i))
@@ -1908,7 +1907,7 @@ sub runsshserver {
         die $msg;
     }
 
-    if(!open($hostfile, "<", $PIDDIR . "/" . $hstpubsha256f) ||
+    if(!open($hostfile, "<", "$LOGDIR/$PIDDIR/$hstpubsha256f") ||
        (read($hostfile, $SSHSRVSHA256, 48) == 0) ||
        !close($hostfile))
     {
@@ -1957,7 +1956,7 @@ sub runmqttserver {
         " --port 0 ".
         " --pidfile $pidfile".
         " --portfile $portfile".
-        " --config $FTPDCMD".
+        " --config $LOGDIR/$FTPDCMD".
         " --logfile $logfile".
         " --logdir $LOGDIR";
     my ($sockspid, $pid2) = startnew($cmd, $pidfile, 30, 0);
@@ -2014,20 +2013,20 @@ sub runsocksserver {
     if($is_unix) {
         $cmd="server/socksd".exe_ext('SRV').
             " --pidfile $pidfile".
-            " --reqfile $SOCKSIN".
+            " --reqfile $LOGDIR/$SOCKSIN".
             " --logfile $logfile".
             " --unix-socket $SOCKSUNIXPATH".
             " --backend $HOSTIP".
-            " --config $FTPDCMD";
+            " --config $LOGDIR/$FTPDCMD";
     } else {
         $cmd="server/socksd".exe_ext('SRV').
             " --port 0 ".
             " --pidfile $pidfile".
             " --portfile $portfile".
-            " --reqfile $SOCKSIN".
+            " --reqfile $LOGDIR/$SOCKSIN".
             " --logfile $logfile".
             " --backend $HOSTIP".
-            " --config $FTPDCMD";
+            " --config $LOGDIR/$FTPDCMD";
     }
     my ($sockspid, $pid2) = startnew($cmd, $pidfile, 30, 0);
 
@@ -2922,7 +2921,7 @@ sub stopservers {
     #
     # kill sockfilter processes for all pingpong servers
     #
-    killallsockfilters($PIDDIR, $verb);
+    killallsockfilters("$LOGDIR/$PIDDIR", $verb);
     #
     # kill all server pids from %run hash clearing them
     #

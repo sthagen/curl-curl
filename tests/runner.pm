@@ -22,12 +22,21 @@
 #
 ###########################################################################
 
-# This module contains entry points to run a single test
+# This module contains entry points to run a single test. runner_init
+# determines whether they will run in a separate process or in the process of
+# the caller. The relevant interface is asynchronous so it will work in either
+# case. Program arguments are marshalled and then written to the end of a pipe
+# (in controlleripccall) which is later read from and the arguments
+# unmarshalled (in ipcrecv) before the desired function is called normally.
+# The function return values are then marshalled and written into another pipe
+# (again in ipcrecv) when is later read from and unmarshalled (in runnerar)
+# before being returned to the caller.
 
 package runner;
 
 use strict;
 use warnings;
+use 5.006;
 
 BEGIN {
     use base qw(Exporter);
@@ -35,12 +44,18 @@ BEGIN {
     our @EXPORT = qw(
         checktestcmd
         prepro
+        readtestkeywords
         restore_test_env
-        runner_clearlocks
-        runner_stopservers
-        runner_test_preprocess
-        runner_test_run
-        setlogfunc
+        runner_init
+        runnerac_clearlocks
+        runnerac_shutdown
+        runnerac_stopservers
+        runnerac_test_preprocess
+        runnerac_test_run
+        runnerar
+        runnerar_ready
+        stderrfilename
+        stdoutfilename
         $DBGCURL
         $gdb
         $gdbthis
@@ -53,10 +68,17 @@ BEGIN {
 
     # these are for debugging only
     our @EXPORT_OK = qw(
-        readtestkeywords
         singletest_preprocess
     );
 }
+
+use B qw(
+    svref_2object
+    );
+use Storable qw(
+    freeze
+    thaw
+    );
 
 use pathhelp qw(
     exe_ext
@@ -78,6 +100,7 @@ use testutil qw(
     clearlogs
     logmsg
     runclient
+    shell_quote
     subbase64
     subnewlines
     );
@@ -85,6 +108,7 @@ use testutil qw(
 
 #######################################################################
 # Global variables set elsewhere but used only by this package
+# These may only be set *before* runner_init is called
 our $DBGCURL=$CURL; #"../src/.libs/curl";  # alternative for debugging
 our $valgrind_logfile="--log-file";  # the option name for valgrind >=3
 our $valgrind_tool="--tool=memcheck";
@@ -103,7 +127,113 @@ my $CURLLOG="$LOGDIR/commands.log"; # all command lines run
 my $SERVERLOGS_LOCK="$LOGDIR/serverlogs.lock"; # server logs advisor read lock
 my $defserverlogslocktimeout = 2; # timeout to await server logs lock removal
 my $defpostcommanddelay = 0; # delay between command and postcheck sections
+my $multiprocess;   # nonzero with a separate test runner process
 
+# pipes
+my $runnerr;        # pipe that runner reads from
+my $runnerw;        # pipe that runner writes to
+
+# per-runner variables, indexed by runner ID; these are used by controller only
+my %controllerr;    # pipe that controller reads from
+my %controllerw;    # pipe that controller writes to
+
+# redirected stdout/stderr to these files
+sub stdoutfilename {
+    my ($logdir, $testnum)=@_;
+    return "$logdir/stdout$testnum";
+}
+
+sub stderrfilename {
+    my ($logdir, $testnum)=@_;
+    return "$logdir/stderr$testnum";
+}
+
+#######################################################################
+# Initialize the runner and prepare it to run tests
+# The runner ID returned by this function must be passed into the other
+# runnerac_* functions
+# Called by controller
+sub runner_init {
+    my ($logdir, $jobs)=@_;
+
+    $multiprocess = !!$jobs;
+
+    # enable memory debugging if curl is compiled with it
+    $ENV{'CURL_MEMDEBUG'} = "$LOGDIR/$MEMDUMP";
+    $ENV{'CURL_ENTROPY'}="12345678";
+    $ENV{'CURL_FORCETIME'}=1; # for debug NTLM magic
+    $ENV{'CURL_GLOBAL_INIT'}=1; # debug curl_global_init/cleanup use
+    $ENV{'HOME'}=$pwd;
+    $ENV{'CURL_HOME'}=$ENV{'HOME'};
+    $ENV{'XDG_CONFIG_HOME'}=$ENV{'HOME'};
+    $ENV{'COLUMNS'}=79; # screen width!
+
+    # create pipes for communication with runner
+    my ($thisrunnerr, $thiscontrollerw, $thiscontrollerr, $thisrunnerw);
+    pipe $thisrunnerr, $thiscontrollerw;
+    pipe $thiscontrollerr, $thisrunnerw;
+
+    my $thisrunnerid;
+    if($multiprocess) {
+        # Create a separate process in multiprocess mode
+        my $child = fork();
+        if(0 == $child) {
+            # TODO: set up a better signal handler
+            $SIG{INT} = 'IGNORE';
+            $SIG{TERM} = 'IGNORE';
+
+            $thisrunnerid = $$;
+            print "Runner $thisrunnerid starting\n" if($verbose);
+
+            # Here we are the child (runner).
+            close($thiscontrollerw);
+            close($thiscontrollerr);
+            $runnerr = $thisrunnerr;
+            $runnerw = $thisrunnerw;
+
+            # Set this directory as ours
+            $LOGDIR = $logdir;
+            mkdir("$LOGDIR/$PIDDIR", 0777);
+
+            # handle IPC calls
+            event_loop();
+
+            # Can't rely on logmsg here in case it's buffered
+            print "Runner $thisrunnerid exiting\n" if($verbose);
+            exit 0;
+        }
+
+        # Here we are the parent (controller).
+        close($thisrunnerw);
+        close($thisrunnerr);
+
+        $thisrunnerid = $child;
+
+    } else {
+        # Create our pid directory
+        mkdir("$LOGDIR/$PIDDIR", 0777);
+
+        # Don't create a separate process
+        $thisrunnerid = "integrated";
+    }
+
+    $controllerw{$thisrunnerid} = $thiscontrollerw;
+    $runnerr = $thisrunnerr;
+    $runnerw = $thisrunnerw;
+    $controllerr{$thisrunnerid} = $thiscontrollerr;
+
+    return $thisrunnerid;
+}
+
+#######################################################################
+# Loop to execute incoming IPC calls until the shutdown call
+sub event_loop {
+    while () {
+        if(ipcrecv()) {
+            last;
+        }
+    }
+}
 
 #######################################################################
 # Check for a command in the PATH of the machine running curl.
@@ -215,7 +345,7 @@ sub torture {
     my ($testcmd, $testnum, $gdbline) = @_;
 
     # remove memdump first to be sure we get a new nice and clean one
-    unlink($memdump);
+    unlink("$LOGDIR/$MEMDUMP");
 
     # First get URL from test server, ignore the output/result
     runclient($testcmd);
@@ -224,7 +354,7 @@ sub torture {
 
     # memanalyze -v is our friend, get the number of allocations made
     my $count=0;
-    my @out = `$memanalyze -v $memdump`;
+    my @out = `$memanalyze -v "$LOGDIR/$MEMDUMP"`;
     for(@out) {
         if(/^Operations: (\d+)/) {
             $count = $1;
@@ -279,7 +409,7 @@ sub torture {
         $ENV{'CURL_MEMLIMIT'} = $limit;
 
         # remove memdump first to be sure we get a new nice and clean one
-        unlink($memdump);
+        unlink("$LOGDIR/$MEMDUMP");
 
         my $cmd = $testcmd;
         if($valgrind && !$gdbthis) {
@@ -337,7 +467,7 @@ sub torture {
             $fail=1;
         }
         else {
-            my @memdata=`$memanalyze $memdump`;
+            my @memdata=`$memanalyze "$LOGDIR/$MEMDUMP"`;
             my $leak=0;
             for(@memdata) {
                 if($_ ne "") {
@@ -349,7 +479,7 @@ sub torture {
             if($leak) {
                 logmsg "** MEMORY FAILURE\n";
                 logmsg @memdata;
-                logmsg `$memanalyze -l $memdump`;
+                logmsg `$memanalyze -l "$LOGDIR/$MEMDUMP"`;
                 $fail = 1;
             }
         }
@@ -391,10 +521,9 @@ sub singletest_startservers {
     my ($testnum, $testtimings) = @_;
 
     # remove old test server files before servers are started/verified
-    unlink($FTPDCMD);
-    unlink($SERVERIN);
-    unlink($SERVER2IN);
-    unlink($PROXYIN);
+    unlink("$LOGDIR/$FTPDCMD");
+    unlink("$LOGDIR/$SERVERIN");
+    unlink("$LOGDIR/$PROXYIN");
 
     # timestamp required servers verification start
     $$testtimings{"timesrvrini"} = Time::HiRes::time();
@@ -531,20 +660,19 @@ sub singletest_prepare {
     my ($testnum) = @_;
 
     if($feature{"TrackMemory"}) {
-        unlink($memdump);
+        unlink("$LOGDIR/$MEMDUMP");
     }
     unlink("core");
 
     # remove server output logfiles after servers are started/verified
-    unlink($SERVERIN);
-    unlink($SERVER2IN);
-    unlink($PROXYIN);
+    unlink("$LOGDIR/$SERVERIN");
+    unlink("$LOGDIR/$PROXYIN");
 
     # if this section exists, it might be FTP server instructions:
     my @ftpservercmd = getpart("reply", "servercmd");
     push @ftpservercmd, "Testnum $testnum\n";
     # write the instructions to file
-    writearray($FTPDCMD, \@ftpservercmd);
+    writearray("$LOGDIR/$FTPDCMD", \@ftpservercmd);
 
     # create (possibly-empty) files before starting the test
     for my $partsuffix (('', '1', '2', '3', '4')) {
@@ -618,10 +746,6 @@ sub singletest_run {
         }
     }
 
-    # redirected stdout/stderr to these files
-    $STDOUT="$LOGDIR/stdout$testnum";
-    $STDERR="$LOGDIR/stderr$testnum";
-
     my @codepieces = getpart("client", "tool");
     my $tool="";
     if(@codepieces) {
@@ -675,7 +799,7 @@ sub singletest_run {
     }
     else {
         $cmdargs = " $cmd"; # $cmd is the command line for the test file
-        $CURLOUT = $STDOUT; # sends received data to stdout
+        $CURLOUT = stdoutfilename($LOGDIR, $testnum); # sends received data to stdout
 
         # Default the tool to a unit test with the same name as the test spec
         if($keywords{"unittest"} && !$tool) {
@@ -725,7 +849,7 @@ sub singletest_run {
     }
 
     if(!$tool) {
-        $CMDLINE="$CURL";
+        $CMDLINE=shell_quote($CURL);
     }
 
     if(use_valgrind() && !$disablevalgrind) {
@@ -739,7 +863,8 @@ sub singletest_run {
         $CMDLINE = "$valgrindcmd $CMDLINE";
     }
 
-    $CMDLINE .= "$cmdargs >$STDOUT 2>$STDERR";
+    $CMDLINE .= "$cmdargs > " . stdoutfilename($LOGDIR, $testnum) .
+                " 2> " . stderrfilename($LOGDIR, $testnum);
 
     if($verbose) {
         logmsg "$CMDLINE\n";
@@ -771,11 +896,11 @@ sub singletest_run {
     if ($torture) {
         $cmdres = torture($CMDLINE,
                           $testnum,
-                          "$gdb --directory $LIBDIR $DBGCURL -x $LOGDIR/gdbcmd");
+                          "$gdb --directory $LIBDIR " . shell_quote($DBGCURL) . " -x $LOGDIR/gdbcmd");
     }
     elsif($gdbthis) {
         my $GDBW = ($gdbxwin) ? "-w" : "";
-        runclient("$gdb --directory $LIBDIR $DBGCURL $GDBW -x $LOGDIR/gdbcmd");
+        runclient("$gdb --directory $LIBDIR " . shell_quote($DBGCURL) . " $GDBW -x $LOGDIR/gdbcmd");
         $cmdres=0; # makes it always continue after a debugged run
     }
     else {
@@ -809,7 +934,7 @@ sub singletest_clean {
             open(my $gdbcmd, ">", "$LOGDIR/gdbcmd2") || die "Failure writing gdb file";
             print $gdbcmd "bt\n";
             close($gdbcmd) || die "Failure writing gdb file";
-            runclient("$gdb --directory libtest -x $LOGDIR/gdbcmd2 -batch $DBGCURL core ");
+            runclient("$gdb --directory libtest -x $LOGDIR/gdbcmd2 -batch " . shell_quote($DBGCURL) . " core ");
      #       unlink("$LOGDIR/gdbcmd2");
         }
     }
@@ -925,6 +1050,11 @@ sub runner_test_preprocess {
     readtestkeywords();
 
     ###################################################################
+    # Restore environment variables that were modified in a previous run.
+    # Test definition may instruct to (un)set environment vars.
+    restore_test_env(1);
+
+    ###################################################################
     # Start the servers needed to run this test case
     my ($why, $error) = singletest_startservers($testnum, \%testtimings);
 
@@ -1004,6 +1134,178 @@ sub runner_test_run {
     return (0, clearlogs(), \%testtimings, $cmdres, $CURLOUT, $tool, $usedvalgrind);
 }
 
+# Async call runner_clearlocks
+# Called by controller
+sub runnerac_clearlocks {
+    controlleripccall(\&runner_clearlocks, @_);
+}
+
+# Async call runner_shutdown
+# This call does NOT generate an IPC response and must be the last IPC call
+# received.
+# Called by controller
+sub runnerac_shutdown {
+    my ($runnerid)=$_[0];
+    controlleripccall(\&runner_shutdown, @_);
+
+    # These have no more use
+    close($controllerw{$runnerid});
+    undef $controllerw{$runnerid};
+    close($controllerr{$runnerid});
+    undef $controllerr{$runnerid};
+}
+
+# Async call of runner_stopservers
+# Called by controller
+sub runnerac_stopservers {
+    controlleripccall(\&runner_stopservers, @_);
+}
+
+# Async call of runner_test_preprocess
+# Called by controller
+sub runnerac_test_preprocess {
+    controlleripccall(\&runner_test_preprocess, @_);
+}
+
+# Async call of runner_test_run
+# Called by controller
+sub runnerac_test_run {
+    controlleripccall(\&runner_test_run, @_);
+}
+
+###################################################################
+# Call an arbitrary function via IPC
+# The first argument is the function reference, the second is the runner ID
+# Called by controller (indirectly, via a more specific function)
+sub controlleripccall {
+    my $funcref = shift @_;
+    my $runnerid = shift @_;
+    # Get the name of the function from the reference
+    my $cv = svref_2object($funcref);
+    my $gv = $cv->GV;
+    # Prepend the name to the function arguments so it's marshalled along with them
+    unshift @_, $gv->NAME;
+    # Marshall the arguments into a flat string
+    my $margs = freeze \@_;
+
+    # Send IPC call via pipe
+    syswrite($controllerw{$runnerid}, (pack "L", length($margs)) . $margs);
+
+    if(!$multiprocess) {
+        # Call the remote function here in single process mode
+        ipcrecv();
+     }
+}
+
+###################################################################
+# Receive async response of a previous call via IPC
+# The first return value is the runner ID
+# Called by controller
+sub runnerar {
+    my ($runnerid) = @_;
+    my $datalen;
+    if (sysread($controllerr{$runnerid}, $datalen, 4) <= 0) {
+        die "error in runnerar\n";
+    }
+    my $len=unpack("L", $datalen);
+    my $buf;
+    if (sysread($controllerr{$runnerid}, $buf, $len) <= 0) {
+        die "error in runnerar\n";
+    }
+
+    # Decode response values
+    my $resarrayref = thaw $buf;
+
+    # First argument is runner ID
+    # TODO: remove this; it's unneeded since it's passed in
+    unshift @$resarrayref, $runnerid;
+    return @$resarrayref;
+}
+
+###################################################################
+# Returns runnder ID if a response from an async call is ready
+# argument is 0 for nonblocking, undef for blocking, anything else for timeout
+# Called by controller
+sub runnerar_ready {
+    my ($blocking) = @_;
+    my $rin = "";
+    my %idbyfileno;
+    my $maxfileno=0;
+    foreach my $p (keys(%controllerr)) {
+        my $fd = fileno($controllerr{$p});
+        vec($rin, $fd, 1) = 1;
+        $idbyfileno{$fd} = $p;  # save the runner ID for each pipe fd
+        if($fd > $maxfileno) {
+            $maxfileno = $fd;
+        }
+    }
+
+    # Wait for any pipe from any runner to be ready
+    # TODO: this is relatively slow with hundreds of fds
+    # TODO: handle errors
+    if(select(my $rout=$rin, undef, undef, $blocking)) {
+        for my $fd (0..$maxfileno) {
+            if(vec($rin, $fd, 1)) {
+                return $idbyfileno{$fd};
+            }
+        }
+        die "Internal pipe readiness inconsistency\n";
+    }
+    return undef;
+}
+
+###################################################################
+# Receive an IPC call in the runner and execute it
+# The IPC is read from the $runnerr pipe and the response is
+# written to the $runnerw pipe
+sub ipcrecv {
+    my $datalen;
+    if (sysread($runnerr, $datalen, 4) <= 0) {
+        die "error in ipcrecv\n";
+    }
+    my $len=unpack("L", $datalen);
+    my $buf;
+    if (sysread($runnerr, $buf, $len) <= 0) {
+        die "error in ipcrecv\n";
+    }
+
+    # Decode the function name and arguments
+    my $argsarrayref = thaw $buf;
+
+    # The name of the function to call is the frist argument
+    my $funcname = shift @$argsarrayref;
+
+    # print "ipcrecv $funcname\n";
+    # Synchronously call the desired function
+    my @res;
+    if($funcname eq "runner_clearlocks") {
+        @res = runner_clearlocks(@$argsarrayref);
+    }
+    elsif($funcname eq "runner_shutdown") {
+        runner_shutdown(@$argsarrayref);
+        # Special case: no response
+        return 1;
+    }
+    elsif($funcname eq "runner_stopservers") {
+        @res = runner_stopservers(@$argsarrayref);
+    }
+    elsif($funcname eq "runner_test_preprocess") {
+        @res = runner_test_preprocess(@$argsarrayref);
+    }
+    elsif($funcname eq "runner_test_run") {
+        @res = runner_test_run(@$argsarrayref);
+    } else {
+        die "Unknown IPC function $funcname\n";
+    }
+    # print "ipcrecv results\n";
+
+    # Marshall the results to return
+    $buf = freeze \@res;
+
+    syswrite($runnerw, (pack "L", length($buf)) . $buf);
+
+    return 0;
+}
 
 ###################################################################
 # Kill the server processes that still have lock files in a directory
@@ -1023,6 +1325,15 @@ sub runner_stopservers {
     my $error = stopservers($verbose);
     my $logs = clearlogs();
     return ($error, $logs);
+}
+
+###################################################################
+# Shut down this runner
+sub runner_shutdown {
+    close($runnerr);
+    undef $runnerr;
+    close($runnerw);
+    undef $runnerw;
 }
 
 
