@@ -68,14 +68,16 @@
  * use 16K as chunk size, as that fits H2 DATA frames well */
 #define H2_CHUNK_SIZE           (16 * 1024)
 /* this is how much we want "in flight" for a stream */
-#define H2_STREAM_WINDOW_SIZE   (512 * 1024)
+#define H2_STREAM_WINDOW_SIZE   (10 * 1024 * 1024)
 /* on receving from TLS, we prep for holding a full stream window */
 #define H2_NW_RECV_CHUNKS       (H2_STREAM_WINDOW_SIZE / H2_CHUNK_SIZE)
 /* on send into TLS, we just want to accumulate small frames */
 #define H2_NW_SEND_CHUNKS       1
 /* stream recv/send chunks are a result of window / chunk sizes */
 #define H2_STREAM_RECV_CHUNKS   (H2_STREAM_WINDOW_SIZE / H2_CHUNK_SIZE)
-#define H2_STREAM_SEND_CHUNKS   (H2_STREAM_WINDOW_SIZE / H2_CHUNK_SIZE)
+/* keep smaller stream upload buffer (default h2 window size) to have
+ * our progress bars and "upload done" reporting closer to reality */
+#define H2_STREAM_SEND_CHUNKS   ((64 * 1024) / H2_CHUNK_SIZE)
 /* spare chunks we keep for a full window */
 #define H2_STREAM_POOL_SPARES   (H2_STREAM_WINDOW_SIZE / H2_CHUNK_SIZE)
 
@@ -185,6 +187,8 @@ struct stream_ctx {
   bool reset;  /* TRUE on stream reset */
   bool close_handled; /* TRUE if stream closure is handled by libcurl */
   bool bodystarted;
+  bool send_closed; /* transfer is done sending, we might have still
+                        buffered data in stream->sendbuf to upload. */
 };
 
 #define H2_STREAM_CTX(d)    ((struct stream_ctx *)(((d) && (d)->req.p.http)? \
@@ -205,7 +209,7 @@ static void drain_stream(struct Curl_cfilter *cf,
 
   (void)cf;
   bits = CURL_CSELECT_IN;
-  if(stream->upload_left)
+  if(!stream->send_closed && stream->upload_left)
     bits |= CURL_CSELECT_OUT;
   if(data->state.dselect_bits != bits) {
     data->state.dselect_bits = bits;
@@ -806,7 +810,7 @@ static int set_transfer_url(struct Curl_easy *data,
   uc = curl_url_get(u, CURLUPART_URL, &url, 0);
   if(uc)
     rc = 4;
-  fail:
+fail:
   curl_url_cleanup(u);
   if(rc)
     return rc;
@@ -930,7 +934,7 @@ static int push_promise(struct Curl_cfilter *cf,
     DEBUGF(LOG_CF(data, cf, "Got PUSH_PROMISE, ignore it"));
     rv = CURL_PUSH_DENY;
   }
-  fail:
+fail:
   return rv;
 }
 
@@ -1039,6 +1043,8 @@ static CURLcode on_stream_frame(struct Curl_cfilter *cf,
     DEBUGF(LOG_CF(data, cf, "[h2sid=%d] FRAME[RST]", stream_id));
     stream->closed = TRUE;
     stream->reset = TRUE;
+    stream->send_closed = TRUE;
+    data->req.keepon &= ~KEEP_SEND_HOLD;
     drain_stream(cf, data, stream);
     break;
   case NGHTTP2_WINDOW_UPDATE:
@@ -1438,7 +1444,7 @@ static ssize_t req_body_read_callback(nghttp2_session *session,
     nread = 0;
   }
 
-  if(nread > 0 && data_s->state.infilesize != -1)
+  if(nread > 0 && stream->upload_left != -1)
     stream->upload_left -= nread;
 
   DEBUGF(LOG_CF(data_s, cf, "[h2sid=%d] req_body_read(len=%zu) left=%zd"
@@ -1517,15 +1523,18 @@ static CURLcode http2_data_done_send(struct Curl_cfilter *cf,
     goto out;
 
   DEBUGF(LOG_CF(data, cf, "[h2sid=%d] data done send", stream->id));
-  if(stream->upload_left) {
-    /* If the stream still thinks there's data left to upload. */
-    if(stream->upload_left == -1)
-      stream->upload_left = 0; /* DONE! */
-
-    /* resume sending here to trigger the callback to get called again so
-       that it can signal EOF to nghttp2 */
-    (void)nghttp2_session_resume_data(ctx->h2, stream->id);
-    drain_stream(cf, data, stream);
+  if(!stream->send_closed) {
+    stream->send_closed = TRUE;
+    if(stream->upload_left) {
+      /* If we operated with unknown length, we now know that everything
+       * that is buffered is all we have to send. */
+      if(stream->upload_left == -1)
+        stream->upload_left = Curl_bufq_len(&stream->sendbuf);
+      /* resume sending here to trigger the callback to get called again so
+         that it can signal EOF to nghttp2 */
+      (void)nghttp2_session_resume_data(ctx->h2, stream->id);
+      drain_stream(cf, data, stream);
+    }
   }
 
 out:
@@ -1860,7 +1869,7 @@ static ssize_t h2_submit(struct stream_ctx **pstream,
   nghttp2_priority_spec pri_spec;
   ssize_t nwritten;
 
-  Curl_h1_req_parse_init(&h1, (4*1024));
+  Curl_h1_req_parse_init(&h1, H1_PARSE_DEFAULT_MAX_LINE_LEN);
   Curl_dynhds_init(&h2_headers, 0, DYN_HTTP_REQUEST);
 
   *err = http2_data_setup(cf, data, &stream);

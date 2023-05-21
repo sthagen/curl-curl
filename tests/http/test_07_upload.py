@@ -227,6 +227,64 @@ class TestUpload:
             respdata = open(curl.response_file(i)).readlines()
             assert respdata == exp_data
 
+    # issue #10591
+    @pytest.mark.parametrize("proto", ['http/1.1', 'h2', 'h3'])
+    def test_07_32_issue_10591(self, env: Env, httpd, nghttpx, repeat, proto):
+        if proto == 'h3' and not env.have_h3():
+            pytest.skip("h3 not supported")
+        if proto == 'h3' and env.curl_uses_lib('msh3'):
+            pytest.skip("msh3 fails here")
+        fdata = os.path.join(env.gen_dir, 'data-10m')
+        count = 1
+        curl = CurlClient(env=env)
+        url = f'https://{env.authority_for(env.domain1, proto)}/curltest/put?id=[0-{count-1}]'
+        r = curl.http_put(urls=[url], fdata=fdata, alpn_proto=proto)
+        r.check_response(count=count, http_status=200)
+
+    # issue #11157, upload that is 404'ed by server, needs to terminate
+    # correctly and not time out on sending
+    def test_07_33_issue_11157a(self, env: Env, httpd, nghttpx, repeat):
+        proto = 'h2'
+        fdata = os.path.join(env.gen_dir, 'data-10m')
+        # send a POST to our PUT handler which will send immediately a 404 back
+        url = f'https://{env.authority_for(env.domain1, proto)}/curltest/put'
+        curl = CurlClient(env=env)
+        r = curl.run_direct(with_stats=True, args=[
+            '--resolve', f'{env.authority_for(env.domain1, proto)}:127.0.0.1',
+            '--cacert', env.ca.cert_file,
+            '--request', 'POST',
+            '--max-time', '5', '-v',
+            '--url', url,
+            '--form', 'idList=12345678',
+            '--form', 'pos=top',
+            '--form', 'name=mr_test',
+            '--form', f'fileSource=@{fdata};type=application/pdf',
+        ])
+        assert r.exit_code == 0, f'{r}'
+        r.check_stats(1, 404)
+
+    # issue #11157, send upload that is slowly read in
+    def test_07_33_issue_11157b(self, env: Env, httpd, nghttpx, repeat):
+        proto = 'h2'
+        fdata = os.path.join(env.gen_dir, 'data-10m')
+        # tell our test PUT handler to read the upload more slowly, so
+        # that the send buffering and transfer loop needs to wait
+        url = f'https://{env.authority_for(env.domain1, proto)}/curltest/put?chunk_delay=2ms'
+        curl = CurlClient(env=env)
+        r = curl.run_direct(with_stats=True, args=[
+            '--resolve', f'{env.authority_for(env.domain1, proto)}:127.0.0.1',
+            '--cacert', env.ca.cert_file,
+            '--request', 'PUT',
+            '--max-time', '5', '-v',
+            '--url', url,
+            '--form', 'idList=12345678',
+            '--form', 'pos=top',
+            '--form', 'name=mr_test',
+            '--form', f'fileSource=@{fdata};type=application/pdf',
+        ])
+        assert r.exit_code == 0, f'{r}'
+        r.check_stats(1, 200)
+
     def check_download(self, count, srcfile, curl):
         for i in range(count):
             dfile = curl.download_file(i)
