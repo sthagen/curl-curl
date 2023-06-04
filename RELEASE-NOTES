@@ -1,24 +1,32 @@
-curl and libcurl 8.1.2
+curl and libcurl 8.2.0
 
- Public curl releases:         219
+ Public curl releases:         220
  Command line options:         251
  curl_easy_setopt() options:   302
  Public functions in libcurl:  91
- Contributors:                 2886
+ Contributors:                 2892
 
 This release includes the following changes:
 
- o
+ o CURLOPT_MAIL_RCPT_ALLOWFAILS: replace CURLOPT_MAIL_RCPT_ALLLOWFAILS [5]
 
 This release includes the following bugfixes:
 
- o libssh: when keyboard-interactive auth fails, try password [4]
- o urlapi: remove superfluous host name check [6]
- o http2: fix EOF handling on uploads with auth negotiation [7]
- o lib: remove unused functions, make single-use static [3]
- o scripts/singleuse.pl: add more API calls
- o configure: quote the assignments for run-compiler [1]
- o misc: fix spelling mistakes [2]
+ o circleci: install impacket & wolfssl 5.6.0 [1]
+ o configure: fix run-compiler for old /bin/sh [4]
+ o curl: count uploaded data to stop at the originally given size [14]
+ o curl_log: evaluate log statement only when transfer is verbose [8]
+ o http2: better support for --limit-rate [7]
+ o libssh2: provide error message when setting host key type fails [9]
+ o libssh2: use custom memory functions [12]
+ o runtests: abort test run after failure without -a [3]
+ o scripts: Fix GHA matrix job detection in cijobs.pl
+ o system.h: remove __IBMC__/__IBMCPP__ guards and apply to all z/OS compiles [10]
+ o tests/servers.pm: pick unused port number with a server socket [16]
+ o tests/servers: generate temp names in /tmp for unix domain sockets [6]
+ o tool: remove exclamation marks from error/warning messages
+ o tool: remove newlines from all helpf/notef/warnf/errorf calls [15]
+ o tool_urlglob: use curl_off_t instead of longs [2]
 
 This release includes the following known bugs:
 
@@ -36,16 +44,24 @@ Planned upcoming removals include:
 This release would not have looked like this without help, code, reports and
 advice from friends like these:
 
-  Aleksander Mazur, Christian Hesse, Daniel Stenberg, Emanuele Torre,
-  musvaage on github, Stefan Eissing, 左潇峰
-  (7 contributors)
+  Alejandro R. Sedeño, Andy Fiddaman, Dan Fandrich, Daniel Stenberg,
+  Emanuele Torre, Igor Todorovski, JustAnotherArchivist on github,
+  MaeIsBad on github, Mark Seuffert, Philip Heiduck, Stefan Eissing
+  (11 contributors)
 
 References to bug reports and discussions on issues:
 
- [1] = https://curl.se/bug/?i=11179
- [2] = https://curl.se/bug/?i=11171
- [3] = https://curl.se/bug/?i=11174
- [4] = https://curl.se/bug/?i=11196
- [5] = https://curl.se/bug/?i=11182
- [6] = https://curl.se/bug/?i=11195
- [7] = https://curl.se/bug/?i=11194
+ [1] = https://curl.se/bug/?i=11221
+ [2] = https://curl.se/bug/?i=11224
+ [3] = https://curl.se/bug/?i=11225
+ [4] = https://curl.se/bug/?i=11228
+ [5] = https://curl.se/bug/?i=11218
+ [6] = https://curl.se/bug/?i=11152
+ [7] = https://curl.se/bug/?i=11115
+ [8] = https://curl.se/bug/?i=11238
+ [9] = https://curl.se/bug/?i=11240
+ [10] = https://curl.se/bug/?i=11241
+ [12] = https://curl.se/bug/?i=11235
+ [14] = https://curl.se/bug/?i=11222
+ [15] = https://curl.se/bug/?i=11226
+ [16] = https://curl.se/bug/?i=11220

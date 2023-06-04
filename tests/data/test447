@@ -2,16 +2,15 @@
 <info>
 <keywords>
 HTTP
-HTTP GET
-SOCKS5
-unix sockets
+HTTP PUT
+growing file
 </keywords>
 </info>
 
 #
 # Server-side
 <reply>
-<data>
+<data crlf="yes">
 HTTP/1.1 200 OK
 Date: Tue, 09 Nov 2010 14:49:00 GMT
 Server: test-server/fake
@@ -31,30 +30,36 @@ Funny-head: yesyes
 # Client-side
 <client>
 <features>
-proxy
-unix-sockets
+debug
 </features>
 <server>
 http
-socks5unix
 </server>
- <name>
-HTTP GET via SOCKS5 proxy via unix sockets
- </name>
- <command>
---socks5 localhost%SOCKSUNIXPATH http://%HOSTIP:%HTTPPORT/%TESTNUMBER
+<name>
+HTTP PUT with growing file
+</name>
+<setenv>
+CURL_UPLOAD_SIZE=498
+</setenv>
+<command>
+http://%HOSTIP:%HTTPPORT/%TESTNUMBER -T log/%TESTNUMBER
 </command>
+<file name="log/%TESTNUMBER">
+%repeat[100 x hello]%
+</file>
 </client>
 
 #
 # Verify data after the test has been "shot"
 <verify>
-<protocol>
-GET /%TESTNUMBER HTTP/1.1
+<protocol crlf="yes" nonewline="yes">
+PUT /%TESTNUMBER HTTP/1.1
 Host: %HOSTIP:%HTTPPORT
 User-Agent: curl/%VERSION
 Accept: */*
+Content-Length: 498
 
+%repeat[99 x hello]%hel
 </protocol>
 </verify>
 </testcase>
