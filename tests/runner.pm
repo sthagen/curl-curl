@@ -89,6 +89,7 @@ use processhelp qw(
 use servers qw(
     checkcmd
     clearlocks
+    initserverconfig
     serverfortest
     stopserver
     stopservers
@@ -124,7 +125,6 @@ our $tortalloc;
 my %oldenv;       # environment variables before test is started
 my $UNITDIR="./unit";
 my $CURLLOG="$LOGDIR/commands.log"; # all command lines run
-my $SERVERLOGS_LOCK="$LOGDIR/serverlogs.lock"; # server logs advisor read lock
 my $defserverlogslocktimeout = 2; # timeout to await server logs lock removal
 my $defpostcommanddelay = 0; # delay between command and postcheck sections
 my $multiprocess;   # nonzero with a separate test runner process
@@ -159,7 +159,7 @@ sub runner_init {
     $multiprocess = !!$jobs;
 
     # enable memory debugging if curl is compiled with it
-    $ENV{'CURL_MEMDEBUG'} = "$LOGDIR/$MEMDUMP";
+    $ENV{'CURL_MEMDEBUG'} = "$logdir/$MEMDUMP";
     $ENV{'CURL_ENTROPY'}="12345678";
     $ENV{'CURL_FORCETIME'}=1; # for debug NTLM magic
     $ENV{'CURL_GLOBAL_INIT'}=1; # debug curl_global_init/cleanup use
@@ -167,6 +167,13 @@ sub runner_init {
     $ENV{'CURL_HOME'}=$ENV{'HOME'};
     $ENV{'XDG_CONFIG_HOME'}=$ENV{'HOME'};
     $ENV{'COLUMNS'}=79; # screen width!
+
+    # Incorporate the $logdir into the random seed and re-seed the PRNG.
+    # This gives each runner a unique yet consistent seed which provides
+    # more unique port number selection in each runner, yet is deterministic
+    # across runs.
+    $randseed += unpack('%16C*', $logdir);
+    srand $randseed;
 
     # create pipes for communication with runner
     my ($thisrunnerr, $thiscontrollerw, $thiscontrollerr, $thisrunnerw);
@@ -194,6 +201,10 @@ sub runner_init {
             # Set this directory as ours
             $LOGDIR = $logdir;
             mkdir("$LOGDIR/$PIDDIR", 0777);
+            mkdir("$LOGDIR/$LOCKDIR", 0777);
+
+            # Initialize various server variables
+            initserverconfig();
 
             # handle IPC calls
             event_loop();
@@ -337,6 +348,20 @@ sub readtestkeywords {
     }
 }
 
+
+#######################################################################
+# Return a list of log locks that still exist
+#
+sub logslocked {
+    opendir(my $lockdir, "$LOGDIR/$LOCKDIR");
+    my @locks;
+    foreach (readdir $lockdir) {
+        if(/^(.*)\.lock$/) {
+            push @locks, $1;
+        }
+    }
+    return @locks;
+}
 
 #######################################################################
 # Memory allocation test and failure torture testing.
@@ -690,8 +715,9 @@ sub singletest_prepare {
             my $path = $filename;
             # cut off the file name part
             $path =~ s/^(.*)\/[^\/]*/$1/;
+            my $nparts = scalar(split(/\//, $LOGDIR));
             my @parts = split(/\//, $path);
-            if($parts[0] eq $LOGDIR) {
+            if(join("/", @parts[0..$nparts-1]) eq $LOGDIR) {
                 # the file is in $LOGDIR/
                 my $d = shift @parts;
                 for(@parts) {
@@ -954,13 +980,15 @@ sub singletest_clean {
     }
     if($serverlogslocktimeout) {
         my $lockretry = $serverlogslocktimeout * 20;
-        while((-f $SERVERLOGS_LOCK) && $lockretry--) {
+        my @locks;
+        while((@locks = logslocked()) && $lockretry--) {
             portable_sleep(0.05);
         }
         if(($lockretry < 0) &&
            ($serverlogslocktimeout >= $defserverlogslocktimeout)) {
             logmsg "Warning: server logs lock timeout ",
-                   "($serverlogslocktimeout seconds) expired\n";
+                   "($serverlogslocktimeout seconds) expired (locks: " .
+                   join(", ", @locks) . ")\n";
         }
     }
 

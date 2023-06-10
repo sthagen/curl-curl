@@ -116,8 +116,11 @@ check_PROGRAMS = \
   smtp-tls \
   smtp-vrfy \
   sslbackend \
+  unixsocket \
   url2file \
-  urlapi
+  urlapi \
+  websocket \
+  websocket-cb
 
 # These examples require external dependencies that may not be commonly
 # available on POSIX systems, so don't bother attempting to compile them here.

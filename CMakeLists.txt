@@ -97,6 +97,8 @@ endif()
 
 include_directories(${CURL_SOURCE_DIR}/include)
 
+set(CMAKE_UNITY_BUILD_BATCH_SIZE 0)
+
 option(CURL_WERROR "Turn compiler warnings into errors" OFF)
 option(PICKY_COMPILER "Enable picky compiler options" ON)
 option(BUILD_CURL_EXE "Set to ON to build curl executable." ON)
@@ -673,9 +675,7 @@ if(NOT CURL_DISABLE_LDAP)
   endif()
 
   # Now that we know, we're not using windows LDAP...
-  if(USE_WIN32_LDAP)
-    check_include_file_concat("winldap.h" HAVE_WINLDAP_H)
-  else()
+  if(NOT USE_WIN32_LDAP)
     # Check for LDAP
     set(CMAKE_REQUIRED_LIBRARIES ${OPENSSL_LIBRARIES})
     check_library_exists_concat(${CMAKE_LDAP_LIB} ldap_init HAVE_LIBLDAP)

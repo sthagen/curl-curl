@@ -42,6 +42,7 @@ BEGIN {
         $has_shared
         $LIBDIR
         $listonly
+        $LOCKDIR
         $LOGDIR
         $memanalyze
         $MEMDUMP
@@ -50,6 +51,7 @@ BEGIN {
         $proxy_address
         $PROXYIN
         $pwd
+        $randseed
         $run_event_based
         $SERVERIN
         $srcdir
@@ -80,6 +82,7 @@ our $run_event_based; # run curl with --test-event to test the event API
 our $automakestyle;   # use automake-like test status output format
 our $anyway;          # continue anyway, even if a test fail
 our $CURLVERSION="";  # curl's reported version number
+our $randseed = 0;    # random number seed
 
 # paths
 our $pwd = getcwd();  # current working directory
@@ -98,6 +101,7 @@ our $memanalyze="$perl $srcdir/memanalyze.pl";
 our $valgrind;     # path to valgrind, or empty if disabled
 
 # paths in $LOGDIR
+our $LOCKDIR = "lock";          # root of the server directory with lock files
 our $PIDDIR = "server";         # root of the server directory with PID files
 our $SERVERIN="server.input";   # what curl sent the server
 our $PROXYIN="proxy.input";     # what curl sent the proxy
