@@ -224,7 +224,7 @@ static CURLcode h3_data_setup(struct Curl_cfilter *cf,
   stream->recv_buf_nonflow = 0;
 
   H3_STREAM_LCTX(data) = stream;
-  DEBUGF(LOG_CF(data, cf, "data setup (easy %p)", (void *)data));
+  DEBUGF(LOG_CF(data, cf, "data setup"));
   return CURLE_OK;
 }
 
@@ -1558,8 +1558,10 @@ cb_h3_read_req_body(nghttp3_conn *conn, int64_t stream_id,
   }
 
   DEBUGF(LOG_CF(data, cf, "[h3sid=%" PRId64 "] read req body -> "
-                "%d vecs%s with %zu (buffered=%zu, left=%zd)", stream->id,
-                (int)nvecs, *pflags == NGHTTP3_DATA_FLAG_EOF?" EOF":"",
+                          "%d vecs%s with %zu (buffered=%zu, left=%"
+                          CURL_FORMAT_CURL_OFF_T ")",
+                stream->id, (int)nvecs,
+                *pflags == NGHTTP3_DATA_FLAG_EOF?" EOF":"",
                 nwritten, Curl_bufq_len(&stream->sendbuf),
                 stream->upload_left));
   return (nghttp3_ssize)nvecs;
@@ -1670,8 +1672,7 @@ static ssize_t h3_stream_open(struct Curl_cfilter *cf,
     goto out;
   }
 
-  infof(data, "Using HTTP/3 Stream ID: %" PRId64 " (easy handle %p)",
-        stream->id, (void *)data);
+  infof(data, "Using HTTP/3 Stream ID: %" PRId64, stream->id);
   DEBUGF(LOG_CF(data, cf, "[h3sid=%" PRId64 "] opened for %s",
                 stream->id, data->state.url));
 

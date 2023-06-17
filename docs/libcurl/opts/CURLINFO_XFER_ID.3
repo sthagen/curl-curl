@@ -22,57 +22,49 @@
 .\" *
 .\" **************************************************************************
 .\"
-.TH CURLOPT_INFILESIZE 3 "17 Jun 2014" libcurl libcurl
+.TH CURLINFO_XFER_ID 3 "07 June 2023" "libcurl" "libcurl"
 .SH NAME
-CURLOPT_INFILESIZE \- size of the input file to send off
+CURLINFO_XFER_ID \- get the ID of a transfer
 .SH SYNOPSIS
 .nf
 #include <curl/curl.h>
 
-CURLcode curl_easy_setopt(CURL *handle, CURLOPT_INFILESIZE, long filesize);
+CURLcode curl_easy_getinfo(CURL *handle, CURLINFO_XFER_ID,
+                           curl_off_t *xfer_id);
 .fi
 .SH DESCRIPTION
-When uploading a file to a remote site, \fIfilesize\fP should be used to tell
-libcurl what the expected size of the input file is. This value must be passed
-as a long. See also \fICURLOPT_INFILESIZE_LARGE(3)\fP for sending files larger
-than 2GB.
+Pass a pointer to a \fIcurl_off_t\fP to receive the identifier of the
+current/last transfer done with the handle. Stores -1 if no transfer
+has been started yet for the handle.
 
-For uploading using SCP, this option or \fICURLOPT_INFILESIZE_LARGE(3)\fP is
-mandatory.
+The transfer id is unique among all transfers performed using the same
+connection cache. This is implicitly the case for all transfers in the
+same multi handle.
 
-To unset this value again, set it to -1.
-
-Using \fICURLOPT_UPLOAD(3)\fP to a HTTP/1.1 server and this value set to -1,
-makes libcurl do a chunked transfer-encoded upload.
-
-When sending emails using SMTP, this command can be used to specify the
-optional SIZE parameter for the MAIL FROM command.
-
-This option does not limit how much data libcurl will actually send, as that
-is controlled entirely by what the read callback returns, but telling one
-value and sending a different amount may lead to errors.
-.SH DEFAULT
-Unset
 .SH PROTOCOLS
-Many
+All
 .SH EXAMPLE
 .nf
 CURL *curl = curl_easy_init();
 if(curl) {
-  long uploadsize = FILE_SIZE;
+  curl_easy_setopt(curl, CURLOPT_URL, "https://example.com");
 
-  curl_easy_setopt(curl, CURLOPT_URL, "ftp://example.com/destination.tar.gz");
+  /* Perform the request */
+  res = curl_easy_perform(curl);
 
-  curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
-
-  curl_easy_setopt(curl, CURLOPT_INFILESIZE, uploadsize);
-
-  curl_easy_perform(curl);
+  if(!res) {
+    curl_off_t xfer_id;
+    res = curl_easy_getinfo(curl, CURLINFO_XFER_ID, &xfer_id);
+    if(!res) {
+      printf("Transfer ID: %" CURL_FORMAT_CURL_OFF_T "\\n", xfer_id);
+    }
+  }
 }
 .fi
 .SH AVAILABILITY
-SMTP support added in 7.23.0
+Added in 8.2.0
 .SH RETURN VALUE
 Returns CURLE_OK if the option is supported, and CURLE_UNKNOWN_OPTION if not.
 .SH "SEE ALSO"
-.BR CURLOPT_INFILESIZE_LARGE "(3), " CURLOPT_UPLOAD "(3), "
+.BR curl_easy_getinfo "(3), " curl_easy_setopt "(3), "
+.BR CURLINFO_CONN_ID "(3), "

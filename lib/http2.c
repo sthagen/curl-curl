@@ -1466,8 +1466,8 @@ static ssize_t req_body_read_callback(nghttp2_session *session,
   if(nread > 0 && stream->upload_left != -1)
     stream->upload_left -= nread;
 
-  DEBUGF(LOG_CF(data_s, cf, "[h2sid=%d] req_body_read(len=%zu) left=%zd"
-                " -> %zd, %d",
+  DEBUGF(LOG_CF(data_s, cf, "[h2sid=%d] req_body_read(len=%zu) left=%"
+                            CURL_FORMAT_CURL_OFF_T " -> %zd, %d",
                 stream_id, length, stream->upload_left, nread, result));
 
   if(stream->upload_left == 0)
@@ -1757,7 +1757,7 @@ static CURLcode h2_progress_ingress(struct Curl_cfilter *cf,
 
   /* Process network input buffer fist */
   if(!Curl_bufq_is_empty(&ctx->inbufq)) {
-    DEBUGF(LOG_CF(data, cf, "Process %zd bytes in connection buffer",
+    DEBUGF(LOG_CF(data, cf, "Process %zu bytes in connection buffer",
                   Curl_bufq_len(&ctx->inbufq)));
     if(h2_process_pending_input(cf, data, &result) < 0)
       return result;
@@ -1778,7 +1778,7 @@ static CURLcode h2_progress_ingress(struct Curl_cfilter *cf,
     }
 
     nread = Curl_bufq_slurp(&ctx->inbufq, nw_in_reader, cf, &result);
-    /* DEBUGF(LOG_CF(data, cf, "read %zd bytes nw data -> %zd, %d",
+    /* DEBUGF(LOG_CF(data, cf, "read %zu bytes nw data -> %zd, %d",
                   Curl_bufq_len(&ctx->inbufq), nread, result)); */
     if(nread < 0) {
       if(result != CURLE_AGAIN) {
@@ -1947,8 +1947,8 @@ static ssize_t h2_submit(struct stream_ctx **pstream,
 
   h2_pri_spec(data, &pri_spec);
 
-  DEBUGF(LOG_CF(data, cf, "send request allowed %d (easy handle %p)",
-                nghttp2_session_check_request_allowed(ctx->h2), (void *)data));
+  DEBUGF(LOG_CF(data, cf, "send request allowed %d",
+                nghttp2_session_check_request_allowed(ctx->h2)));
 
   switch(data->state.httpreq) {
   case HTTPREQ_POST:
@@ -1984,8 +1984,7 @@ static ssize_t h2_submit(struct stream_ctx **pstream,
 
   DEBUGF(LOG_CF(data, cf, "[h2sid=%d] cf_send(len=%zu) submit %s",
                 stream_id, len, data->state.url));
-  infof(data, "Using Stream ID: %u (easy handle %p)",
-        stream_id, (void *)data);
+  infof(data, "Using Stream ID: %u", stream_id);
   stream->id = stream_id;
   stream->local_window_size = H2_STREAM_WINDOW_SIZE;
   if(data->set.max_recv_speed) {
@@ -1993,7 +1992,7 @@ static ssize_t h2_submit(struct stream_ctx **pstream,
      * Let's limit our stream window size around that, otherwise the server
      * will send in large bursts only. We make the window 50% larger to
      * allow for data in flight and avoid stalling. */
-    size_t n = (((data->set.max_recv_speed - 1) / H2_CHUNK_SIZE) + 1);
+    curl_off_t n = (((data->set.max_recv_speed - 1) / H2_CHUNK_SIZE) + 1);
     n += CURLMAX((n/2), 1);
     if(n < (H2_STREAM_WINDOW_SIZE / H2_CHUNK_SIZE) &&
        n < (UINT_MAX / H2_CHUNK_SIZE)) {
@@ -2542,7 +2541,7 @@ CURLcode Curl_http2_switch(struct Curl_easy *data,
   CURLcode result;
 
   DEBUGASSERT(!Curl_conn_is_http2(data, conn, sockindex));
-  DEBUGF(infof(data, DMSGI(data, sockindex, "switching to HTTP/2")));
+  DEBUGF(infof(data, "switching to HTTP/2"));
 
   result = http2_cfilter_add(&cf, data, conn, sockindex);
   if(result)
@@ -2601,7 +2600,7 @@ CURLcode Curl_http2_upgrade(struct Curl_easy *data,
   CURLcode result;
 
   DEBUGASSERT(!Curl_conn_is_http2(data, conn, sockindex));
-  DEBUGF(infof(data, DMSGI(data, sockindex, "upgrading to HTTP/2")));
+  DEBUGF(infof(data, "upgrading to HTTP/2"));
   DEBUGASSERT(data->req.upgr101 == UPGR101_RECEIVED);
 
   result = http2_cfilter_add(&cf, data, conn, sockindex);

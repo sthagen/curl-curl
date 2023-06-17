@@ -277,7 +277,7 @@ static CURLcode h3_data_setup(struct Curl_cfilter *cf,
   stream->id = -1;
   Curl_bufq_initp(&stream->recvbuf, &ctx->stream_bufcp,
                   H3_STREAM_RECV_CHUNKS, BUFQ_OPT_SOFT_LIMIT);
-  DEBUGF(LOG_CF(data, cf, "data setup (easy %p)", (void *)data));
+  DEBUGF(LOG_CF(data, cf, "data setup"));
   return CURLE_OK;
 }
 
@@ -649,7 +649,7 @@ static CURLcode recv_pkt(const unsigned char *pkt, size_t pktlen,
     }
   }
   else if((size_t)nread < pktlen) {
-    DEBUGF(LOG_CF(r->data, r->cf, "ingress, quiche only read %zd/%zd bytes",
+    DEBUGF(LOG_CF(r->data, r->cf, "ingress, quiche only read %zd/%zu bytes",
                   nread, pktlen));
   }
 
@@ -883,7 +883,8 @@ out:
   }
   if(nread > 0)
     ctx->data_recvd += nread;
-  DEBUGF(LOG_CF(data, cf, "[h3sid=%"PRId64"] cf_recv(total=%zd) -> %zd, %d",
+  DEBUGF(LOG_CF(data, cf, "[h3sid=%"PRId64"] cf_recv(total=%"
+                          CURL_FORMAT_CURL_OFF_T ") -> %zd, %d",
                 stream->id, ctx->data_recvd, nread, *err));
   return nread;
 }
@@ -995,8 +996,7 @@ static ssize_t h3_open_stream(struct Curl_cfilter *cf,
   stream->closed = FALSE;
   stream->reset = FALSE;
 
-  infof(data, "Using HTTP/3 Stream ID: %" PRId64 " (easy handle %p)",
-        stream3_id, (void *)data);
+  infof(data, "Using HTTP/3 Stream ID: %" PRId64, stream3_id);
   DEBUGF(LOG_CF(data, cf, "[h3sid=%" PRId64 "] opened for %s",
                 stream3_id, data->state.url));
 
@@ -1068,7 +1068,7 @@ static ssize_t cf_quiche_send(struct Curl_cfilter *cf, struct Curl_easy *data,
         stream->send_closed = TRUE;
 
       DEBUGF(LOG_CF(data, cf, "[h3sid=%" PRId64 "] send body(len=%zu, "
-                    "left=%zd) -> %zd",
+                              "left=%" CURL_FORMAT_CURL_OFF_T ") -> %zd",
                     stream->id, len, stream->upload_left, nwritten));
       *err = CURLE_OK;
     }
