@@ -483,13 +483,13 @@ class CurlClient:
         if not isinstance(urls, list):
             urls = [urls]
 
-        args = [self._curl, "-s", "--path-as-is"]
+        args = [self._curl, "-s", "--path-as-is", '--trace-time', '--trace-ids']
         if with_headers:
             args.extend(["-D", self._headerfile])
         if with_trace or self.env.verbose > 2:
-            args.extend(['--trace', self._tracefile, '--trace-time'])
-        elif self.env.verbose > 1:
             args.extend(['--trace', self._tracefile])
+        elif self.env.verbose > 1:
+            args.extend(['--trace-ascii', self._tracefile])
         elif not self._silent:
             args.extend(['-v'])
 

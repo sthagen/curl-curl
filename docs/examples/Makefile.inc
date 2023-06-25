@@ -29,8 +29,10 @@ check_PROGRAMS = \
   anyauthput \
   certinfo \
   chkspeed \
+  connect-to \
   cookie_interface \
   debug \
+  default-scheme \
   externalsocket \
   fileupload \
   ftp-wildcard \
@@ -46,6 +48,8 @@ check_PROGRAMS = \
   getredirect \
   getreferrer \
   headerapi \
+  hsts-preload \
+  http-options \
   http-post \
   http2-download \
   http2-pushinmemory \
@@ -138,7 +142,6 @@ COMPLICATED_EXAMPLES = \
   multi-event.c \
   multi-uv.c \
   multithread.c \
-  opensslthreadlock.c \
   sessioninfo.c \
   smooth-gtk-thread.c \
   synctime.c \

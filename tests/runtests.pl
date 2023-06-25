@@ -250,11 +250,32 @@ sub singletest_dumplogs {
 
 sub catch_zap {
     my $signame = shift;
-    logmsg "runtests.pl received SIG$signame, exiting\n";
+    print "runtests.pl received SIG$signame, exiting\r\n";
     $globalabort = 1;
 }
 $SIG{INT} = \&catch_zap;
 $SIG{TERM} = \&catch_zap;
+
+sub catch_usr1 {
+    print "runtests.pl internal state:\r\n";
+    print scalar(%runnersrunning) . " busy test runner(s) of " . scalar(keys %runnerids) . "\r\n";
+    foreach my $rid (sort(keys(%runnersrunning))) {
+        my $runnernum = "unknown";
+        foreach my $rnum (keys %runnerids) {
+            if($runnerids{$rnum} == $rid) {
+                $runnernum = $rnum;
+                last;
+            }
+        }
+        print "Runner $runnernum (id $rid) running test $runnersrunning{$rid} in state $singletest_state{$rid}\r\n";
+    }
+}
+
+eval {
+    # some msys2 perl versions don't define SIGUSR1
+    $SIG{USR1} = \&catch_usr1;
+};
+$SIG{PIPE} = 'IGNORE';  # these errors are captured in the read/write calls
 
 ##########################################################################
 # Clear all possible '*_proxy' environment variables for various protocols
@@ -1486,14 +1507,25 @@ sub singletest_check {
 
             my $filename=$hash{'name'};
             if(!$filename) {
-                logmsg "ERROR: section verify=>file$partsuffix ".
+                logmsg " $testnum: IGNORED: section verify=>file$partsuffix ".
                        "has no name attribute\n";
-                runnerac_stopservers($runnerid);
-                # TODO: this is a blocking call that will stall the controller,
-                # but this error condition should never happen except during
-                # development.
-                my ($rid, $unexpected, $logs) = runnerar($runnerid);
-                logmsg $logs;
+                if (runnerac_stopservers($runnerid)) {
+                    logmsg "ERROR: runner $runnerid seems to have died\n";
+                } else {
+
+                    # TODO: this is a blocking call that will stall the controller,
+                    if($verbose) {
+                        logmsg "WARNING: blocking call in async function\n";
+                    }
+                    # but this error condition should never happen except during
+                    # development.
+                    my ($rid, $unexpected, $logs) = runnerar($runnerid);
+                    if(!$rid) {
+                        logmsg "ERROR: runner $runnerid seems to have died\n";
+                    } else {
+                        logmsg $logs;
+                    }
+                }
                 # timestamp test result verification end
                 $timevrfyend{$testnum} = Time::HiRes::time();
                 return -1;
@@ -1570,7 +1602,7 @@ sub singletest_check {
             logmsg sprintf("\n%s returned $cmdres, when expecting %s\n",
                            (!$tool)?"curl":$tool, $errorcode);
         }
-        logmsg " exit FAILED\n";
+        logmsg " $testnum: exit FAILED\n";
         # timestamp test result verification end
         $timevrfyend{$testnum} = Time::HiRes::time();
         return -1;
@@ -1582,6 +1614,7 @@ sub singletest_check {
             my $cmdtype = $cmdhash{'type'} || "default";
             logmsg "\n** ALERT! memory tracking with no output file?\n"
                 if(!$cmdtype eq "perl");
+            $ok .= "-"; # problem with memory checking
         }
         else {
             my @memdata=`$memanalyze "$logdir/$MEMDUMP"`;
@@ -1723,7 +1756,11 @@ sub singletest {
             && $clearlocks) {
             # On Windows, lock files can't be deleted when the process still
             # has them open, so kill those processes first
-            runnerac_clearlocks($runnerid, "$logdir/$LOCKDIR");
+            if(runnerac_clearlocks($runnerid, "$logdir/$LOCKDIR")) {
+                logmsg "ERROR: runner $runnerid seems to have died\n";
+                $singletest_state{$runnerid} = ST_INIT;
+                return (-1, 0);
+            }
             $singletest_state{$runnerid} = ST_CLEARLOCKS;
         } else {
             $singletest_state{$runnerid} = ST_INITED;
@@ -1734,6 +1771,11 @@ sub singletest {
 
     } elsif($singletest_state{$runnerid} == ST_CLEARLOCKS) {
         my ($rid, $logs) = runnerar($runnerid);
+        if(!$rid) {
+            logmsg "ERROR: runner $runnerid seems to have died\n";
+            $singletest_state{$runnerid} = ST_INIT;
+            return (-1, 0);
+        }
         logmsg $logs;
         my $logdir = getrunnerlogdir($runnerid);
         cleardir($logdir);
@@ -1759,11 +1801,20 @@ sub singletest {
         # Register the test case with the CI environment
         citest_starttest($testnum);
 
-        runnerac_test_preprocess($runnerid, $testnum);
+        if(runnerac_test_preprocess($runnerid, $testnum)) {
+            logmsg "ERROR: runner $runnerid seems to have died\n";
+            $singletest_state{$runnerid} = ST_INIT;
+            return (-1, 0);
+        }
         $singletest_state{$runnerid} = ST_PREPROCESS;
 
     } elsif($singletest_state{$runnerid} == ST_PREPROCESS) {
         my ($rid, $why, $error, $logs, $testtimings) = runnerar($runnerid);
+        if(!$rid) {
+            logmsg "ERROR: runner $runnerid seems to have died\n";
+            $singletest_state{$runnerid} = ST_INIT;
+            return (-1, 0);
+        }
         logmsg $logs;
         updatetesttimings($testnum, %$testtimings);
         if($error == -2) {
@@ -1796,11 +1847,20 @@ sub singletest {
         my $CURLOUT;
         my $tool;
         my $usedvalgrind;
-        runnerac_test_run($runnerid, $testnum);
+        if(runnerac_test_run($runnerid, $testnum)) {
+            logmsg "ERROR: runner $runnerid seems to have died\n";
+            $singletest_state{$runnerid} = ST_INIT;
+            return (-1, 0);
+        }
         $singletest_state{$runnerid} = ST_RUN;
 
     } elsif($singletest_state{$runnerid} == ST_RUN) {
         my ($rid, $error, $logs, $testtimings, $cmdres, $CURLOUT, $tool, $usedvalgrind) = runnerar($runnerid);
+        if(!$rid) {
+            logmsg "ERROR: runner $runnerid seems to have died\n";
+            $singletest_state{$runnerid} = ST_INIT;
+            return (-1, 0);
+        }
         logmsg $logs;
         updatetesttimings($testnum, %$testtimings);
         if($error == -1) {
@@ -2734,14 +2794,17 @@ while () {
     if($globalabort) {
         logmsg singletest_dumplogs();
         logmsg "Aborting tests\n";
-        logmsg "Waiting for tests to finish...\n";
+        logmsg "Waiting for " . scalar((keys %runnersrunning)) . " outstanding test(s) to finish...\n";
         # Wait for the last requests to complete and throw them away so
         # that IPC calls & responses stay in sync
         # TODO: send a signal to the runners to interrupt a long test
         foreach my $rid (keys %runnersrunning) {
             runnerar($rid);
             delete $runnersrunning{$rid};
+            logmsg ".";
+            $| = 1;
         }
+        logmsg "\n";
         last;
     }
 
@@ -2762,28 +2825,41 @@ while () {
             # this runner is busy running a test
             $runnersrunning{$runnerid} = $testnum;
         } else {
-            # We make this assumption to avoid having to handle $error here
-            die "Internal error: test must not complete on first call";
+            runnerready($runnerid);
+            if($error >= 0) {
+                # We make this simplifying assumption to avoid having to handle
+                # $error properly here, but we must handle the case of runner
+                # death without abending here.
+                die "Internal error: test must not complete on first call";
+            }
         }
     }
 
     # See if we've completed all the tests
     if(!scalar(%runnersrunning)) {
         # No runners are running; we must be done
-        scalar(@runtests) && die 'Internal error: tests to run';
+        scalar(@runtests) && die 'Internal error: still have tests to run';
         last;
     }
 
     # See if a test runner needs attention
-    # If we could be running more tests, wait just a moment so we can schedule
-    # a new one shortly. If all runners are busy, wait indefinitely for one to
-    # finish.
-    my $runnerwait = scalar(@runnersidle) && scalar(@runtests) ? 0 : undef;
-    my $ridready = runnerar_ready($runnerwait);
+    # If we could be running more tests, don't wait so we can schedule a new
+    # one immediately. If all runners are busy, wait a fraction of a second
+    # for one to finish so we can still loop around to check the abort flag.
+    my $runnerwait = scalar(@runnersidle) && scalar(@runtests) ? 0 : 0.5;
+    my ($ridready, $riderror) = runnerar_ready($runnerwait);
+    if($ridready && ! defined $runnersrunning{$ridready}) {
+        # On Linux, a closed pipe still shows up as ready instead of error.
+        # Detect this here by seeing if we are expecting it to be ready and
+        # treat it as an error if not.
+        logmsg "ERROR: Runner $ridready is unexpectedly ready; is probably actually dead\n";
+        $riderror = $ridready;
+        undef $ridready;
+    }
     if($ridready) {
         # This runner is ready to be serviced
         my $testnum = $runnersrunning{$ridready};
-        defined $testnum ||  die 'Internal error: test for runner unknown';
+        defined $testnum ||  die "Internal error: test for runner $ridready unknown";
         delete $runnersrunning{$ridready};
         my ($error, $again) = singletest($ridready, $testnum, $countforrunner{$ridready}, $totaltests);
         if($again) {
@@ -2792,7 +2868,6 @@ while () {
         } else {
             # Test is complete
             runnerready($ridready);
-print "COMPLETED $testnum \n" if($verbose); #. join(",", keys(%runnersrunning)) . "\n";
 
             if($error < 0) {
                 # not a test we can run
@@ -2826,6 +2901,11 @@ print "COMPLETED $testnum \n" if($verbose); #. join(",", keys(%runnersrunning)) 
                 $ok++; # successful test counter
             }
         }
+    }
+    if($riderror) {
+        logmsg "ERROR: runner $riderror is dead! aborting test run\n";
+        delete $runnersrunning{$riderror} if(defined $runnersrunning{$riderror});
+        $globalabort = 1;
     }
 }
 
