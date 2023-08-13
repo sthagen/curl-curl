@@ -29,12 +29,14 @@ Then build hyper and enable its C API like this:
      % cd hyper
      % RUSTFLAGS="--cfg hyper_unstable_ffi" cargo +nightly rustc --features client,http1,http2,ffi -Z unstable-options --crate-type cdylib
 
+Also, `--release` can be added for a release (optimized) build.
+
 Build curl to use hyper's C API:
 
      % git clone https://github.com/curl/curl
      % cd curl
      % autoreconf -fi
-     % ./configure --with-hyper=<hyper dir>
+     % ./configure LDFLAGS="-Wl,-rpath,<hyper-dir>/target/debug -Wl,-rpath,<hyper-dir>/target/release" --with-openssl --with-hyper=<hyper-dir>
      % make
 
 # using Hyper internally
@@ -57,6 +59,7 @@ The hyper backend does not support
 - `--raw` and disabling `CURLOPT_HTTP_TRANSFER_DECODING`
 - RTSP
 - hyper is much stricter about what HTTP header contents it allows
+- leading whitespace in first HTTP/1 response header
 - HTTP/0.9
 - HTTP/2 upgrade using HTTP:// URLs. Aka 'h2c'
 

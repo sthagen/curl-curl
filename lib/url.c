@@ -490,7 +490,7 @@ CURLcode Curl_init_userdefined(struct Curl_easy *data)
 
   set->filesize = -1;        /* we don't know the size */
   set->postfieldsize = -1;   /* unknown size */
-  set->maxredirs = -1;       /* allow any amount by default */
+  set->maxredirs = 30;       /* sensible default */
 
   set->method = HTTPREQ_GET; /* Default HTTP request */
 #ifndef CURL_DISABLE_RTSP
@@ -1073,6 +1073,9 @@ ConnectionExists(struct Curl_easy *data,
   bool wantProxyNTLMhttp = FALSE;
 #endif
 #endif
+  /* plain HTTP with upgrade */
+  bool h2upgrade = (data->state.httpwant == CURL_HTTP_VERSION_2_0) &&
+    (needle->handler->protocol & CURLPROTO_HTTP);
 
   *force_reuse = FALSE;
   *waitpipe = FALSE;
@@ -1135,7 +1138,7 @@ ConnectionExists(struct Curl_easy *data,
       }
 
       if(data->set.ipver != CURL_IPRESOLVE_WHATEVER
-          && data->set.ipver != check->ip_version) {
+         && data->set.ipver != check->ip_version) {
         /* skip because the connection is not via the requested IP version */
         continue;
       }
@@ -1150,16 +1153,11 @@ ConnectionExists(struct Curl_easy *data,
           continue;
         }
 
-        if(Curl_resolver_asynch()) {
-          /* primary_ip[0] is NUL only if the resolving of the name hasn't
-             completed yet and until then we don't re-use this connection */
-          if(!check->primary_ip[0]) {
-            infof(data, "Connection #%" CURL_FORMAT_CURL_OFF_T " is still "
-                        "name resolving, can't reuse",
-                  check->connection_id);
-            continue;
-          }
-        }
+        if(Curl_resolver_asynch() &&
+           /* primary_ip[0] is NUL only if the resolving of the name hasn't
+              completed yet and until then we don't re-use this connection */
+           !check->primary_ip[0])
+          continue;
       }
 
       if(!Curl_conn_is_connected(check, FIRSTSOCKET)) {
@@ -1238,6 +1236,17 @@ ConnectionExists(struct Curl_easy *data,
       }
 #endif
 
+      if(h2upgrade && !check->httpversion && canmultiplex) {
+        if(data->set.pipewait) {
+          infof(data, "Server upgrade doesn't support multiplex yet, wait");
+          *waitpipe = TRUE;
+          CONNCACHE_UNLOCK(data);
+          return FALSE; /* no re-use */
+        }
+        infof(data, "Server upgrade cannot be used");
+        continue; /* can't be used atm */
+      }
+
       if(!canmultiplex && CONN_INUSE(check))
         /* this request can't be multiplexed but the checked connection is
            already in use so we skip it */
@@ -1294,7 +1303,7 @@ ConnectionExists(struct Curl_easy *data,
          (((check->httpversion >= 20) &&
            (data->state.httpwant < CURL_HTTP_VERSION_2_0))
           || ((check->httpversion >= 30) &&
-           (data->state.httpwant < CURL_HTTP_VERSION_3))))
+              (data->state.httpwant < CURL_HTTP_VERSION_3))))
         continue;
 #ifdef USE_SSH
       else if(get_protocol_family(needle->handler) & PROTO_FAMILY_SSH) {
@@ -1485,13 +1494,7 @@ void Curl_verboseconnect(struct Curl_easy *data,
 {
   if(data->set.verbose)
     infof(data, "Connected to %s (%s) port %u",
-#ifndef CURL_DISABLE_PROXY
-          conn->bits.socksproxy ? conn->socks_proxy.host.dispname :
-          conn->bits.httpproxy ? conn->http_proxy.host.dispname :
-#endif
-          conn->bits.conn_to_host ? conn->conn_to_host.dispname :
-          conn->host.dispname,
-          conn->primary_ip, conn->port);
+          CURL_CONN_HOST_DISPNAME(conn), conn->primary_ip, conn->port);
 }
 #endif
 

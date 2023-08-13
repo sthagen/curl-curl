@@ -1308,7 +1308,7 @@ CURLcode Curl_buffer_send(struct dynbuf *in,
       || IS_HTTPS_PROXY(conn->http_proxy.proxytype)
 #endif
        )
-     && conn->httpversion != 20) {
+     && conn->httpversion < 20) {
     /* Make sure this doesn't send more body bytes than what the max send
        speed says. The request bytes do not count to the max speed.
     */
@@ -2372,6 +2372,7 @@ CURLcode Curl_http_body(struct Curl_easy *data, struct connectdata *conn,
   case HTTPREQ_POST_MIME:
     http->sendit = &data->set.mimepost;
     break;
+#ifndef CURL_DISABLE_FORM_API
   case HTTPREQ_POST_FORM:
     /* Convert the form structure into a mime structure. */
     Curl_mime_cleanpart(&http->form);
@@ -2381,6 +2382,7 @@ CURLcode Curl_http_body(struct Curl_easy *data, struct connectdata *conn,
       return result;
     http->sendit = &http->form;
     break;
+#endif
   default:
     http->sendit = NULL;
   }
@@ -3918,6 +3920,29 @@ static CURLcode verify_header(struct Curl_easy *data)
   return CURLE_OK;
 }
 
+CURLcode Curl_bump_headersize(struct Curl_easy *data,
+                              size_t delta,
+                              bool connect_only)
+{
+  size_t bad = 0;
+  if(delta < MAX_HTTP_RESP_HEADER_SIZE) {
+    if(!connect_only)
+      data->req.headerbytecount += (unsigned int)delta;
+    data->info.header_size += (unsigned int)delta;
+    if(data->info.header_size > MAX_HTTP_RESP_HEADER_SIZE)
+      bad = data->info.header_size;
+  }
+  else
+    bad = data->info.header_size + delta;
+  if(bad) {
+    failf(data, "Too large response headers: %zu > %u",
+          bad, MAX_HTTP_RESP_HEADER_SIZE);
+    return CURLE_RECV_ERROR;
+  }
+  return CURLE_OK;
+}
+
+
 /*
  * Read any HTTP header lines from the server and pass them to the client app.
  */
@@ -4056,6 +4081,7 @@ CURLcode Curl_http_readwrite_headers(struct Curl_easy *data,
           /* Switching Protocols */
           if(k->upgr101 == UPGR101_H2) {
             /* Switching to HTTP/2 */
+            DEBUGASSERT(conn->httpversion < 20);
             infof(data, "Received 101, Switching to HTTP/2");
             k->upgr101 = UPGR101_RECEIVED;
 
@@ -4098,6 +4124,11 @@ CURLcode Curl_http_readwrite_headers(struct Curl_easy *data,
         }
       }
       else {
+        if(k->upgr101 == UPGR101_H2) {
+          /* A requested upgrade was denied, poke the multi handle to possibly
+             allow a pending pipewait to continue */
+          Curl_multi_connchanged(data->multi);
+        }
         k->header = FALSE; /* no more header to parse! */
 
         if((k->size == -1) && !k->chunk && !conn->bits.close &&
@@ -4165,8 +4196,9 @@ CURLcode Curl_http_readwrite_headers(struct Curl_easy *data,
       if(result)
         return result;
 
-      data->info.header_size += (long)headerlen;
-      data->req.headerbytecount += (long)headerlen;
+      result = Curl_bump_headersize(data, headerlen, FALSE);
+      if(result)
+        return result;
 
       /*
        * When all the headers have been parsed, see if we should give
@@ -4488,8 +4520,10 @@ CURLcode Curl_http_readwrite_headers(struct Curl_easy *data,
     if(result)
       return result;
 
-    data->info.header_size += Curl_dyn_len(&data->state.headerb);
-    data->req.headerbytecount += Curl_dyn_len(&data->state.headerb);
+    result = Curl_bump_headersize(data, Curl_dyn_len(&data->state.headerb),
+                                  FALSE);
+    if(result)
+      return result;
 
     Curl_dyn_reset(&data->state.headerb);
   }
@@ -4571,8 +4605,8 @@ CURLcode Curl_http_req_make(struct httpreq **preq,
     if(!req->path)
       goto out;
   }
-  Curl_dynhds_init(&req->headers, 0, DYN_H2_HEADERS);
-  Curl_dynhds_init(&req->trailers, 0, DYN_H2_TRAILERS);
+  Curl_dynhds_init(&req->headers, 0, DYN_HTTP_REQUEST);
+  Curl_dynhds_init(&req->trailers, 0, DYN_HTTP_REQUEST);
   result = CURLE_OK;
 
 out:
@@ -4729,8 +4763,8 @@ CURLcode Curl_http_req_make2(struct httpreq **preq,
   if(result)
     goto out;
 
-  Curl_dynhds_init(&req->headers, 0, DYN_H2_HEADERS);
-  Curl_dynhds_init(&req->trailers, 0, DYN_H2_TRAILERS);
+  Curl_dynhds_init(&req->headers, 0, DYN_HTTP_REQUEST);
+  Curl_dynhds_init(&req->trailers, 0, DYN_HTTP_REQUEST);
   result = CURLE_OK;
 
 out:
@@ -4860,8 +4894,8 @@ CURLcode Curl_http_resp_make(struct http_resp **presp,
     if(!resp->description)
       goto out;
   }
-  Curl_dynhds_init(&resp->headers, 0, DYN_H2_HEADERS);
-  Curl_dynhds_init(&resp->trailers, 0, DYN_H2_TRAILERS);
+  Curl_dynhds_init(&resp->headers, 0, DYN_HTTP_REQUEST);
+  Curl_dynhds_init(&resp->trailers, 0, DYN_HTTP_REQUEST);
   result = CURLE_OK;
 
 out:

@@ -182,8 +182,11 @@ static int hyper_each_header(void *userdata,
     }
   }
 
-  data->info.header_size += (curl_off_t)len;
-  data->req.headerbytecount += (curl_off_t)len;
+  result = Curl_bump_headersize(data, len, FALSE);
+  if(result) {
+    data->state.hresult = result;
+    return HYPER_ITER_BREAK;
+  }
   return HYPER_ITER_CONTINUE;
 }
 
@@ -313,9 +316,8 @@ static CURLcode status_line(struct Curl_easy *data,
     if(result)
       return result;
   }
-  data->info.header_size += (curl_off_t)len;
-  data->req.headerbytecount += (curl_off_t)len;
-  return CURLE_OK;
+  result = Curl_bump_headersize(data, len, FALSE);
+  return result;
 }
 
 /*
@@ -414,14 +416,26 @@ CURLcode Curl_hyper_stream(struct Curl_easy *data,
         size_t errlen = hyper_error_print(hypererr, errbuf, sizeof(errbuf));
         hyper_code code = hyper_error_code(hypererr);
         failf(data, "Hyper: [%d] %.*s", (int)code, (int)errlen, errbuf);
-        if(code == HYPERE_ABORTED_BY_CALLBACK)
+        switch(code) {
+        case HYPERE_ABORTED_BY_CALLBACK:
           result = CURLE_OK;
-        else if((code == HYPERE_UNEXPECTED_EOF) && !data->req.bytecount)
-          result = CURLE_GOT_NOTHING;
-        else if(code == HYPERE_INVALID_PEER_MESSAGE)
+          break;
+        case HYPERE_UNEXPECTED_EOF:
+          if(!data->req.bytecount)
+            result = CURLE_GOT_NOTHING;
+          else
+            result = CURLE_RECV_ERROR;
+          break;
+        case HYPERE_INVALID_PEER_MESSAGE:
+          /* bump headerbytecount to avoid the count remaining at zero and
+             appearing to not having read anything from the peer at all */
+          data->req.headerbytecount++;
           result = CURLE_UNSUPPORTED_PROTOCOL; /* maybe */
-        else
+          break;
+        default:
           result = CURLE_RECV_ERROR;
+          break;
+        }
       }
       *done = TRUE;
       hyper_error_free(hypererr);

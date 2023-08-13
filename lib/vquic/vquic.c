@@ -43,12 +43,13 @@
 #include "bufq.h"
 #include "dynbuf.h"
 #include "cfilters.h"
-#include "curl_log.h"
+#include "curl_trc.h"
 #include "curl_msh3.h"
 #include "curl_ngtcp2.h"
 #include "curl_quiche.h"
 #include "vquic.h"
 #include "vquic_int.h"
+#include "strerror.h"
 
 /* The last 3 #include files should be in this order */
 #include "curl_printf.h"
@@ -253,11 +254,9 @@ CURLcode vquic_flush(struct Curl_cfilter *cf, struct Curl_easy *data,
         blen = qctx->split_len;
     }
 
-    DEBUGF(LOG_CF(data, cf, "vquic_send(len=%zu, gso=%zu)",
-                  blen, gsolen));
     result = vquic_send_packets(cf, data, qctx, buf, blen, gsolen, &sent);
-    DEBUGF(LOG_CF(data, cf, "vquic_send(len=%zu, gso=%zu) -> %d, sent=%zu",
-                  blen, gsolen, result, sent));
+    CURL_TRC_CF(data, cf, "vquic_send(len=%zu, gso=%zu) -> %d, sent=%zu",
+                blen, gsolen, result, sent);
     if(result) {
       if(result == CURLE_AGAIN) {
         Curl_bufq_skip(&qctx->sendbuf, sent);
@@ -288,9 +287,9 @@ CURLcode vquic_send_tail_split(struct Curl_cfilter *cf, struct Curl_easy *data,
   qctx->split_len = Curl_bufq_len(&qctx->sendbuf) - tail_len;
   qctx->split_gsolen = gsolen;
   qctx->gsolen = tail_gsolen;
-  DEBUGF(LOG_CF(data, cf, "vquic_send_tail_split: [%zu gso=%zu][%zu gso=%zu]",
-                qctx->split_len, qctx->split_gsolen,
-                tail_len, qctx->gsolen));
+  CURL_TRC_CF(data, cf, "vquic_send_tail_split: [%zu gso=%zu][%zu gso=%zu]",
+              qctx->split_len, qctx->split_gsolen,
+              tail_len, qctx->gsolen);
   return vquic_flush(cf, data, qctx);
 }
 
@@ -308,6 +307,7 @@ static CURLcode recvmmsg_packets(struct Curl_cfilter *cf,
   struct sockaddr_storage remote_addr[MMSG_NUM];
   size_t total_nread, pkts;
   int mcount, i, n;
+  char errstr[STRERROR_LEN];
   CURLcode result = CURLE_OK;
 
   DEBUGASSERT(max_pkts > 0);
@@ -330,7 +330,7 @@ static CURLcode recvmmsg_packets(struct Curl_cfilter *cf,
       ;
     if(mcount == -1) {
       if(SOCKERRNO == EAGAIN || SOCKERRNO == EWOULDBLOCK) {
-        DEBUGF(LOG_CF(data, cf, "ingress, recvmmsg -> EAGAIN"));
+        CURL_TRC_CF(data, cf, "ingress, recvmmsg -> EAGAIN");
         goto out;
       }
       if(!cf->connected && SOCKERRNO == ECONNREFUSED) {
@@ -343,13 +343,14 @@ static CURLcode recvmmsg_packets(struct Curl_cfilter *cf,
         result = CURLE_COULDNT_CONNECT;
         goto out;
       }
-      failf(data, "QUIC: recvmsg() unexpectedly returned %d (errno=%d)",
-                  mcount, SOCKERRNO);
+      Curl_strerror(SOCKERRNO, errstr, sizeof(errstr));
+      failf(data, "QUIC: recvmsg() unexpectedly returned %d (errno=%d; %s)",
+                  mcount, SOCKERRNO, errstr);
       result = CURLE_RECV_ERROR;
       goto out;
     }
 
-    DEBUGF(LOG_CF(data, cf, "recvmmsg() -> %d packets", mcount));
+    CURL_TRC_CF(data, cf, "recvmmsg() -> %d packets", mcount);
     pkts += mcount;
     for(i = 0; i < mcount; ++i) {
       total_nread += mmsg[i].msg_len;
@@ -362,8 +363,9 @@ static CURLcode recvmmsg_packets(struct Curl_cfilter *cf,
   }
 
 out:
-  DEBUGF(LOG_CF(data, cf, "recvd %zu packets with %zu bytes -> %d",
-                pkts, total_nread, result));
+  if(total_nread || result)
+    CURL_TRC_CF(data, cf, "recvd %zu packets with %zu bytes -> %d",
+                pkts, total_nread, result);
   return result;
 }
 
@@ -380,6 +382,7 @@ static CURLcode recvmsg_packets(struct Curl_cfilter *cf,
   struct sockaddr_storage remote_addr;
   size_t total_nread, pkts;
   ssize_t nread;
+  char errstr[STRERROR_LEN];
   CURLcode result = CURLE_OK;
 
   msg_iov.iov_base = buf;
@@ -410,8 +413,9 @@ static CURLcode recvmsg_packets(struct Curl_cfilter *cf,
         result = CURLE_COULDNT_CONNECT;
         goto out;
       }
-      failf(data, "QUIC: recvmsg() unexpectedly returned %zd (errno=%d)",
-                  nread, SOCKERRNO);
+      Curl_strerror(SOCKERRNO, errstr, sizeof(errstr));
+      failf(data, "QUIC: recvmsg() unexpectedly returned %zd (errno=%d; %s)",
+                  nread, SOCKERRNO, errstr);
       result = CURLE_RECV_ERROR;
       goto out;
     }
@@ -425,8 +429,9 @@ static CURLcode recvmsg_packets(struct Curl_cfilter *cf,
   }
 
 out:
-  DEBUGF(LOG_CF(data, cf, "recvd %zu packets with %zu bytes -> %d",
-                pkts, total_nread, result));
+  if(total_nread || result)
+    CURL_TRC_CF(data, cf, "recvd %zu packets with %zu bytes -> %d",
+                pkts, total_nread, result);
   return result;
 }
 
@@ -443,6 +448,7 @@ static CURLcode recvfrom_packets(struct Curl_cfilter *cf,
   socklen_t remote_addrlen = sizeof(remote_addr);
   size_t total_nread, pkts;
   ssize_t nread;
+  char errstr[STRERROR_LEN];
   CURLcode result = CURLE_OK;
 
   DEBUGASSERT(max_pkts > 0);
@@ -454,7 +460,7 @@ static CURLcode recvfrom_packets(struct Curl_cfilter *cf,
       ;
     if(nread == -1) {
       if(SOCKERRNO == EAGAIN || SOCKERRNO == EWOULDBLOCK) {
-        DEBUGF(LOG_CF(data, cf, "ingress, recvfrom -> EAGAIN"));
+        CURL_TRC_CF(data, cf, "ingress, recvfrom -> EAGAIN");
         goto out;
       }
       if(!cf->connected && SOCKERRNO == ECONNREFUSED) {
@@ -467,8 +473,9 @@ static CURLcode recvfrom_packets(struct Curl_cfilter *cf,
         result = CURLE_COULDNT_CONNECT;
         goto out;
       }
-      failf(data, "QUIC: recvfrom() unexpectedly returned %zd (errno=%d)",
-                  nread, SOCKERRNO);
+      Curl_strerror(SOCKERRNO, errstr, sizeof(errstr));
+      failf(data, "QUIC: recvfrom() unexpectedly returned %zd (errno=%d; %s)",
+                  nread, SOCKERRNO, errstr);
       result = CURLE_RECV_ERROR;
       goto out;
     }
@@ -482,8 +489,9 @@ static CURLcode recvfrom_packets(struct Curl_cfilter *cf,
   }
 
 out:
-  DEBUGF(LOG_CF(data, cf, "recvd %zu packets with %zu bytes -> %d",
-                pkts, total_nread, result));
+  if(total_nread || result)
+    CURL_TRC_CF(data, cf, "recvd %zu packets with %zu bytes -> %d",
+                pkts, total_nread, result);
   return result;
 }
 #endif /* !HAVE_SENDMMSG && !HAVE_SENDMSG */
