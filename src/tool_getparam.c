@@ -609,10 +609,10 @@ static ParameterError data_urlencode(struct GlobalConfig *global,
     }
     else {
       file = fopen(p, "rb");
-      if(!file)
-        warnf(global,
-              "Couldn't read data from file \"%s\", this makes "
-              "an empty POST.", nextarg);
+      if(!file) {
+        errorf(global, "Failed to open %s", p);
+        return PARAM_READ_ERROR;
+      }
     }
 
     err = file2memory(&postdata, &size, file);
@@ -1761,9 +1761,11 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         }
         else {
           file = fopen(nextarg, "rb");
-          if(!file)
-            warnf(global, "Couldn't read data from file \"%s\", this makes "
-                  "an empty POST.", nextarg);
+          if(!file) {
+            errorf(global, "Failed to open %s", nextarg);
+            err = PARAM_READ_ERROR;
+            break;
+          }
         }
 
         if((subletter == 'b') || /* --data-binary */
@@ -2195,8 +2197,11 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         size_t len;
         bool use_stdin = !strcmp(&nextarg[1], "-");
         FILE *file = use_stdin?stdin:fopen(&nextarg[1], FOPEN_READTEXT);
-        if(!file)
-          warnf(global, "Failed to open %s", &nextarg[1]);
+        if(!file) {
+          errorf(global, "Failed to open %s", &nextarg[1]);
+          err = PARAM_READ_ERROR;
+          break;
+        }
         else {
           err = file2memory(&string, &len, file);
           if(!err && string) {
@@ -2544,7 +2549,12 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         }
         else {
           fname = nextarg;
-          file = fopen(nextarg, FOPEN_READTEXT);
+          file = fopen(fname, FOPEN_READTEXT);
+          if(!file) {
+            errorf(global, "Failed to open %s", fname);
+            err = PARAM_READ_ERROR;
+            break;
+          }
         }
         Curl_safefree(config->writeout);
         err = file2string(&config->writeout, file);
@@ -2638,11 +2648,11 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
       config->condtime = (curl_off_t)curl_getdate(nextarg, &now);
       if(-1 == config->condtime) {
         /* now let's see if it is a file name to get the time from instead! */
-        curl_off_t filetime = getfiletime(nextarg, global);
-        if(filetime >= 0) {
+        curl_off_t filetime;
+        rc = getfiletime(nextarg, global, &filetime);
+        if(!rc)
           /* pull the time out from the file */
           config->condtime = filetime;
-        }
         else {
           /* failed, remove time condition */
           config->timecond = CURL_TIMECOND_NONE;

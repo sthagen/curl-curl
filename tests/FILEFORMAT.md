@@ -101,8 +101,7 @@ like:
     Accept-Encoding: nothing
     %endif
 
-**Note** that there can be no nested conditions. You can only do one
-conditional at a time and you can only check for a single feature in it.
+Nested conditions are supported.
 
 # Variables
 
@@ -242,7 +241,7 @@ which test file to load the list content.
 
 ### `<dataNUM [crlf="yes"]>`
 
-Send back this contents instead of the <data> one. The `NUM` is set by:
+Send back this contents instead of the `<data>` one. The `NUM` is set by:
 
  - The test number in the request line is >10000 and this is the remainder
    of [test case number]%10000.
@@ -332,6 +331,7 @@ about to issue.
 
 - `auth_required` if this is set and a POST/PUT is made without auth, the
   server will NOT wait for the full request body to get sent
+- `delay: [msecs]` - delay this amount after connection
 - `idle` - do nothing after receiving the request, just "sit idle"
 - `stream` - continuously send data to the client, never-ending
 - `writedelay: [msecs]` delay this amount between reply packets
@@ -428,6 +428,7 @@ Features testable here are:
 - `ipv6`
 - `Kerberos`
 - `large_file`
+- `large-time` (time_t is larger than 32 bit)
 - `ld_preload`
 - `libssh2`
 - `libssh`
@@ -642,7 +643,7 @@ compared with what is stored in the test file. This is pretty
 advanced. Example: "s/^EPRT .*/EPRT stripped/"
 
 ### `<stripfile1>`
-1 to 4 can be appended to `stripfile` to strip the corresponding <fileN>
+1 to 4 can be appended to `stripfile` to strip the corresponding `<fileN>`
 content
 
 ### `<stripfile2>`

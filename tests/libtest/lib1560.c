@@ -151,6 +151,8 @@ struct clearurlcase {
 };
 
 static const struct testcase get_parts_list[] ={
+  {"", "", 0, 0, CURLUE_MALFORMED_INPUT},
+  {" ", "", 0, 0, CURLUE_MALFORMED_INPUT},
   {"1h://example.net", "", 0, 0, CURLUE_BAD_SCHEME},
   {"..://example.net", "", 0, 0, CURLUE_BAD_SCHEME},
   {"-ht://example.net", "", 0, 0, CURLUE_BAD_SCHEME},
@@ -179,6 +181,9 @@ static const struct testcase get_parts_list[] ={
   {"https://räksmörgås.se",
    "https | [11] | [12] | [13] | xn--rksmrgs-5wao1o.se | "
    "[15] | / | [16] | [17]", 0, CURLU_PUNYCODE, CURLUE_OK},
+  {"https://xn--rksmrgs-5wao1o.se",
+   "https | [11] | [12] | [13] | räksmörgås.se | "
+   "[15] | / | [16] | [17]", 0, CURLU_PUNY2IDN, CURLUE_OK},
 #else
   {"https://räksmörgås.se",
    "https | [11] | [12] | [13] | [30] | [15] | / | [16] | [17]",

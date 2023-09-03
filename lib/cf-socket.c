@@ -390,6 +390,7 @@ void Curl_sndbufset(curl_socket_t sockfd)
 }
 #endif
 
+#ifndef CURL_DISABLE_BINDLOCAL
 static CURLcode bindlocal(struct Curl_easy *data, struct connectdata *conn,
                           curl_socket_t sockfd, int af, unsigned int scope)
 {
@@ -628,7 +629,7 @@ static CURLcode bindlocal(struct Curl_easy *data, struct connectdata *conn,
       if(port == 0)
         break;
       infof(data, "Bind to local port %d failed, trying next", port - 1);
-      /* We re-use/clobber the port variable here below */
+      /* We reuse/clobber the port variable here below */
       if(sock->sa_family == AF_INET)
         si4->sin_port = ntohs(port);
 #ifdef ENABLE_IPV6
@@ -648,6 +649,7 @@ static CURLcode bindlocal(struct Curl_easy *data, struct connectdata *conn,
 
   return CURLE_INTERFACE_FAILED;
 }
+#endif
 
 /*
  * verifyconnect() returns TRUE if the connect really has happened.
@@ -722,8 +724,6 @@ static bool verifyconnect(curl_socket_t sockfd, int *error)
 static CURLcode socket_connect_result(struct Curl_easy *data,
                                       const char *ipaddress, int error)
 {
-  char buffer[STRERROR_LEN];
-
   switch(error) {
   case EINPROGRESS:
   case EWOULDBLOCK:
@@ -740,8 +740,15 @@ static CURLcode socket_connect_result(struct Curl_easy *data,
 
   default:
     /* unknown error, fallthrough and try another address! */
-    infof(data, "Immediate connect fail for %s: %s",
-          ipaddress, Curl_strerror(error, buffer, sizeof(buffer)));
+#ifdef CURL_DISABLE_VERBOSE_STRINGS
+    (void)ipaddress;
+#else
+    {
+      char buffer[STRERROR_LEN];
+      infof(data, "Immediate connect fail for %s: %s",
+            ipaddress, Curl_strerror(error, buffer, sizeof(buffer)));
+    }
+#endif
     data->state.os_errno = error;
     /* connect failed */
     return CURLE_COULDNT_CONNECT;
@@ -952,7 +959,6 @@ static CURLcode cf_socket_open(struct Curl_cfilter *cf,
   bool isconnected = FALSE;
   CURLcode result = CURLE_COULDNT_CONNECT;
   bool is_tcp;
-  const char *ipmsg;
 
   (void)data;
   DEBUGASSERT(ctx->sock == CURL_SOCKET_BAD);
@@ -965,15 +971,20 @@ static CURLcode cf_socket_open(struct Curl_cfilter *cf,
   if(result)
     goto out;
 
+#ifndef CURL_DISABLE_VERBOSE_STRINGS
+  {
+    const char *ipmsg;
 #ifdef ENABLE_IPV6
-  if(ctx->addr.family == AF_INET6) {
-    set_ipv6_v6only(ctx->sock, 0);
-    ipmsg = "  Trying [%s]:%d...";
-  }
-  else
+    if(ctx->addr.family == AF_INET6) {
+      set_ipv6_v6only(ctx->sock, 0);
+      ipmsg = "  Trying [%s]:%d...";
+    }
+    else
 #endif
-    ipmsg = "  Trying %s:%d...";
-  infof(data, ipmsg, ctx->r_ip, ctx->r_port);
+      ipmsg = "  Trying %s:%d...";
+    infof(data, ipmsg, ctx->r_ip, ctx->r_port);
+  }
+#endif
 
 #ifdef ENABLE_IPV6
   is_tcp = (ctx->addr.family == AF_INET
@@ -1009,6 +1020,7 @@ static CURLcode cf_socket_open(struct Curl_cfilter *cf,
     }
   }
 
+#ifndef CURL_DISABLE_BINDLOCAL
   /* possibly bind the local end to an IP, interface or port */
   if(ctx->addr.family == AF_INET
 #ifdef ENABLE_IPV6
@@ -1026,6 +1038,7 @@ static CURLcode cf_socket_open(struct Curl_cfilter *cf,
       goto out;
     }
   }
+#endif
 
   /* set socket non-blocking */
   (void)curlx_nonblock(ctx->sock, TRUE);
@@ -1917,4 +1930,3 @@ CURLcode Curl_cf_socket_peek(struct Curl_cfilter *cf,
   }
   return CURLE_FAILED_INIT;
 }
-

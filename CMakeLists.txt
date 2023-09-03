@@ -391,20 +391,20 @@ if(WIN32)
 endif()
 
 # check SSL libraries
-# TODO support GnuTLS
 option(CURL_ENABLE_SSL "Enable SSL support" ON)
 
 if(APPLE)
-  cmake_dependent_option(CURL_USE_SECTRANSP "enable Apple OS native SSL/TLS" OFF CURL_ENABLE_SSL OFF)
+  cmake_dependent_option(CURL_USE_SECTRANSP "Enable Apple OS native SSL/TLS" OFF CURL_ENABLE_SSL OFF)
 endif()
 if(WIN32)
-  cmake_dependent_option(CURL_USE_SCHANNEL "enable Windows native SSL/TLS" OFF CURL_ENABLE_SSL OFF)
+  cmake_dependent_option(CURL_USE_SCHANNEL "Enable Windows native SSL/TLS" OFF CURL_ENABLE_SSL OFF)
   cmake_dependent_option(CURL_WINDOWS_SSPI "Use windows libraries to allow NTLM authentication without OpenSSL" ON
     CURL_USE_SCHANNEL OFF)
 endif()
 cmake_dependent_option(CURL_USE_MBEDTLS "Enable mbedTLS for SSL/TLS" OFF CURL_ENABLE_SSL OFF)
 cmake_dependent_option(CURL_USE_BEARSSL "Enable BearSSL for SSL/TLS" OFF CURL_ENABLE_SSL OFF)
-cmake_dependent_option(CURL_USE_WOLFSSL "enable wolfSSL for SSL/TLS" OFF CURL_ENABLE_SSL OFF)
+cmake_dependent_option(CURL_USE_WOLFSSL "Enable wolfSSL for SSL/TLS" OFF CURL_ENABLE_SSL OFF)
+cmake_dependent_option(CURL_USE_GNUTLS "Enable GNUTLS for SSL/TLS" OFF CURL_ENABLE_SSL OFF)
 
 set(openssl_default ON)
 if(WIN32 OR CURL_USE_SECTRANSP OR CURL_USE_SCHANNEL OR CURL_USE_MBEDTLS OR CURL_USE_WOLFSSL)
@@ -511,6 +511,11 @@ if(CURL_USE_WOLFSSL)
   include_directories(${WolfSSL_INCLUDE_DIRS})
 endif()
 
+if(CURL_USE_GNUTLS)
+   set(SSL_ENABLED ON)
+   set(USE_GNUTLS ON)
+endif()
+
 # Keep ZLIB detection after TLS detection,
 # and before calling openssl_check_symbol_exists().
 
@@ -601,7 +606,7 @@ if(USE_OPENSSL OR USE_WOLFSSL)
   endif()
 endif()
 
-option(USE_NGHTTP2 "Use Nghttp2 library" OFF)
+option(USE_NGHTTP2 "Use nghttp2 library" OFF)
 if(USE_NGHTTP2)
   find_package(NGHTTP2 REQUIRED)
   include_directories(${NGHTTP2_INCLUDE_DIRS})
@@ -997,7 +1002,6 @@ if(NOT UNIX)
   check_include_file_concat("windows.h"      HAVE_WINDOWS_H)
   check_include_file_concat("ws2tcpip.h"     HAVE_WS2TCPIP_H)
   check_include_file_concat("winsock2.h"     HAVE_WINSOCK2_H)
-  check_include_file_concat("wincrypt.h"     HAVE_WINCRYPT_H)
 endif()
 
 check_include_file_concat("inttypes.h"       HAVE_INTTYPES_H)
@@ -1332,11 +1336,8 @@ if(WIN32)
   # Use the manifest embedded in the Windows Resource
   set(CMAKE_RC_FLAGS "${CMAKE_RC_FLAGS} -DCURL_EMBED_MANIFEST")
 
-  # Check if crypto functions in wincrypt.h are actually available
-  if(HAVE_WINCRYPT_H)
-    check_symbol_exists(CryptAcquireContext "windows.h;wincrypt.h" USE_WINCRYPT)
-  endif()
-  if(USE_WINCRYPT)
+  # We use crypto functions that are not available for UWP apps
+  if(NOT WINDOWS_STORE)
     set(USE_WIN32_CRYPTO ON)
   endif()
 
@@ -1448,7 +1449,7 @@ endmacro()
 # NTLM support requires crypto function adaptions from various SSL libs
 # TODO alternative SSL libs tests for SSP1, GNUTLS, NSS
 if(NOT (CURL_DISABLE_CRYPTO_AUTH OR CURL_DISABLE_NTLM) AND
-    (USE_OPENSSL OR USE_MBEDTLS OR USE_DARWINSSL OR USE_WIN32_CRYPTO))
+    (USE_OPENSSL OR USE_MBEDTLS OR USE_DARWINSSL OR USE_WIN32_CRYPTO OR USE_GNUTLS))
   set(use_curl_ntlm_core ON)
 endif()
 
@@ -1548,11 +1549,16 @@ _add_if("Secure Transport" SSL_ENABLED AND USE_SECTRANSP)
 _add_if("mbedTLS"          SSL_ENABLED AND USE_MBEDTLS)
 _add_if("BearSSL"          SSL_ENABLED AND USE_BEARSSL)
 _add_if("wolfSSL"          SSL_ENABLED AND USE_WOLFSSL)
+_add_if("GnuTLS"           SSL_ENABLED AND USE_GNUTLS)
+
 if(_items)
   list(SORT _items)
 endif()
 string(REPLACE ";" " " SSL_BACKENDS "${_items}")
 message(STATUS "Enabled SSL backends: ${SSL_BACKENDS}")
+if(CURL_DEFAULT_SSL_BACKEND)
+  message(STATUS "Default SSL backend: ${CURL_DEFAULT_SSL_BACKEND}")
+endif()
 
 # curl-config needs the following options to be set.
 set(CC                      "${CMAKE_C_COMPILER}")

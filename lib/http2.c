@@ -69,7 +69,7 @@
 #define H2_CHUNK_SIZE           (16 * 1024)
 /* this is how much we want "in flight" for a stream */
 #define H2_STREAM_WINDOW_SIZE   (10 * 1024 * 1024)
-/* on receving from TLS, we prep for holding a full stream window */
+/* on receiving from TLS, we prep for holding a full stream window */
 #define H2_NW_RECV_CHUNKS       (H2_STREAM_WINDOW_SIZE / H2_CHUNK_SIZE)
 /* on send into TLS, we just want to accumulate small frames */
 #define H2_NW_SEND_CHUNKS       1
@@ -1011,7 +1011,7 @@ static CURLcode on_stream_frame(struct Curl_cfilter *cf,
                         ctx->h2, stream->id);
       if(wsize > 0 && (uint32_t)wsize != stream->local_window_size) {
         /* H2 flow control is not absolute, as the server might not have the
-         * same view, yet. When we recieve more than we want, we enforce
+         * same view, yet. When we receive more than we want, we enforce
          * the local window size again to make nghttp2 send WINDOW_UPATEs
          * accordingly. */
         nghttp2_session_set_local_window_size(ctx->h2,
@@ -1814,10 +1814,10 @@ out:
 }
 
 static ssize_t stream_recv(struct Curl_cfilter *cf, struct Curl_easy *data,
+                           struct stream_ctx *stream,
                            char *buf, size_t len, CURLcode *err)
 {
   struct cf_h2_ctx *ctx = cf->ctx;
-  struct stream_ctx *stream = H2_STREAM_CTX(data);
   ssize_t nread = -1;
 
   *err = CURLE_AGAIN;
@@ -1937,7 +1937,7 @@ static ssize_t cf_h2_recv(struct Curl_cfilter *cf, struct Curl_easy *data,
 
   CF_DATA_SAVE(save, cf, data);
 
-  nread = stream_recv(cf, data, buf, len, err);
+  nread = stream_recv(cf, data, stream, buf, len, err);
   if(nread < 0 && *err != CURLE_AGAIN)
     goto out;
 
@@ -1946,7 +1946,7 @@ static ssize_t cf_h2_recv(struct Curl_cfilter *cf, struct Curl_easy *data,
     if(*err)
       goto out;
 
-    nread = stream_recv(cf, data, buf, len, err);
+    nread = stream_recv(cf, data, stream, buf, len, err);
   }
 
   if(nread > 0) {
@@ -2167,14 +2167,14 @@ static ssize_t cf_h2_send(struct Curl_cfilter *cf, struct Curl_easy *data,
       goto out;
     }
     else if(stream->upload_blocked_len) {
-      /* the data in `buf` has alread been submitted or added to the
+      /* the data in `buf` has already been submitted or added to the
        * buffers, but have been EAGAINed on the last invocation. */
       /* TODO: this assertion triggers in OSSFuzz runs and it is not
        * clear why. Disable for now to let OSSFuzz continue its tests.
       DEBUGASSERT(len >= stream->upload_blocked_len); */
       if(len < stream->upload_blocked_len) {
         /* Did we get called again with a smaller `len`? This should not
-         * happend. We are not prepared to handle that. */
+         * happen. We are not prepared to handle that. */
         failf(data, "HTTP/2 send again with decreased length");
         *err = CURLE_HTTP2;
         nwritten = -1;

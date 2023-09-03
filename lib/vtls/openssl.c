@@ -1884,6 +1884,9 @@ static void ossl_close(struct Curl_cfilter *cf, struct Curl_easy *data)
       (void)SSL_read(backend->handle, buf, (int)sizeof(buf));
 
       (void)SSL_shutdown(backend->handle);
+
+      ERR_clear_error();
+
       SSL_set_connect_state(backend->handle);
     }
 
@@ -3772,7 +3775,7 @@ static CURLcode ossl_connect_step1(struct Curl_cfilter *cf,
         return CURLE_SSL_CONNECT_ERROR;
       }
       /* Informational message */
-      infof(data, "SSL re-using session ID");
+      infof(data, "SSL reusing session ID");
     }
     Curl_ssl_sessionid_unlock(data);
   }

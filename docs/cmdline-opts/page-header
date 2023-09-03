@@ -51,15 +51,18 @@ in a sequential manner in the specified order unless you use --parallel. You
 can specify command line options and URLs mixed and in any order on the
 command line.
 
-curl attempts to re-use connections when doing multiple transfers, so that
+curl attempts to reuse connections when doing multiple transfers, so that
 getting many files from the same server do not use multiple connects and setup
-handshakes. This improves speed. Connection re-use can only be done for URLs
+handshakes. This improves speed. Connection reuse can only be done for URLs
 specified for a single command line invocation and cannot be performed between
 separate curl runs.
 
 Provide an IPv6 zone id in the URL with an escaped percentage sign. Like in
 
   "http://[fe80::3%25eth0]/"
+
+Everything provided on the command line that is not a command line option or
+its argument, curl assumes is a URL and treats it as such.
 .SH GLOBBING
 You can specify multiple URLs or parts of URLs by writing lists within braces
 or ranges within brackets. We call this "globbing".
@@ -230,7 +233,8 @@ The online version of this man page is always showing the latest incarnation:
 https://curl.se/docs/manpage.html
 .SH OPTIONS
 Options start with one or two dashes. Many of the options require an
-additional value next to them.
+additional value next to them. If provided text does not start with a dash, it
+is presumed to be and treated as a URL.
 
 The short "single-dash" form of the options, -d for example, may be used with
 or without a space between it and its value, although a space is a recommended

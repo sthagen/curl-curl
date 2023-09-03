@@ -793,6 +793,7 @@ sub checksystemfeatures {
     $feature{"wakeup"} = 1;
     $feature{"headers-api"} = 1;
     $feature{"xattr"} = 1;
+    $feature{"large-time"} = 1;
 
     # make each protocol an enabled "feature"
     for my $p (@protocols) {
@@ -2671,7 +2672,7 @@ sub displaylogcontent {
                     logmsg " $line\n";
                 }
                 $linecount++;
-                $truncate = $linecount > 1000;
+                $truncate = $linecount > 1200;
             }
         }
         close($single);

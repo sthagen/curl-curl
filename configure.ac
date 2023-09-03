@@ -657,12 +657,10 @@ case X-"$curl_cv_native_windows" in
   X-yes)
     CURL_CHECK_HEADER_WINSOCK2
     CURL_CHECK_HEADER_WS2TCPIP
-    CURL_CHECK_HEADER_WINCRYPT
     ;;
   *)
     curl_cv_header_winsock2_h="no"
     curl_cv_header_ws2tcpip_h="no"
-    curl_cv_header_wincrypt_h="no"
     ;;
 esac
 CURL_CHECK_WIN32_LARGEFILE
@@ -1353,9 +1351,14 @@ else
     CURL_CHECK_PKGCONFIG(zlib)
 
     if test "$PKGCONFIG" != "no" ; then
-      LIBS="`$PKGCONFIG --libs-only-l zlib` $LIBS"
-      LDFLAGS="$LDFLAGS `$PKGCONFIG --libs-only-L zlib`"
-      CPPFLAGS="$CPPFLAGS `$PKGCONFIG --cflags-only-I zlib`"
+      ZLIB_LIBS="`$PKGCONFIG --libs-only-l zlib`"
+      if test -n "$ZLIB_LIBS"; then
+        LDFLAGS="$LDFLAGS `$PKGCONFIG --libs-only-L zlib`"
+      else
+        ZLIB_LIBS="`$PKGCONFIG --libs zlib`"
+      fi
+      LIBS="$ZLIB_LIBS $LIBS"
+      CPPFLAGS="$CPPFLAGS `$PKGCONFIG --cflags zlib`"
       OPT_ZLIB=""
       HAVE_LIBZ="1"
     fi
@@ -1368,7 +1371,8 @@ else
       AC_CHECK_LIB(z, inflateEnd,
                    dnl libz found, set the variable
                    [HAVE_LIBZ="1"
-                    LIBS="-lz $LIBS"],
+                    ZLIB_LIBS="-lz"
+                    LIBS="$ZLIB_LIBS $LIBS"],
                    dnl if no lib found, try /usr/local
                    [OPT_ZLIB="/usr/local"])
     fi
@@ -1390,7 +1394,8 @@ else
                    [
                    dnl the lib was found!
                    HAVE_LIBZ="1"
-                   LIBS="-lz $LIBS"
+                   ZLIB_LIBS="-lz"
+                   LIBS="$ZLIB_LIBS $LIBS"
                    ],
                    [ CPPFLAGS=$clean_CPPFLAGS
                    LDFLAGS=$clean_LDFLAGS])
@@ -1409,20 +1414,20 @@ else
     CPPFLAGS=$clean_CPPFLAGS
     LDFLAGS=$clean_LDFLAGS
     LIBS=$clean_LIBS
+    ZLIB_LIBS=""
   elif test "$HAVE_LIBZ" != "1" && test "$HAVE_ZLIB_H" = "1"
   then
     AC_MSG_WARN([configure found only the libz header file, not the lib!])
     CPPFLAGS=$clean_CPPFLAGS
     LDFLAGS=$clean_LDFLAGS
     LIBS=$clean_LIBS
+    ZLIB_LIBS=""
   elif test "$HAVE_LIBZ" = "1" && test "$HAVE_ZLIB_H" = "1"
   then
     dnl both header and lib were found!
     AC_SUBST(HAVE_LIBZ)
     AC_DEFINE(HAVE_LIBZ, 1, [if zlib is available])
-
-    ZLIB_LIBS="-lz"
-    LIBS="-lz $clean_LIBS"
+    LIBS="$ZLIB_LIBS $clean_LIBS"
 
     dnl replace 'HAVE_LIBZ' in the automake makefile.ams
     AMFIXLIB="1"
@@ -4119,6 +4124,24 @@ AS_HELP_STRING([--disable-mime],[Disable mime API support]),
   no)
        AC_MSG_RESULT(no)
        AC_DEFINE(CURL_DISABLE_MIME, 1, [disable mime API])
+       ;;
+  *)   AC_MSG_RESULT(yes)
+       ;;
+  esac ],
+       AC_MSG_RESULT(yes)
+)
+
+dnl ************************************************************
+dnl disable bindlocal
+dnl
+AC_MSG_CHECKING([whether to support binding connections locally])
+AC_ARG_ENABLE(bindlocal,
+AS_HELP_STRING([--enable-bindlocal],[Enable local binding support])
+AS_HELP_STRING([--disable-bindlocal],[Disable local binding support]),
+[ case "$enableval" in
+  no)
+       AC_MSG_RESULT(no)
+       AC_DEFINE(CURL_DISABLE_BINDLOCAL, 1, [disable local binding support])
        ;;
   *)   AC_MSG_RESULT(yes)
        ;;

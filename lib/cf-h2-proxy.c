@@ -244,12 +244,17 @@ static ssize_t proxy_nw_in_reader(void *reader_ctx,
                                   CURLcode *err)
 {
   struct Curl_cfilter *cf = reader_ctx;
-  struct Curl_easy *data = CF_DATA_CURRENT(cf);
   ssize_t nread;
 
-  nread = Curl_conn_cf_recv(cf->next, data, (char *)buf, buflen, err);
-  CURL_TRC_CF(data, cf, "nw_in_reader(len=%zu) -> %zd, %d",
-              buflen, nread, *err);
+  if(cf) {
+    struct Curl_easy *data = CF_DATA_CURRENT(cf);
+    nread = Curl_conn_cf_recv(cf->next, data, (char *)buf, buflen, err);
+    CURL_TRC_CF(data, cf, "nw_in_reader(len=%zu) -> %zd, %d",
+                buflen, nread, *err);
+  }
+  else {
+    nread = 0;
+  }
   return nread;
 }
 
@@ -258,12 +263,18 @@ static ssize_t proxy_h2_nw_out_writer(void *writer_ctx,
                                       CURLcode *err)
 {
   struct Curl_cfilter *cf = writer_ctx;
-  struct Curl_easy *data = CF_DATA_CURRENT(cf);
   ssize_t nwritten;
 
-  nwritten = Curl_conn_cf_send(cf->next, data, (const char *)buf, buflen, err);
-  CURL_TRC_CF(data, cf, "nw_out_writer(len=%zu) -> %zd, %d",
-              buflen, nwritten, *err);
+  if(cf) {
+    struct Curl_easy *data = CF_DATA_CURRENT(cf);
+    nwritten = Curl_conn_cf_send(cf->next, data, (const char *)buf, buflen,
+                                 err);
+    CURL_TRC_CF(data, cf, "nw_out_writer(len=%zu) -> %zd, %d",
+                buflen, nwritten, *err);
+  }
+  else {
+    nwritten = 0;
+  }
   return nwritten;
 }
 
@@ -1271,12 +1282,12 @@ static ssize_t cf_h2_proxy_send(struct Curl_cfilter *cf,
     goto out;
   }
   else if(ctx->tunnel.upload_blocked_len) {
-    /* the data in `buf` has alread been submitted or added to the
+    /* the data in `buf` has already been submitted or added to the
      * buffers, but have been EAGAINed on the last invocation. */
     DEBUGASSERT(len >= ctx->tunnel.upload_blocked_len);
     if(len < ctx->tunnel.upload_blocked_len) {
       /* Did we get called again with a smaller `len`? This should not
-       * happend. We are not prepared to handle that. */
+       * happen. We are not prepared to handle that. */
       failf(data, "HTTP/2 proxy, send again with decreased length");
       *err = CURLE_HTTP2;
       nwritten = -1;

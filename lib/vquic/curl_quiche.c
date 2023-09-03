@@ -56,7 +56,7 @@
 /* #define DEBUG_QUICHE */
 
 #define QUIC_MAX_STREAMS              (100)
-#define QUIC_IDLE_TIMEOUT        (5 * 1000) /* milliseconds */
+#define QUIC_IDLE_TIMEOUT        (60 * 1000) /* milliseconds */
 
 #define H3_STREAM_WINDOW_SIZE  (128 * 1024)
 #define H3_STREAM_CHUNK_SIZE    (16 * 1024)
@@ -747,9 +747,19 @@ static CURLcode cf_flush_egress(struct Curl_cfilter *cf,
   struct cf_quiche_ctx *ctx = cf->ctx;
   ssize_t nread;
   CURLcode result;
+  int64_t expiry_ns;
   int64_t timeout_ns;
   struct read_ctx readx;
   size_t pkt_count, gsolen;
+
+  expiry_ns = quiche_conn_timeout_as_nanos(ctx->qconn);
+  if(!expiry_ns) {
+    quiche_conn_on_timeout(ctx->qconn);
+    if(quiche_conn_is_closed(ctx->qconn)) {
+      failf(data, "quiche_conn_on_timeout closed the connection");
+      return CURLE_SEND_ERROR;
+    }
+  }
 
   result = vquic_flush(cf, data, &ctx->q);
   if(result) {
