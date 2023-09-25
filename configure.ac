@@ -3583,9 +3583,13 @@ AC_CHECK_DECLS([getpwuid_r], [], [AC_DEFINE(HAVE_DECL_GETPWUID_R_MISSING, 1, "Se
           #include <sys/types.h>]])
 
 
-AC_CHECK_FUNCS([fnmatch \
+AC_CHECK_FUNCS([\
+  _fseeki64 \
+  arc4random \
   fchmod \
+  fnmatch \
   fork \
+  fseeko \
   geteuid \
   getpass_r \
   getppid \
@@ -3604,7 +3608,6 @@ AC_CHECK_FUNCS([fnmatch \
   snprintf \
   utime \
   utimes \
-  arc4random
 ],[
 ],[
   func="$ac_func"

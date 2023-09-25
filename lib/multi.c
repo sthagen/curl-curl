@@ -3783,41 +3783,26 @@ bool Curl_is_in_callback(struct Curl_easy *easy)
           (easy->multi_easy && easy->multi_easy->in_callback));
 }
 
-#ifdef DEBUGBUILD
-void Curl_multi_dump(struct Curl_multi *multi)
-{
-  struct Curl_easy *data;
-  int i;
-  fprintf(stderr, "* Multi status: %d handles, %d alive\n",
-          multi->num_easy, multi->num_alive);
-  for(data = multi->easyp; data; data = data->next) {
-    if(data->mstate < MSTATE_COMPLETED) {
-      /* only display handles that are not completed */
-      fprintf(stderr, "handle %p, state %s, %d sockets\n",
-              (void *)data,
-              multi_statename[data->mstate], data->numsocks);
-      for(i = 0; i < data->numsocks; i++) {
-        curl_socket_t s = data->sockets[i];
-        struct Curl_sh_entry *entry = sh_getentry(&multi->sockhash, s);
-
-        fprintf(stderr, "%d ", (int)s);
-        if(!entry) {
-          fprintf(stderr, "INTERNAL CONFUSION\n");
-          continue;
-        }
-        fprintf(stderr, "[%s %s] ",
-                (entry->action&CURL_POLL_IN)?"RECVING":"",
-                (entry->action&CURL_POLL_OUT)?"SENDING":"");
-      }
-      if(data->numsocks)
-        fprintf(stderr, "\n");
-    }
-  }
-}
-#endif
-
 unsigned int Curl_multi_max_concurrent_streams(struct Curl_multi *multi)
 {
   DEBUGASSERT(multi);
   return multi->max_concurrent_streams;
+}
+
+struct Curl_easy **curl_multi_get_handles(struct Curl_multi *multi)
+{
+  struct Curl_easy **a = malloc(sizeof(struct Curl_easy *) *
+                                (multi->num_easy + 1));
+  if(a) {
+    int i = 0;
+    struct Curl_easy *e = multi->easyp;
+    while(e) {
+      DEBUGASSERT(i < multi->num_easy);
+      if(!e->internal)
+        a[i++] = e;
+      e = e->next;
+    }
+    a[i] = NULL; /* last entry is a NULL */
+  }
+  return a;
 }
