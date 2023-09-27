@@ -430,9 +430,6 @@
 /* fsetxattr() takes 6 args */
 #cmakedefine HAVE_FSETXATTR_6 1
 
-/* Define to 1 if you have the <setjmp.h> header file. */
-#cmakedefine HAVE_SETJMP_H 1
-
 /* Define to 1 if you have the `setlocale' function. */
 #cmakedefine HAVE_SETLOCALE 1
 
@@ -453,9 +450,6 @@
 
 /* Define to 1 if you have the signal function. */
 #cmakedefine HAVE_SIGNAL 1
-
-/* Define to 1 if you have the <signal.h> header file. */
-#cmakedefine HAVE_SIGNAL_H 1
 
 /* Define to 1 if you have the sigsetjmp function or macro. */
 #cmakedefine HAVE_SIGSETJMP 1
@@ -481,9 +475,6 @@
 /* Define to 1 if you have the <stdint.h> header file. */
 #cmakedefine HAVE_STDINT_H 1
 
-/* Define to 1 if you have the <stdlib.h> header file. */
-#cmakedefine HAVE_STDLIB_H 1
-
 /* Define to 1 if you have the strcasecmp function. */
 #cmakedefine HAVE_STRCASECMP 1
 
@@ -502,9 +493,6 @@
 /* Define to 1 if you have the <strings.h> header file. */
 #cmakedefine HAVE_STRINGS_H 1
 
-/* Define to 1 if you have the <string.h> header file. */
-#cmakedefine HAVE_STRING_H 1
-
 /* Define to 1 if you have the <stropts.h> header file. */
 #cmakedefine HAVE_STROPTS_H 1
 
@@ -513,6 +501,9 @@
 
 /* Define to 1 if you have the strtoll function. */
 #cmakedefine HAVE_STRTOLL 1
+
+/* Define to 1 if you have the memrchr function. */
+#cmakedefine HAVE_MEMRCHR 1
 
 /* if struct sockaddr_storage is defined */
 #cmakedefine HAVE_STRUCT_SOCKADDR_STORAGE 1
@@ -564,9 +555,6 @@
 
 /* Define to 1 if you have the <termio.h> header file. */
 #cmakedefine HAVE_TERMIO_H 1
-
-/* Define to 1 if you have the <time.h> header file. */
-#cmakedefine HAVE_TIME_H 1
 
 /* Define to 1 if you have the <unistd.h> header file. */
 #cmakedefine HAVE_UNISTD_H 1

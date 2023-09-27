@@ -61,10 +61,16 @@ if(WIN32)
   list(APPEND CURL_CFILES curl.rc)
 endif()
 
-# CURL_CFILES, CURLX_CFILES, CURL_HFILES come from Makefile.inc
+# CURL_CFILES, CURLX_CFILES, CURL_HFILES, CURLTOOL_LIBCURL_CFILES
+# come from Makefile.inc
 if(BUILD_STATIC_CURL)
-  set(CURLX_CFILES ../lib/dynbuf.c ../lib/base64.c)
+  set(CURLX_CFILES ${CURLTOOL_LIBCURL_CFILES})
 endif()
+
+# Compile this source separately to avoid having `stderr` overridden in this
+# file. Necessary for successfully initializing stderr in unity builds.
+# (Not necessary for the libcurltool target.)
+set_source_files_properties(tool_stderr.c PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
 
 add_executable(
   ${EXE_NAME}
@@ -80,9 +86,10 @@ add_library(
   curltool # special libcurltool library just for unittests
   STATIC
   EXCLUDE_FROM_ALL
-  ${CURL_CFILES} ${CURLX_CFILES} ${CURL_HFILES}
+  ${CURL_CFILES} ${CURLTOOL_LIBCURL_CFILES} ${CURL_HFILES}
 )
 target_compile_definitions(curltool PUBLIC UNITTESTS CURL_STATICLIB)
+target_link_libraries(curltool PRIVATE ${CURL_LIBS})
 
 if(CURL_HAS_LTO)
   set_target_properties(${EXE_NAME} PROPERTIES

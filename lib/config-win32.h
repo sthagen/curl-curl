@@ -66,16 +66,10 @@
 /* Define if you have the <netinet/in.h> header file. */
 /* #define HAVE_NETINET_IN_H 1 */
 
-/* Define if you have the <signal.h> header file. */
-#define HAVE_SIGNAL_H 1
-
 /* Define to 1 if you have the <stdbool.h> header file. */
 #if (defined(_MSC_VER) && (_MSC_VER >= 1800)) || defined(__MINGW32__)
 #define HAVE_STDBOOL_H 1
 #endif
-
-/* Define if you have the <stdlib.h> header file. */
-#define HAVE_STDLIB_H 1
 
 /* Define if you have the <sys/param.h> header file. */
 /* #define HAVE_SYS_PARAM_H 1 */
@@ -109,9 +103,6 @@
 /* Define if you have the <termios.h> header file. */
 /* #define HAVE_TERMIOS_H 1 */
 
-/* Define if you have the <time.h> header file. */
-#define HAVE_TIME_H 1
-
 /* Define if you have the <unistd.h> header file. */
 #if defined(__MINGW32__) || defined(__LCC__) || defined(__POCC__)
 #define HAVE_UNISTD_H 1
@@ -129,12 +120,6 @@
 #ifndef __SALFORDC__
 #define HAVE_WS2TCPIP_H 1
 #endif
-
-/* Define to 1 if you have the <setjmp.h> header file. */
-#define HAVE_SETJMP_H 1
-
-/* Define to 1 if you have the <string.h> header file. */
-#define HAVE_STRING_H 1
 
 /* Define to 1 if you have the <libgen.h> header file. */
 #if defined(__MINGW32__)
@@ -562,6 +547,10 @@ Vista
 #  ifndef _FILE_OFFSET_BITS
 #  define _FILE_OFFSET_BITS 64
 #  endif
+#endif
+
+#ifdef USE_WIN32_LARGE_FILES
+#define HAVE__FSEEKI64
 #endif
 
 /* Define to the size of `off_t', as computed by sizeof. */
