@@ -1071,6 +1071,7 @@ check_type_size("long"  SIZEOF_LONG)
 check_type_size("int"  SIZEOF_INT)
 check_type_size("__int64"  SIZEOF___INT64)
 check_type_size("time_t"  SIZEOF_TIME_T)
+check_type_size("suseconds_t"  SIZEOF_SUSECONDS_T)
 if(NOT HAVE_SIZEOF_SSIZE_T)
   if(SIZEOF_LONG EQUAL SIZEOF_SIZE_T)
     set(ssize_t long)
@@ -1081,8 +1082,11 @@ if(NOT HAVE_SIZEOF_SSIZE_T)
 endif()
 # off_t is sized later, after the HAVE_FILE_OFFSET_BITS test
 
-if(HAVE_SIZEOF_LONG_LONG)
+if(SIZEOF_LONG_LONG)
   set(HAVE_LONGLONG 1)
+endif()
+if(SIZEOF_SUSECONDS_T)
+  set(HAVE_SUSECONDS_T 1)
 endif()
 
 if(NOT CMAKE_CROSSCOMPILING)
@@ -1098,8 +1102,10 @@ elseif(HAVE_LIBSOCKET)
 endif()
 
 check_symbol_exists(fchmod        "${CURL_INCLUDES}" HAVE_FCHMOD)
+check_symbol_exists(fnmatch       "${CURL_INCLUDES};fnmatch.h" HAVE_FNMATCH)
 check_symbol_exists(basename      "${CURL_INCLUDES};string.h" HAVE_BASENAME)
 check_symbol_exists(socket        "${CURL_INCLUDES}" HAVE_SOCKET)
+check_symbol_exists(sched_yield   "${CURL_INCLUDES};sched.h" HAVE_SCHED_YIELD)
 check_symbol_exists(socketpair    "${CURL_INCLUDES}" HAVE_SOCKETPAIR)
 check_symbol_exists(recv          "${CURL_INCLUDES}" HAVE_RECV)
 check_symbol_exists(send          "${CURL_INCLUDES}" HAVE_SEND)
@@ -1112,6 +1118,8 @@ check_symbol_exists(stricmp       "${CURL_INCLUDES};string.h" HAVE_STRICMP)
 check_symbol_exists(strcmpi       "${CURL_INCLUDES};string.h" HAVE_STRCMPI)
 check_symbol_exists(memrchr       "${CURL_INCLUDES};string.h" HAVE_MEMRCHR)
 check_symbol_exists(alarm         "${CURL_INCLUDES}" HAVE_ALARM)
+check_symbol_exists(arc4random    "${CURL_INCLUDES};stdlib.h" HAVE_ARC4RANDOM)
+check_symbol_exists(fcntl         "${CURL_INCLUDES}" HAVE_FCNTL)
 check_symbol_exists(getppid       "${CURL_INCLUDES}" HAVE_GETPPID)
 check_symbol_exists(utimes        "${CURL_INCLUDES}" HAVE_UTIMES)
 
@@ -1203,7 +1211,6 @@ foreach(CURL_TEST
     HAVE_IOCTL_FIONBIO
     HAVE_IOCTL_SIOCGIFADDR
     HAVE_SETSOCKOPT_SO_NONBLOCK
-    TIME_WITH_SYS_TIME
     HAVE_O_NONBLOCK
     HAVE_GETHOSTBYNAME_R_3
     HAVE_GETHOSTBYNAME_R_5
