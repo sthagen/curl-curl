@@ -1141,9 +1141,6 @@ check_symbol_exists(strerror_r     "${CURL_INCLUDES};stdlib.h;string.h" HAVE_STR
 check_symbol_exists(siginterrupt   "${CURL_INCLUDES}" HAVE_SIGINTERRUPT)
 check_symbol_exists(getaddrinfo    "${CURL_INCLUDES};stdlib.h;string.h" HAVE_GETADDRINFO)
 check_symbol_exists(getifaddrs     "${CURL_INCLUDES};stdlib.h" HAVE_GETIFADDRS)
-if(WIN32)
-  set(HAVE_GETADDRINFO_THREADSAFE ${HAVE_GETADDRINFO})
-endif()
 check_symbol_exists(freeaddrinfo   "${CURL_INCLUDES}" HAVE_FREEADDRINFO)
 check_symbol_exists(pipe           "${CURL_INCLUDES}" HAVE_PIPE)
 check_symbol_exists(ftruncate      "${CURL_INCLUDES}" HAVE_FTRUNCATE)
@@ -1253,6 +1250,18 @@ if(WIN32)
   endif()
   # avoid storing HAVE_WIN32_WINNT in CMake cache
   unset(HAVE_WIN32_WINNT CACHE)
+endif()
+
+if(NOT WIN32 AND NOT CMAKE_CROSSCOMPILING)
+  # on not-Windows and not-crosscompiling, check for writable argv[]
+  include(CheckCSourceRuns)
+  check_c_source_runs("
+    int main(int argc, char **argv)
+    {
+      (void)argc;
+      argv[0][0] = ' ';
+      return (argv[0][0] == ' ')?0:1;
+    }" HAVE_WRITABLE_ARGV)
 endif()
 
 set(CMAKE_REQUIRED_FLAGS)
