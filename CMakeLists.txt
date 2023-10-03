@@ -797,13 +797,18 @@ if(NOT CURL_DISABLE_LDAP)
       endif()
       list(APPEND _HEADER_LIST "ldap.h")
 
-      set(_SRC_STRING "")
+      set(_INCLUDE_STRING "")
       foreach(_HEADER ${_HEADER_LIST})
         set(_INCLUDE_STRING "${_INCLUDE_STRING}#include <${_HEADER}>\n")
       endforeach()
 
-      set(_SRC_STRING
-        "
+      list(APPEND CMAKE_REQUIRED_DEFINITIONS -DLDAP_DEPRECATED=1)
+      list(APPEND CMAKE_REQUIRED_LIBRARIES ${CMAKE_LDAP_LIB})
+      if(HAVE_LIBLBER)
+        list(APPEND CMAKE_REQUIRED_LIBRARIES ${CMAKE_LBER_LIB})
+      endif()
+
+      check_c_source_compiles("
         ${_INCLUDE_STRING}
         int main(int argc, char ** argv)
         {
@@ -811,20 +816,21 @@ if(NOT CURL_DISABLE_LDAP)
           BerElement *bep = ber_init(bvp);
           ber_free(bep, 1);
           return 0;
-        }"
-      )
-      list(APPEND CMAKE_REQUIRED_DEFINITIONS -DLDAP_DEPRECATED=1)
-      list(APPEND CMAKE_REQUIRED_LIBRARIES ${CMAKE_LDAP_LIB})
-      if(HAVE_LIBLBER)
-        list(APPEND CMAKE_REQUIRED_LIBRARIES ${CMAKE_LBER_LIB})
-      endif()
-      check_c_source_compiles("${_SRC_STRING}" NOT_NEED_LBER_H)
-      unset(CMAKE_REQUIRED_LIBRARIES)
-
+        }" NOT_NEED_LBER_H)
       if(NOT_NEED_LBER_H)
         set(NEED_LBER_H OFF)
       else()
         set(CURL_TEST_DEFINES "${CURL_TEST_DEFINES} -DNEED_LBER_H")
+      endif()
+
+      check_function_exists(ldap_url_parse HAVE_LDAP_URL_PARSE)
+
+      unset(CMAKE_REQUIRED_LIBRARIES)
+
+      check_include_file("ldap_ssl.h" HAVE_LDAP_SSL_H)
+
+      if(NOT CURL_DISABLE_LDAPS)
+        set(HAVE_LDAP_SSL ON)
       endif()
     endif()
   endif()
@@ -836,10 +842,6 @@ if(CURL_DISABLE_LDAP)
     message(STATUS "LDAP needs to be enabled to support LDAPS")
     set(CURL_DISABLE_LDAPS ON CACHE BOOL "" FORCE)
   endif()
-endif()
-
-if(NOT CURL_DISABLE_LDAPS)
-  check_include_file_concat("ldap_ssl.h" HAVE_LDAP_SSL_H)
 endif()
 
 # Check for idn2
@@ -1233,11 +1235,6 @@ if(NOT HAVE_SIGSETJMP)
   if(HAVE_MACRO_SIGSETJMP)
     set(HAVE_SIGSETJMP 1)
   endif()
-endif()
-
-# If there is no stricmp(), do not allow LDAP to parse URLs
-if(NOT HAVE_STRICMP)
-  set(HAVE_LDAP_URL_PARSE 1)
 endif()
 
 # Do curl specific tests
