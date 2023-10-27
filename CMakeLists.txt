@@ -54,7 +54,6 @@
 #   HAVE_GNUTLS_SRP: `gnutls_srp_verifier` present in GnuTLS
 #   HAVE_SSL_CTX_SET_QUIC_METHOD: `SSL_CTX_set_quic_method` present in OpenSSL/wolfSSL
 #   HAVE_QUICHE_CONN_SET_QLOG_FD: `quiche_conn_set_qlog_fd` present in QUICHE
-#   HAVE_ZSTD_CREATEDSTREAM: `ZSTD_createDStream` present in Zstd
 #
 # For each of the above variables, if the variable is DEFINED (either
 # to ON or OFF), the symbol detection will be skipped.  If the
@@ -370,14 +369,14 @@ if(WIN32)
 endif()
 
 if(ENABLE_THREADED_RESOLVER)
-  find_package(Threads REQUIRED)
   if(WIN32)
     set(USE_THREADS_WIN32 ON)
   else()
+    find_package(Threads REQUIRED)
     set(USE_THREADS_POSIX ${CMAKE_USE_PTHREADS_INIT})
     set(HAVE_PTHREAD_H ${CMAKE_USE_PTHREADS_INIT})
+    set(CURL_LIBS ${CURL_LIBS} ${CMAKE_THREAD_LIBS_INIT})
   endif()
-  set(CURL_LIBS ${CURL_LIBS} ${CMAKE_THREAD_LIBS_INIT})
 endif()
 
 # Check for all needed libraries
@@ -610,17 +609,12 @@ option(CURL_ZSTD "Set to ON to enable building curl with zstd support." OFF)
 set(HAVE_ZSTD OFF)
 if(CURL_ZSTD)
   find_package(Zstd REQUIRED)
-  if(NOT DEFINED HAVE_ZSTD_CREATEDSTREAM)
-    cmake_push_check_state()
-    set(CMAKE_REQUIRED_INCLUDES ${Zstd_INCLUDE_DIRS})
-    set(CMAKE_REQUIRED_LIBRARIES ${Zstd_LIBRARIES})
-    check_symbol_exists(ZSTD_createDStream "zstd.h" HAVE_ZSTD_CREATEDSTREAM)
-    cmake_pop_check_state()
-  endif()
-  if(Zstd_FOUND AND HAVE_ZSTD_CREATEDSTREAM)
+  if(Zstd_FOUND AND NOT Zstd_VERSION VERSION_LESS "1.0.0")
     set(HAVE_ZSTD ON)
     list(APPEND CURL_LIBS ${Zstd_LIBRARIES})
     include_directories(${Zstd_INCLUDE_DIRS})
+  else()
+    message(WARNING "zstd v1.0.0 or newer is required, disabling zstd support.")
   endif()
 endif()
 
@@ -1303,8 +1297,6 @@ foreach(CURL_TEST
     HAVE_BOOL_T
     STDC_HEADERS
     HAVE_FILE_OFFSET_BITS
-    HAVE_VARIADIC_MACROS_C99
-    HAVE_VARIADIC_MACROS_GCC
     HAVE_ATOMIC
     )
   curl_internal_test(${CURL_TEST})
