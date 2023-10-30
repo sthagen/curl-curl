@@ -76,7 +76,9 @@ check_PROGRAMS = \
   imap-ssl \
   imap-store \
   imap-tls \
+  interface \
   ipv6 \
+  localport \
   maxconnects  \
   multi-app \
   multi-debugcallback \
