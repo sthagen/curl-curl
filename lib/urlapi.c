@@ -1902,7 +1902,7 @@ CURLUcode curl_url_set(CURLU *u, CURLUPart what,
     }
     newp = Curl_dyn_ptr(&enc);
 
-    if(appendquery) {
+    if(appendquery && newp) {
       /* Append the 'newp' string onto the old query. Add a '&' separator if
          none is present at the end of the existing query already */
 
@@ -1931,8 +1931,8 @@ nomem:
       }
     }
 
-    if(what == CURLUPART_HOST) {
-      size_t n = strlen(newp);
+    else if(what == CURLUPART_HOST) {
+      size_t n = Curl_dyn_len(&enc);
       if(!n && (flags & CURLU_NO_AUTHORITY)) {
         /* Skip hostname check, it's allowed to be empty. */
       }
