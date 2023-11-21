@@ -672,16 +672,8 @@ struct SingleRequest {
                                      counter to make only a 100 reply (without
                                      a following second response code) result
                                      in a CURLE_GOT_NOTHING error code */
-  enum {
-    HEADER_NORMAL,              /* no bad header at all */
-    HEADER_PARTHEADER,          /* part of the chunk is a bad header, the rest
-                                   is normal data */
-    HEADER_ALLBAD               /* all was believed to be header */
-  } badheader;                  /* the header was deemed bad and will be
-                                   written as body */
   int headerline;               /* counts header lines to better track the
                                    first one */
-  char *str;                    /* within buf */
   curl_off_t offset;            /* possible resume offset read from the
                                    Content-Range: header */
   int httpcode;                 /* error code from the 'HTTP/1.? XXX' or
@@ -733,12 +725,16 @@ struct SingleRequest {
   struct curltime last_sndbuf_update;  /* last time readwrite_upload called
                                           win_update_buffer_size */
 #endif
+  char fread_eof[2]; /* the body read callback (index 0) returned EOF or
+                        the trailer read callback (index 1) returned EOF */
 #ifndef CURL_DISABLE_COOKIES
   unsigned char setcookies;
 #endif
   unsigned char writer_stack_depth; /* Unencoding stack depth. */
   BIT(header);        /* incoming data has HTTP header */
+  BIT(badheader);     /* header parsing found sth not a header */
   BIT(content_range); /* set TRUE if Content-Range: was found */
+  BIT(download_done); /* set to TRUE when download is complete */
   BIT(upload_done);   /* set to TRUE when doing chunked transfer-encoding
                          upload and we're uploading the last chunk */
   BIT(ignorebody);    /* we read a response-body but we ignore it! */
@@ -822,7 +818,8 @@ struct Curl_handler {
   /* If used, this function gets called from transfer.c:readwrite_data() to
      allow the protocol to do extra reads/writes */
   CURLcode (*readwrite)(struct Curl_easy *data, struct connectdata *conn,
-                        ssize_t *nread, bool *readmore);
+                        const char *buf, size_t blen,
+                        size_t *pconsumed, bool *readmore);
 
   /* This function can perform various checks on the connection. See
      CONNCHECK_* for more information about the checks that can be performed,
