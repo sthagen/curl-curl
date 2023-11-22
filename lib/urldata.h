@@ -721,7 +721,7 @@ struct SingleRequest {
 #ifndef CURL_DISABLE_DOH
   struct dohdata *doh; /* DoH specific data for this request */
 #endif
-#if defined(WIN32) && defined(USE_WINSOCK)
+#if defined(_WIN32) && defined(USE_WINSOCK)
   struct curltime last_sndbuf_update;  /* last time readwrite_upload called
                                           win_update_buffer_size */
 #endif
@@ -1394,7 +1394,7 @@ struct UrlState {
 
   /* a place to store the most recently set (S)FTP entrypath */
   char *most_recent_ftp_entrypath;
-#if !defined(WIN32) && !defined(MSDOS) && !defined(__EMX__)
+#if !defined(_WIN32) && !defined(MSDOS) && !defined(__EMX__)
 /* do FTP line-end conversions on most platforms */
 #define CURL_DO_LINEEND_CONV
   /* for FTP downloads: track CRLF sequences that span blocks */
@@ -1802,9 +1802,6 @@ struct UserDefined {
 #endif
   curl_prot_t allowed_protocols;
   curl_prot_t redir_protocols;
-#ifndef CURL_DISABLE_MIME
-  unsigned int mime_options;      /* Mime option flags. */
-#endif
 #ifndef CURL_DISABLE_RTSP
   void *rtp_out;     /* write RTP to this if non-NULL */
   /* Common RTSP header options */
@@ -1826,8 +1823,6 @@ struct UserDefined {
 
   int tcp_keepidle;     /* seconds in idle before sending keepalive probe */
   int tcp_keepintvl;    /* seconds between TCP keepalive probes */
-
-  size_t maxconnects;    /* Max idle connections in the connection cache */
 
   long expect_100_timeout; /* in milliseconds */
 #if defined(USE_HTTP2) || defined(USE_HTTP3)
@@ -1853,10 +1848,14 @@ struct UserDefined {
   BIT(mail_rcpt_allowfails); /* allow RCPT TO command to fail for some
                                 recipients */
 #endif
+  unsigned int maxconnects; /* Max idle connections in the connection cache */
   unsigned char use_ssl;   /* if AUTH TLS is to be attempted etc, for FTP or
                               IMAP or POP3 or others! (type: curl_usessl)*/
   unsigned char connect_only; /* make connection/request, then let
                                  application use the socket */
+#ifndef CURL_DISABLE_MIME
+  BIT(mime_formescape);
+#endif
   BIT(is_fread_set); /* has read callback been set to non-NULL? */
 #ifndef CURL_DISABLE_TFTP
   BIT(tftp_no_options); /* do not send TFTP options requests */
