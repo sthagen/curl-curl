@@ -31,6 +31,8 @@
 
 #include <limits.h>
 
+/* in 0.10.0 or later, ignore deprecated warnings */
+#define SSH_SUPPRESS_DEPRECATED
 #include <libssh/libssh.h>
 #include <libssh/sftp.h>
 
@@ -88,14 +90,6 @@
 #include "curl_printf.h"
 #include "curl_memory.h"
 #include "memdebug.h"
-
-/* in 0.10.0 or later, ignore deprecated warnings */
-#if defined(__GNUC__) &&                        \
-  (LIBSSH_VERSION_MINOR >= 10) ||               \
-  (LIBSSH_VERSION_MAJOR > 0)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
 
 /* A recent macro provided by libssh. Or make our own. */
 #ifndef SSH_STRING_FREE_CHAR
@@ -1370,7 +1364,7 @@ static CURLcode myssh_statemach_act(struct Curl_easy *data, bool *block)
       /* we want to use the _sending_ function even when the socket turns
          out readable as the underlying libssh sftp send function will deal
          with both accordingly */
-      conn->cselect_bits = CURL_CSELECT_OUT;
+      data->state.select_bits = CURL_CSELECT_OUT;
 
       /* since we don't really wait for anything at this point, we want the
          state machine to move on as soon as possible so we set a very short
@@ -1740,7 +1734,7 @@ static CURLcode myssh_statemach_act(struct Curl_easy *data, bool *block)
     /* we want to use the _receiving_ function even when the socket turns
        out writableable as the underlying libssh recv function will deal
        with both accordingly */
-    conn->cselect_bits = CURL_CSELECT_IN;
+    data->state.select_bits = CURL_CSELECT_IN;
 
     if(result) {
       /* this should never occur; the close state should be entered
@@ -1868,7 +1862,7 @@ static CURLcode myssh_statemach_act(struct Curl_easy *data, bool *block)
       /* we want to use the _sending_ function even when the socket turns
          out readable as the underlying libssh scp send function will deal
          with both accordingly */
-      conn->cselect_bits = CURL_CSELECT_OUT;
+      data->state.select_bits = CURL_CSELECT_OUT;
 
       state(data, SSH_STOP);
 
@@ -1908,7 +1902,7 @@ static CURLcode myssh_statemach_act(struct Curl_easy *data, bool *block)
         /* we want to use the _receiving_ function even when the socket turns
            out writableable as the underlying libssh recv function will deal
            with both accordingly */
-        conn->cselect_bits = CURL_CSELECT_IN;
+        data->state.select_bits = CURL_CSELECT_IN;
 
         state(data, SSH_STOP);
         break;
@@ -2956,11 +2950,5 @@ void Curl_ssh_version(char *buffer, size_t buflen)
 {
   (void)msnprintf(buffer, buflen, "libssh/%s", ssh_version(0));
 }
-
-#if defined(__GNUC__) &&                        \
-  (LIBSSH_VERSION_MINOR >= 10) ||               \
-  (LIBSSH_VERSION_MAJOR > 0)
-#pragma GCC diagnostic pop
-#endif
 
 #endif                          /* USE_LIBSSH */
