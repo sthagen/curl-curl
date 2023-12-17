@@ -29,20 +29,15 @@ set(_source_epilogue "#undef inline")
 
 macro(add_header_include check header)
   if(${check})
-    set(_source_epilogue "${_source_epilogue}\n#include <${header}>")
+    set(_source_epilogue "${_source_epilogue}
+      #include <${header}>")
   endif()
 endmacro()
 
-set(signature_call_conv)
-if(HAVE_WINDOWS_H)
-  set(_source_epilogue
-      "${_source_epilogue}\n#ifndef WIN32_LEAN_AND_MEAN\n#define WIN32_LEAN_AND_MEAN\n#endif")
-  add_header_include(HAVE_WINSOCK2_H "winsock2.h")
-  add_header_include(HAVE_WINDOWS_H "windows.h")
-  set(signature_call_conv "PASCAL")
-  if(WIN32)
-    set(CMAKE_REQUIRED_LIBRARIES "ws2_32")
-  endif()
+if(WIN32)
+  set(CMAKE_EXTRA_INCLUDE_FILES "winsock2.h")
+  set(CMAKE_REQUIRED_DEFINITIONS "-DWIN32_LEAN_AND_MEAN")
+  set(CMAKE_REQUIRED_LIBRARIES "ws2_32")
 else()
   add_header_include(HAVE_SYS_TYPES_H "sys/types.h")
   add_header_include(HAVE_SYS_SOCKET_H "sys/socket.h")
@@ -51,28 +46,28 @@ endif()
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 
 check_c_source_compiles("${_source_epilogue}
-  int main(void) {
+  int main(void)
+  {
     int flag = MSG_NOSIGNAL;
     (void)flag;
     return 0;
   }" HAVE_MSG_NOSIGNAL)
 
-if(NOT HAVE_WINDOWS_H)
+if(NOT WIN32)
   add_header_include(HAVE_SYS_TIME_H "sys/time.h")
 endif()
 check_c_source_compiles("${_source_epilogue}
-#include <time.h>
-int main(void) {
-  struct timeval ts;
-  ts.tv_sec  = 0;
-  ts.tv_usec = 0;
-  (void)ts;
-  return 0;
-}" HAVE_STRUCT_TIMEVAL)
+  #include <time.h>
+  int main(void)
+  {
+    struct timeval ts;
+    ts.tv_sec  = 0;
+    ts.tv_usec = 0;
+    (void)ts;
+    return 0;
+  }" HAVE_STRUCT_TIMEVAL)
 
-if(HAVE_WINDOWS_H)
-  set(CMAKE_EXTRA_INCLUDE_FILES "winsock2.h")
-else()
+if(NOT WIN32)
   set(CMAKE_EXTRA_INCLUDE_FILES)
   if(HAVE_SYS_SOCKET_H)
     set(CMAKE_EXTRA_INCLUDE_FILES "sys/socket.h")
@@ -87,7 +82,7 @@ endif()
 unset(CMAKE_TRY_COMPILE_TARGET_TYPE)
 
 if(NOT CMAKE_CROSSCOMPILING)
-  if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "iOS")
+  if(NOT APPLE)
     # only try this on non-apple platforms
 
     # if not cross-compilation...
@@ -109,28 +104,28 @@ if(NOT CMAKE_CROSSCOMPILING)
 
       int main(void)
       {
-          if(0 != poll(0, 0, 10)) {
-            return 1; /* fail */
+        if(0 != poll(0, 0, 10)) {
+          return 1; /* fail */
+        }
+        else {
+          /* detect the 10.12 poll() breakage */
+          struct timeval before, after;
+          int rc;
+          size_t us;
+
+          gettimeofday(&before, NULL);
+          rc = poll(NULL, 0, 500);
+          gettimeofday(&after, NULL);
+
+          us = (after.tv_sec - before.tv_sec) * 1000000 +
+            (after.tv_usec - before.tv_usec);
+
+          if(us < 400000) {
+            return 1;
           }
-          else {
-            /* detect the 10.12 poll() breakage */
-            struct timeval before, after;
-            int rc;
-            size_t us;
-
-            gettimeofday(&before, NULL);
-            rc = poll(NULL, 0, 500);
-            gettimeofday(&after, NULL);
-
-            us = (after.tv_sec - before.tv_sec) * 1000000 +
-              (after.tv_usec - before.tv_usec);
-
-            if(us < 400000) {
-              return 1;
-            }
-          }
-          return 0;
-    }" HAVE_POLL_FINE)
+        }
+        return 0;
+      }" HAVE_POLL_FINE)
   endif()
 endif()
 
@@ -140,8 +135,8 @@ if(WIN32)
   set(HAVE_GETADDRINFO_THREADSAFE ${HAVE_GETADDRINFO})
 elseif(NOT HAVE_GETADDRINFO)
   set(HAVE_GETADDRINFO_THREADSAFE FALSE)
-elseif(CMAKE_SYSTEM_NAME STREQUAL "AIX" OR
-       CMAKE_SYSTEM_NAME STREQUAL "Darwin" OR
+elseif(APPLE OR
+       CMAKE_SYSTEM_NAME STREQUAL "AIX" OR
        CMAKE_SYSTEM_NAME STREQUAL "FreeBSD" OR
        CMAKE_SYSTEM_NAME STREQUAL "HP-UX" OR
        CMAKE_SYSTEM_NAME STREQUAL "MidnightBSD" OR
