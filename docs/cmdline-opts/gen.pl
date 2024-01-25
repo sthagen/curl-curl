@@ -216,7 +216,7 @@ sub render {
                     push @desc, ".RS\n";
                     $tablemode = 1;
                 }
-                push @desc, ".IP \\fB$word\\fP\n";
+                push @desc, ".IP $word\n";
             }
             $header = 1;
             next;
@@ -727,10 +727,10 @@ sub listhelp {
 
 /*
  * DO NOT edit tool_listhelp.c manually.
- * This source file is generated with the following command:
-
-  cd \$srcroot/docs/cmdline-opts
-  ./gen.pl listhelp *.d > \$srcroot/src/tool_listhelp.c
+ * This source file is generated with the following command in an autotools
+ * build:
+ *
+ * "make listhelp"
  */
 
 const struct helptxt helptext[] = {

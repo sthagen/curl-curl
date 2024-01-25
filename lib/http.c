@@ -2192,7 +2192,7 @@ CURLcode Curl_http_host(struct Curl_easy *data, struct connectdata *conn)
     }
 #endif
 
-    if(strcmp("Host:", ptr)) {
+    if(!strcasecompare("Host:", ptr)) {
       aptr->host = aprintf("Host:%s\r\n", &ptr[5]);
       if(!aptr->host)
         return CURLE_OUT_OF_MEMORY;
@@ -2280,9 +2280,7 @@ CURLcode Curl_http_target(struct Curl_easy *data,
         return CURLE_OUT_OF_MEMORY;
       }
     }
-    /* Extract the URL to use in the request. Store in STRING_TEMP_URL for
-       clean-up reasons if the function returns before the free() further
-       down. */
+    /* Extract the URL to use in the request. */
     uc = curl_url_get(h, CURLUPART_URL, &url, CURLU_NO_DEFAULT_PORT);
     if(uc) {
       curl_url_cleanup(h);
@@ -2942,13 +2940,14 @@ CURLcode Curl_http_resume(struct Curl_easy *data,
         }
         /* when seekerr == CURL_SEEKFUNC_CANTSEEK (can't seek to offset) */
         do {
+          char scratch[4*1024];
           size_t readthisamountnow =
-            (data->state.resume_from - passed > data->set.buffer_size) ?
-            (size_t)data->set.buffer_size :
+            (data->state.resume_from - passed > (curl_off_t)sizeof(scratch)) ?
+            sizeof(scratch) :
             curlx_sotouz(data->state.resume_from - passed);
 
           size_t actuallyread =
-            data->state.fread_func(data->state.buffer, 1, readthisamountnow,
+            data->state.fread_func(scratch, 1, readthisamountnow,
                                    data->state.in);
 
           passed += actuallyread;
