@@ -177,12 +177,13 @@
  18.29 --retry and transfer timeouts
 
  19. Build
- 19.1 roffit
+ 19.1 avoid nroff
  19.2 Enable PIE and RELRO by default
  19.3 Do not use GNU libtool on OpenBSD
  19.4 Package curl for Windows in a signed installer
  19.5 make configure use --cache-file more and better
  19.6 build curl with Windows Unicode support
+ 19.7 use pkg-config to find libpsl
 
  20. Test suite
  20.1 SSL tunnel
@@ -1289,13 +1290,15 @@
  https://qa.mandriva.com/show_bug.cgi?id=22565
 
 
-
 19. Build
 
-19.1 roffit
+19.1 avoid nroff
 
- Consider extending 'roffit' to produce decent ASCII output, and use that
- instead of (g)nroff when building src/tool_hugehelp.c
+ With the switch to the markdown-like documentation format since curl 8.6.0,
+ it should (with a manageable amount of work) be possible to render an ASCII
+ version of the man page without involving nroff and thus remove that
+ dependency for building the hugehelp file, used to build in the man page into
+ the curl command line tool.
 
 19.2 Enable PIE and RELRO by default
 
@@ -1336,6 +1339,12 @@
  Unicode support, like ./configure --enable-windows-unicode
 
  See https://github.com/curl/curl/issues/7229
+
+19.7 use pkg-config to find libpsl
+
+ When enabled in configure, libpsl is not found and picked up using details
+ with pkg-config, thus sometimes missing out on platform specific adjustments.
+ This should be fixed.
 
 20. Test suite
 
