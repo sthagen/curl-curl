@@ -645,7 +645,7 @@ static CURLcode multi_done(struct Curl_easy *data,
                                                 after an error was detected */
                            bool premature)
 {
-  CURLcode result;
+  CURLcode result, r2;
   struct connectdata *conn = data->conn;
 
 #if defined(DEBUGBUILD) && !defined(CURL_DISABLE_VERBOSE_STRINGS)
@@ -695,6 +695,11 @@ static CURLcode multi_done(struct Curl_easy *data,
     if(!result && rc)
       result = CURLE_ABORTED_BY_CALLBACK;
   }
+
+  /* Make sure that transfer client writes are really done now. */
+  r2 = Curl_xfer_write_done(data, premature);
+  if(r2 && !result)
+    result = r2;
 
   /* Inform connection filters that this transfer is done */
   Curl_conn_ev_data_done(data, premature);
@@ -1812,7 +1817,9 @@ static CURLcode protocol_connect(struct Curl_easy *data,
  */
 static CURLcode readrewind(struct Curl_easy *data)
 {
+#if !defined(CURL_DISABLE_MIME) || !defined(CURL_DISABLE_FORM_API)
   curl_mimepart *mimepart = &data->set.mimepost;
+#endif
   DEBUGASSERT(data->conn);
 
   data->state.rewindbeforesend = FALSE; /* we rewind now */
@@ -1826,7 +1833,7 @@ static CURLcode readrewind(struct Curl_easy *data)
   /* We have sent away data. If not using CURLOPT_POSTFIELDS or
      CURLOPT_HTTPPOST, call app to rewind
   */
-#ifndef CURL_DISABLE_HTTP
+#if !defined(CURL_DISABLE_HTTP) && !defined(CURL_DISABLE_MIME)
   if(data->conn->handler->protocol & PROTO_FAMILY_HTTP) {
     if(data->state.mimepost)
       mimepart = data->state.mimepost;
@@ -1836,6 +1843,7 @@ static CURLcode readrewind(struct Curl_easy *data)
      (data->state.httpreq == HTTPREQ_GET) ||
      (data->state.httpreq == HTTPREQ_HEAD))
     ; /* no need to rewind */
+#if !defined(CURL_DISABLE_MIME) || !defined(CURL_DISABLE_FORM_API)
   else if(data->state.httpreq == HTTPREQ_POST_MIME ||
           data->state.httpreq == HTTPREQ_POST_FORM) {
     CURLcode result = Curl_mime_rewind(mimepart);
@@ -1844,6 +1852,7 @@ static CURLcode readrewind(struct Curl_easy *data)
       return result;
     }
   }
+#endif
   else {
     if(data->set.seek_func) {
       int err;
