@@ -310,7 +310,7 @@ static CURLcode rtsp_do(struct Curl_easy *data, bool *done)
   }
 
   if(rtspreq == RTSPREQ_RECEIVE) {
-    Curl_setup_transfer(data, FIRSTSOCKET, -1, TRUE, -1);
+    Curl_xfer_setup(data, FIRSTSOCKET, -1, TRUE, -1);
 
     return result;
   }
@@ -566,14 +566,15 @@ static CURLcode rtsp_do(struct Curl_easy *data, bool *done)
   }
 
   /* issue the request */
-  result = Curl_buffer_send(&req_buffer, data, data->req.p.http,
-                            &data->info.request_size, 0, FIRSTSOCKET);
+  result = Curl_req_send_hds(data, Curl_dyn_ptr(&req_buffer),
+                             Curl_dyn_len(&req_buffer));
+  Curl_dyn_free(&req_buffer);
   if(result) {
     failf(data, "Failed sending RTSP request");
     return result;
   }
 
-  Curl_setup_transfer(data, FIRSTSOCKET, -1, TRUE, putsize?FIRSTSOCKET:-1);
+  Curl_xfer_setup(data, FIRSTSOCKET, -1, TRUE, putsize?FIRSTSOCKET:-1);
 
   /* Increment the CSeq on success */
   data->state.rtsp_next_client_CSeq++;

@@ -1014,14 +1014,17 @@ static CURLcode ws_flush(struct Curl_easy *data, struct websocket *ws,
   if(!Curl_bufq_is_empty(&ws->sendbuf)) {
     CURLcode result;
     const unsigned char *out;
-    size_t outlen;
-    ssize_t n;
+    size_t outlen, n;
 
     while(Curl_bufq_peek(&ws->sendbuf, &out, &outlen)) {
       if(data->set.connect_only)
         result = Curl_senddata(data, out, outlen, &n);
-      else
-        result = Curl_write(data, data->conn->writesockfd, out, outlen, &n);
+      else {
+        result = Curl_xfer_send(data, out, outlen, &n);
+        if(!result && !n && outlen)
+          result = CURLE_AGAIN;
+      }
+
       if(result) {
         if(result == CURLE_AGAIN) {
           if(!complete) {
@@ -1040,8 +1043,8 @@ static CURLcode ws_flush(struct Curl_easy *data, struct websocket *ws,
         }
       }
       else {
-        infof(data, "WS: flushed %zu bytes", (size_t)n);
-        Curl_bufq_skip(&ws->sendbuf, (size_t)n);
+        infof(data, "WS: flushed %zu bytes", n);
+        Curl_bufq_skip(&ws->sendbuf, n);
       }
     }
   }
@@ -1054,8 +1057,8 @@ CURL_EXTERN CURLcode curl_ws_send(CURL *data, const void *buffer,
                                   unsigned int flags)
 {
   struct websocket *ws;
-  ssize_t nwritten, n;
-  size_t space;
+  ssize_t n;
+  size_t nwritten, space;
   CURLcode result;
 
   *sent = 0;
@@ -1086,15 +1089,14 @@ CURL_EXTERN CURLcode curl_ws_send(CURL *data, const void *buffer,
     /* raw mode sends exactly what was requested, and this is from within
        the write callback */
     if(Curl_is_in_callback(data)) {
-      result = Curl_write(data, data->conn->writesockfd, buffer, buflen,
-                          &nwritten);
+      result = Curl_xfer_send(data, buffer, buflen, &nwritten);
     }
     else
       result = Curl_senddata(data, buffer, buflen, &nwritten);
 
     infof(data, "WS: wanted to send %zu bytes, sent %zu bytes",
           buflen, nwritten);
-    *sent = (nwritten >= 0)? (size_t)nwritten : 0;
+    *sent = nwritten;
     return result;
   }
 
@@ -1104,7 +1106,7 @@ CURL_EXTERN CURLcode curl_ws_send(CURL *data, const void *buffer,
     return result;
 
   /* TODO: the current design does not allow partial writes, afaict.
-   * It is not clear who the application is supposed to react. */
+   * It is not clear how the application is supposed to react. */
   space = Curl_bufq_space(&ws->sendbuf);
   DEBUGF(infof(data, "curl_ws_send(len=%zu), sendbuf len=%zu space %zu",
                buflen, Curl_bufq_len(&ws->sendbuf), space));

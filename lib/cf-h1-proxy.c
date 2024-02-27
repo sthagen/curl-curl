@@ -212,6 +212,11 @@ static void tunnel_free(struct Curl_cfilter *cf,
   }
 }
 
+static bool tunnel_want_send(struct h1_tunnel_state *ts)
+{
+  return (ts->tunnel_state == H1_TUNNEL_CONNECT);
+}
+
 #ifndef USE_HYPER
 static CURLcode start_CONNECT(struct Curl_cfilter *cf,
                               struct Curl_easy *data,
@@ -366,7 +371,6 @@ static CURLcode recv_CONNECT_resp(struct Curl_cfilter *cf,
 {
   CURLcode result = CURLE_OK;
   struct SingleRequest *k = &data->req;
-  curl_socket_t tunnelsocket = Curl_conn_cf_get_socket(cf, data);
   char *linep;
   size_t line_len;
   int error, writetype;
@@ -386,7 +390,7 @@ static CURLcode recv_CONNECT_resp(struct Curl_cfilter *cf,
 
     /* Read one byte at a time to avoid a race condition. Wait at most one
        second before looping to ensure continuous pgrsUpdates. */
-    result = Curl_read(data, tunnelsocket, &byte, 1, &nread);
+    result = Curl_conn_recv(data, cf->sockindex, &byte, 1, &nread);
     if(result == CURLE_AGAIN)
       /* socket buffer drained, return */
       return CURLE_OK;
@@ -593,7 +597,9 @@ static CURLcode start_CONNECT(struct Curl_cfilter *cf,
     goto error;
   }
   /* tell Hyper how to read/write network data */
-  hyper_io_set_userdata(io, data);
+  h->io_ctx.data = data;
+  h->io_ctx.sockindex = cf->sockindex;
+  hyper_io_set_userdata(io, &h->io_ctx);
   hyper_io_set_read(io, Curl_hyper_recv);
   hyper_io_set_write(io, Curl_hyper_send);
   conn->sockfd = tunnelsocket;
@@ -1007,7 +1013,7 @@ out:
     data->req.header = TRUE; /* assume header */
     data->req.bytecount = 0;
     data->req.ignorebody = FALSE;
-    Curl_client_cleanup(data);
+    Curl_cw_reset(data);
     Curl_pgrsSetUploadCounter(data, 0);
     Curl_pgrsSetDownloadCounter(data, 0);
 
@@ -1031,7 +1037,7 @@ static void cf_h1_proxy_adjust_pollset(struct Curl_cfilter *cf,
          wait for the socket to become readable to be able to get the
          response headers or if we're still sending the request, wait
          for write. */
-      if(ts->CONNECT.sending == HTTPSEND_REQUEST)
+      if(tunnel_want_send(ts))
         Curl_pollset_set_out_only(data, ps, sock);
       else
         Curl_pollset_set_in_only(data, ps, sock);

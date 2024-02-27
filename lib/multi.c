@@ -530,6 +530,13 @@ CURLMcode curl_multi_add_handle(struct Curl_multi *multi,
     multi->dead = FALSE;
   }
 
+  if(data->multi_easy) {
+    /* if this easy handle was previously used for curl_easy_perform(), there
+       is a private multi handle here that we can kill */
+    curl_multi_cleanup(data->multi_easy);
+    data->multi_easy = NULL;
+  }
+
   /* Initialize timeout list for this handle */
   Curl_llist_init(&data->state.timeoutlist, NULL);
 
@@ -706,9 +713,10 @@ static CURLcode multi_done(struct Curl_easy *data,
 
   process_pending_handles(data->multi); /* connection / multiplex */
 
-  Curl_safefree(data->state.ulbuf);
+  if(!result)
+    result = Curl_req_done(&data->req, data, premature);
 
-  Curl_client_cleanup(data);
+  Curl_safefree(data->state.ulbuf);
 
   CONNCACHE_LOCK(data);
   Curl_detach_connection(data);
@@ -1007,7 +1015,7 @@ static int connecting_getsock(struct Curl_easy *data, curl_socket_t *socks)
 {
   struct connectdata *conn = data->conn;
   (void)socks;
-  /* Not using `conn->sockfd` as `Curl_setup_transfer()` initializes
+  /* Not using `conn->sockfd` as `Curl_xfer_setup()` initializes
    * that *after* the connect. */
   if(conn && conn->sock[FIRSTSOCKET] != CURL_SOCKET_BAD) {
     /* Default is to wait to something from the server */

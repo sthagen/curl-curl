@@ -448,7 +448,7 @@ static ssize_t Curl_xfer_recv_resp(struct Curl_easy *data,
     return 0;
   }
 
-  *err = Curl_read(data, data->conn->sockfd, buf, blen, &nread);
+  *err = Curl_xfer_recv(data, buf, blen, &nread);
   if(*err)
     return -1;
   DEBUGASSERT(nread >= 0);
@@ -607,7 +607,7 @@ static void win_update_buffer_size(curl_socket_t sockfd)
 #endif
 
 #define curl_upload_refill_watermark(data) \
-        ((ssize_t)((data)->set.upload_buffer_size >> 5))
+        ((size_t)((data)->set.upload_buffer_size >> 5))
 
 /*
  * Send data to upload to the server, when the socket is writable.
@@ -617,13 +617,21 @@ static CURLcode readwrite_upload(struct Curl_easy *data,
                                  int *didwhat)
 {
   ssize_t i, si;
-  ssize_t bytes_written;
+  size_t bytes_written;
   CURLcode result;
   ssize_t nread; /* number of bytes read */
   bool sending_http_headers = FALSE;
   struct SingleRequest *k = &data->req;
 
   *didwhat |= KEEP_SEND;
+
+  if(!(k->keepon & KEEP_SEND_PAUSE)) {
+    result = Curl_req_flush(data);
+    if(result == CURLE_AGAIN) /* unable to send all we have */
+      return CURLE_OK;
+    else if(result)
+      return result;
+  }
 
   do {
     curl_off_t nbody;
@@ -633,8 +641,8 @@ static CURLcode readwrite_upload(struct Curl_easy *data,
        k->upload_present < curl_upload_refill_watermark(data) &&
        !k->upload_chunky &&/*(variable sized chunked header; append not safe)*/
        !k->upload_done &&  /*!(k->upload_done once k->upload_present sent)*/
-       !(k->writebytecount + k->upload_present - k->pendingheader ==
-         data->state.infilesize)) {
+       !(k->writebytecount + (curl_off_t)k->upload_present -
+         (curl_off_t)k->pendingheader == data->state.infilesize)) {
       offset = k->upload_present;
     }
 
@@ -771,11 +779,10 @@ static CURLcode readwrite_upload(struct Curl_easy *data,
     }
 
     /* write to socket (send away data) */
-    result = Curl_write(data,
-                        conn->writesockfd,  /* socket to send to */
-                        k->upload_fromhere, /* buffer pointer */
-                        k->upload_present,  /* buffer size */
-                        &bytes_written);    /* actually sent */
+    result = Curl_xfer_send(data,
+                            k->upload_fromhere, /* buffer pointer */
+                            k->upload_present,  /* buffer size */
+                            &bytes_written);    /* actually sent */
     if(result)
       return result;
 
@@ -791,9 +798,9 @@ static CURLcode readwrite_upload(struct Curl_easy *data,
 
     if(k->pendingheader) {
       /* parts of what was sent was header */
-      curl_off_t n = CURLMIN(k->pendingheader, bytes_written);
+      size_t n = CURLMIN(k->pendingheader, bytes_written);
       /* show the data before we change the pointer upload_fromhere */
-      Curl_debug(data, CURLINFO_HEADER_OUT, k->upload_fromhere, (size_t)n);
+      Curl_debug(data, CURLINFO_HEADER_OUT, k->upload_fromhere, n);
       k->pendingheader -= n;
       nbody = bytes_written - n; /* size of the written body part */
     }
@@ -1590,11 +1597,10 @@ CURLcode Curl_retry_request(struct Curl_easy *data, char **url)
 }
 
 /*
- * Curl_setup_transfer() is called to setup some basic properties for the
+ * Curl_xfer_setup() is called to setup some basic properties for the
  * upcoming transfer.
  */
-void
-Curl_setup_transfer(
+void Curl_xfer_setup(
   struct Curl_easy *data,   /* transfer */
   int sockindex,            /* socket index to read from or -1 */
   curl_off_t size,          /* -1 if unknown at this point */
@@ -1606,21 +1612,19 @@ Curl_setup_transfer(
   struct SingleRequest *k = &data->req;
   struct connectdata *conn = data->conn;
   struct HTTP *http = data->req.p.http;
-  bool httpsending;
+  bool want_send = Curl_req_want_send(data);
 
   DEBUGASSERT(conn != NULL);
   DEBUGASSERT((sockindex <= 1) && (sockindex >= -1));
+  DEBUGASSERT((writesockindex <= 1) && (writesockindex >= -1));
 
-  httpsending = ((conn->handler->protocol&PROTO_FAMILY_HTTP) &&
-                 (http->sending == HTTPSEND_REQUEST));
-
-  if(conn->bits.multiplex || conn->httpversion >= 20 || httpsending) {
+  if(conn->bits.multiplex || conn->httpversion >= 20 || want_send) {
     /* when multiplexing, the read/write sockets need to be the same! */
     conn->sockfd = sockindex == -1 ?
       ((writesockindex == -1 ? CURL_SOCKET_BAD : conn->sock[writesockindex])) :
       conn->sock[sockindex];
     conn->writesockfd = conn->sockfd;
-    if(httpsending)
+    if(want_send)
       /* special and very HTTP-specific */
       writesockindex = FIRSTSOCKET;
   }
@@ -1726,4 +1730,52 @@ CURLcode Curl_xfer_write_done(struct Curl_easy *data, bool premature)
 {
   (void)premature;
   return Curl_cw_out_done(data);
+}
+
+CURLcode Curl_xfer_send(struct Curl_easy *data,
+                        const void *buf, size_t blen,
+                        size_t *pnwritten)
+{
+  CURLcode result;
+  int sockindex;
+
+  if(!data || !data->conn)
+    return CURLE_FAILED_INIT;
+  /* FIXME: would like to enable this, but some protocols (MQTT) do not
+   * setup the transfer correctly, it seems
+  if(data->conn->writesockfd == CURL_SOCKET_BAD) {
+    failf(data, "transfer not setup for sending");
+    DEBUGASSERT(0);
+    return CURLE_SEND_ERROR;
+  } */
+  sockindex = ((data->conn->writesockfd != CURL_SOCKET_BAD) &&
+               (data->conn->writesockfd == data->conn->sock[SECONDARYSOCKET]));
+  result = Curl_conn_send(data, sockindex, buf, blen, pnwritten);
+  if(result == CURLE_AGAIN) {
+    result = CURLE_OK;
+    *pnwritten = 0;
+  }
+  return result;
+}
+
+CURLcode Curl_xfer_recv(struct Curl_easy *data,
+                        char *buf, size_t blen,
+                        ssize_t *pnrcvd)
+{
+  int sockindex;
+
+  if(!data || !data->conn)
+    return CURLE_FAILED_INIT;
+  /* FIXME: would like to enable this, but some protocols (MQTT) do not
+   * setup the transfer correctly, it seems
+  if(data->conn->sockfd == CURL_SOCKET_BAD) {
+    failf(data, "transfer not setup for receiving");
+    DEBUGASSERT(0);
+    return CURLE_RECV_ERROR;
+  } */
+  sockindex = ((data->conn->sockfd != CURL_SOCKET_BAD) &&
+               (data->conn->sockfd == data->conn->sock[SECONDARYSOCKET]));
+  if(data->set.buffer_size > 0 && (size_t)data->set.buffer_size < blen)
+    blen = (size_t)data->set.buffer_size;
+  return Curl_conn_recv(data, sockindex, buf, blen, pnrcvd);
 }
