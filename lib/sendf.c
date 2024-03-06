@@ -236,7 +236,7 @@ static CURLcode cw_download_write(struct Curl_easy *data,
                                   struct Curl_cwriter *writer, int type,
                                   const char *buf, size_t nbytes)
 {
-  struct cw_download_ctx *ctx = (struct cw_download_ctx *)writer;
+  struct cw_download_ctx *ctx = writer->ctx;
   CURLcode result;
   size_t nwrite, excess_len = 0;
   bool is_connect = !!(type & CLIENTWRITE_CONNECT);
@@ -368,15 +368,18 @@ CURLcode Curl_cwriter_create(struct Curl_cwriter **pwriter,
                                    const struct Curl_cwtype *cwt,
                                    Curl_cwriter_phase phase)
 {
-  struct Curl_cwriter *writer;
+  struct Curl_cwriter *writer = NULL;
   CURLcode result = CURLE_OUT_OF_MEMORY;
+  void *p;
 
   DEBUGASSERT(cwt->cwriter_size >= sizeof(struct Curl_cwriter));
-  writer = (struct Curl_cwriter *) calloc(1, cwt->cwriter_size);
-  if(!writer)
+  p = calloc(1, cwt->cwriter_size);
+  if(!p)
     goto out;
 
+  writer = (struct Curl_cwriter *)p;
   writer->cwt = cwt;
+  writer->ctx = p;
   writer->phase = phase;
   result = cwt->do_init(data, writer);
 
@@ -553,6 +556,14 @@ CURLcode Curl_creader_def_rewind(struct Curl_easy *data,
   return CURLE_OK;
 }
 
+CURLcode Curl_creader_def_unpause(struct Curl_easy *data,
+                                  struct Curl_creader *reader)
+{
+  (void)data;
+  (void)reader;
+  return CURLE_OK;
+}
+
 struct cr_in_ctx {
   struct Curl_creader super;
   curl_read_callback read_cb;
@@ -567,7 +578,7 @@ struct cr_in_ctx {
 
 static CURLcode cr_in_init(struct Curl_easy *data, struct Curl_creader *reader)
 {
-  struct cr_in_ctx *ctx = (struct cr_in_ctx *)reader;
+  struct cr_in_ctx *ctx = reader->ctx;
   (void)data;
   ctx->read_cb = data->state.fread_func;
   ctx->cb_user_data = data->state.in;
@@ -582,7 +593,7 @@ static CURLcode cr_in_read(struct Curl_easy *data,
                            char *buf, size_t blen,
                            size_t *pnread, bool *peos)
 {
-  struct cr_in_ctx *ctx = (struct cr_in_ctx *)reader;
+  struct cr_in_ctx *ctx = reader->ctx;
   size_t nread;
 
   /* Once we have errored, we will return the same error forever */
@@ -673,7 +684,7 @@ static CURLcode cr_in_read(struct Curl_easy *data,
 static bool cr_in_needs_rewind(struct Curl_easy *data,
                                struct Curl_creader *reader)
 {
-  struct cr_in_ctx *ctx = (struct cr_in_ctx *)reader;
+  struct cr_in_ctx *ctx = reader->ctx;
   (void)data;
   return ctx->has_used_cb;
 }
@@ -681,7 +692,7 @@ static bool cr_in_needs_rewind(struct Curl_easy *data,
 static curl_off_t cr_in_total_length(struct Curl_easy *data,
                                      struct Curl_creader *reader)
 {
-  struct cr_in_ctx *ctx = (struct cr_in_ctx *)reader;
+  struct cr_in_ctx *ctx = reader->ctx;
   (void)data;
   return ctx->total_len;
 }
@@ -690,7 +701,7 @@ static CURLcode cr_in_resume_from(struct Curl_easy *data,
                                   struct Curl_creader *reader,
                                   curl_off_t offset)
 {
-  struct cr_in_ctx *ctx = (struct cr_in_ctx *)reader;
+  struct cr_in_ctx *ctx = reader->ctx;
   int seekerr = CURL_SEEKFUNC_CANTSEEK;
 
   DEBUGASSERT(data->conn);
@@ -752,38 +763,12 @@ static CURLcode cr_in_resume_from(struct Curl_easy *data,
 static CURLcode cr_in_rewind(struct Curl_easy *data,
                              struct Curl_creader *reader)
 {
-  struct cr_in_ctx *ctx = (struct cr_in_ctx *)reader;
-  /* TODO: I wonder if we should rather give mime its own client
-   * reader type. This is messy. */
-#if !defined(CURL_DISABLE_MIME) || !defined(CURL_DISABLE_FORM_API)
-  curl_mimepart *mimepart = &data->set.mimepost;
-#endif
+  struct cr_in_ctx *ctx = reader->ctx;
 
   /* If we never invoked the callback, there is noting to rewind */
   if(!ctx->has_used_cb)
     return CURLE_OK;
 
-  /* We have sent away data. If not using CURLOPT_POSTFIELDS or
-     CURLOPT_HTTPPOST, call app to rewind
-  */
-#if !defined(CURL_DISABLE_HTTP) && !defined(CURL_DISABLE_MIME)
-  if(data->conn->handler->protocol & PROTO_FAMILY_HTTP) {
-    if(data->state.mimepost)
-      mimepart = data->state.mimepost;
-  }
-#endif
-#if !defined(CURL_DISABLE_MIME) || !defined(CURL_DISABLE_FORM_API)
-  if(ctx->read_cb == (curl_read_callback)Curl_mime_read) {
-    CURLcode result = Curl_mime_rewind(mimepart);
-    DEBUGF(infof(data, "cr_in, rewind mime/post data -> %d", result));
-    if(result) {
-      failf(data, "Cannot rewind mime/post data");
-    }
-    return result;
-  }
-#endif
-
-  /* With mime out of the way, handle "normal" fread callbacks */
   if(data->set.seek_func) {
     int err;
 
@@ -839,6 +824,7 @@ static const struct Curl_crtype cr_in = {
   cr_in_total_length,
   cr_in_resume_from,
   cr_in_rewind,
+  Curl_creader_def_unpause,
   sizeof(struct cr_in_ctx)
 };
 
@@ -847,15 +833,18 @@ CURLcode Curl_creader_create(struct Curl_creader **preader,
                              const struct Curl_crtype *crt,
                              Curl_creader_phase phase)
 {
-  struct Curl_creader *reader;
+  struct Curl_creader *reader = NULL;
   CURLcode result = CURLE_OUT_OF_MEMORY;
+  void *p;
 
   DEBUGASSERT(crt->creader_size >= sizeof(struct Curl_creader));
-  reader = (struct Curl_creader *) calloc(1, crt->creader_size);
-  if(!reader)
+  p = calloc(1, crt->creader_size);
+  if(!p)
     goto out;
 
+  reader = (struct Curl_creader *)p;
   reader->crt = crt;
+  reader->ctx = p;
   reader->phase = phase;
   result = crt->do_init(data, reader);
 
@@ -883,7 +872,7 @@ struct cr_lc_ctx {
 
 static CURLcode cr_lc_init(struct Curl_easy *data, struct Curl_creader *reader)
 {
-  struct cr_lc_ctx *ctx = (struct cr_lc_ctx *)reader;
+  struct cr_lc_ctx *ctx = reader->ctx;
   (void)data;
   Curl_bufq_init2(&ctx->buf, (16 * 1024), 1, BUFQ_OPT_SOFT_LIMIT);
   return CURLE_OK;
@@ -891,7 +880,7 @@ static CURLcode cr_lc_init(struct Curl_easy *data, struct Curl_creader *reader)
 
 static void cr_lc_close(struct Curl_easy *data, struct Curl_creader *reader)
 {
-  struct cr_lc_ctx *ctx = (struct cr_lc_ctx *)reader;
+  struct cr_lc_ctx *ctx = reader->ctx;
   (void)data;
   Curl_bufq_free(&ctx->buf);
 }
@@ -902,7 +891,7 @@ static CURLcode cr_lc_read(struct Curl_easy *data,
                            char *buf, size_t blen,
                            size_t *pnread, bool *peos)
 {
-  struct cr_lc_ctx *ctx = (struct cr_lc_ctx *)reader;
+  struct cr_lc_ctx *ctx = reader->ctx;
   CURLcode result;
   size_t nread, i, start, n;
   bool eos;
@@ -985,6 +974,7 @@ static const struct Curl_crtype cr_lc = {
   cr_lc_total_length,
   Curl_creader_def_resume_from,
   Curl_creader_def_rewind,
+  Curl_creader_def_unpause,
   sizeof(struct cr_lc_ctx)
 };
 
@@ -1004,18 +994,18 @@ static CURLcode cr_lc_add(struct Curl_easy *data)
 }
 
 static CURLcode do_init_reader_stack(struct Curl_easy *data,
-                                     const struct Curl_crtype *crt,
-                                     struct Curl_creader **preader,
-                                     curl_off_t clen)
+                                     struct Curl_creader *r)
 {
-  CURLcode result;
+  CURLcode result = CURLE_OK;
+  curl_off_t clen;
 
+  DEBUGASSERT(r);
+  DEBUGASSERT(r->crt);
+  DEBUGASSERT(r->phase == CURL_CR_CLIENT);
   DEBUGASSERT(!data->req.reader_stack);
-  result = Curl_creader_create(preader, data, crt, CURL_CR_CLIENT);
-  if(result)
-    return result;
-  data->req.reader_stack = *preader;
 
+  data->req.reader_stack = r;
+  clen = r->crt->total_length(data, r);
   /* if we do not have 0 length init, and crlf conversion is wanted,
    * add the reader for it */
   if(clen && (data->set.crlf
@@ -1035,15 +1025,16 @@ CURLcode Curl_creader_set_fread(struct Curl_easy *data, curl_off_t len)
 {
   CURLcode result;
   struct Curl_creader *r;
+  struct cr_in_ctx *ctx;
+
+  result = Curl_creader_create(&r, data, &cr_in, CURL_CR_CLIENT);
+  if(result)
+    return result;
+  ctx = r->ctx;
+  ctx->total_len = len;
 
   cl_reset_reader(data);
-  result = do_init_reader_stack(data, &cr_in, &r, len);
-  if(!result && r) {
-    struct cr_in_ctx *ctx = (struct cr_in_ctx *)r;
-    DEBUGASSERT(r->crt == &cr_in);
-    ctx->total_len = len;
-  }
-  return result;
+  return do_init_reader_stack(data, r);
 }
 
 CURLcode Curl_creader_add(struct Curl_easy *data,
@@ -1065,6 +1056,21 @@ CURLcode Curl_creader_add(struct Curl_easy *data,
   reader->next = *anchor;
   *anchor = reader;
   return CURLE_OK;
+}
+
+CURLcode Curl_creader_set(struct Curl_easy *data, struct Curl_creader *r)
+{
+  CURLcode result;
+
+  DEBUGASSERT(r);
+  DEBUGASSERT(r->crt);
+  DEBUGASSERT(r->phase == CURL_CR_CLIENT);
+
+  cl_reset_reader(data);
+  result = do_init_reader_stack(data, r);
+  if(result)
+    Curl_creader_free(data, r);
+  return result;
 }
 
 CURLcode Curl_client_read(struct Curl_easy *data, char *buf, size_t blen,
@@ -1132,15 +1138,21 @@ static const struct Curl_crtype cr_null = {
   cr_null_total_length,
   Curl_creader_def_resume_from,
   Curl_creader_def_rewind,
+  Curl_creader_def_unpause,
   sizeof(struct Curl_creader)
 };
 
 CURLcode Curl_creader_set_null(struct Curl_easy *data)
 {
   struct Curl_creader *r;
+  CURLcode result;
+
+  result = Curl_creader_create(&r, data, &cr_null, CURL_CR_CLIENT);
+  if(result)
+    return result;
 
   cl_reset_reader(data);
-  return do_init_reader_stack(data, &cr_null, &r, 0);
+  return do_init_reader_stack(data, r);
 }
 
 struct cr_buf_ctx {
@@ -1155,7 +1167,7 @@ static CURLcode cr_buf_read(struct Curl_easy *data,
                             char *buf, size_t blen,
                             size_t *pnread, bool *peos)
 {
-  struct cr_buf_ctx *ctx = (struct cr_buf_ctx *)reader;
+  struct cr_buf_ctx *ctx = reader->ctx;
   size_t nread = ctx->blen - ctx->index;
 
   (void)data;
@@ -1177,7 +1189,7 @@ static CURLcode cr_buf_read(struct Curl_easy *data,
 static bool cr_buf_needs_rewind(struct Curl_easy *data,
                                 struct Curl_creader *reader)
 {
-  struct cr_buf_ctx *ctx = (struct cr_buf_ctx *)reader;
+  struct cr_buf_ctx *ctx = reader->ctx;
   (void)data;
   return ctx->index > 0;
 }
@@ -1185,7 +1197,7 @@ static bool cr_buf_needs_rewind(struct Curl_easy *data,
 static curl_off_t cr_buf_total_length(struct Curl_easy *data,
                                       struct Curl_creader *reader)
 {
-  struct cr_buf_ctx *ctx = (struct cr_buf_ctx *)reader;
+  struct cr_buf_ctx *ctx = reader->ctx;
   (void)data;
   return (curl_off_t)ctx->blen;
 }
@@ -1194,7 +1206,7 @@ static CURLcode cr_buf_resume_from(struct Curl_easy *data,
                                    struct Curl_creader *reader,
                                    curl_off_t offset)
 {
-  struct cr_buf_ctx *ctx = (struct cr_buf_ctx *)reader;
+  struct cr_buf_ctx *ctx = reader->ctx;
   size_t boffset;
 
   (void)data;
@@ -1222,6 +1234,7 @@ static const struct Curl_crtype cr_buf = {
   cr_buf_total_length,
   cr_buf_resume_from,
   Curl_creader_def_rewind,
+  Curl_creader_def_unpause,
   sizeof(struct cr_buf_ctx)
 };
 
@@ -1230,17 +1243,18 @@ CURLcode Curl_creader_set_buf(struct Curl_easy *data,
 {
   CURLcode result;
   struct Curl_creader *r;
+  struct cr_buf_ctx *ctx;
+
+  result = Curl_creader_create(&r, data, &cr_buf, CURL_CR_CLIENT);
+  if(result)
+    return result;
+  ctx = r->ctx;
+  ctx->buf = buf;
+  ctx->blen = blen;
+  ctx->index = 0;
 
   cl_reset_reader(data);
-  result = do_init_reader_stack(data, &cr_buf, &r, blen);
-  if(!result && r) {
-    struct cr_buf_ctx *ctx = (struct cr_buf_ctx *)r;
-    DEBUGASSERT(r->crt == &cr_buf);
-    ctx->buf = buf;
-    ctx->blen = blen;
-    ctx->index = 0;
-  }
-  return result;
+  return do_init_reader_stack(data, r);
 }
 
 curl_off_t Curl_creader_total_length(struct Curl_easy *data)
@@ -1263,4 +1277,18 @@ CURLcode Curl_creader_resume_from(struct Curl_easy *data, curl_off_t offset)
   while(r && r->phase != CURL_CR_CLIENT)
     r = r->next;
   return r? r->crt->resume_from(data, r, offset) : CURLE_READ_ERROR;
+}
+
+CURLcode Curl_creader_unpause(struct Curl_easy *data)
+{
+  struct Curl_creader *reader = data->req.reader_stack;
+  CURLcode result = CURLE_OK;
+
+  while(reader) {
+    result = reader->crt->unpause(data, reader);
+    if(result)
+      break;
+    reader = reader->next;
+  }
+  return result;
 }

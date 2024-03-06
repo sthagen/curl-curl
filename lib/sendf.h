@@ -117,10 +117,16 @@ struct Curl_cwtype {
   size_t cwriter_size;  /* sizeof() allocated struct Curl_cwriter */
 };
 
-/* Client writer instance */
+/* Client writer instance, allocated on creation.
+ * `void *ctx` is the pointer from the allocation of
+ * the `struct Curl_cwriter` itself. This is suitable for "downcasting"
+ * by the writers implementation. See https://github.com/curl/curl/pull/13054
+ * for the alignment problems that arise otherwise.
+ */
 struct Curl_cwriter {
   const struct Curl_cwtype *cwt;  /* type implementation */
   struct Curl_cwriter *next;  /* Downstream writer. */
+  void *ctx;                  /* allocated instance pointer */
   Curl_cwriter_phase phase; /* phase at which it operates */
 };
 
@@ -187,6 +193,7 @@ void Curl_cwriter_def_close(struct Curl_easy *data,
                             struct Curl_cwriter *writer);
 
 
+
 /* Client Reader Type, provides the implementation */
 struct Curl_crtype {
   const char *name;        /* writer name. */
@@ -200,6 +207,7 @@ struct Curl_crtype {
   CURLcode (*resume_from)(struct Curl_easy *data,
                           struct Curl_creader *reader, curl_off_t offset);
   CURLcode (*rewind)(struct Curl_easy *data, struct Curl_creader *reader);
+  CURLcode (*unpause)(struct Curl_easy *data, struct Curl_creader *reader);
   size_t creader_size;  /* sizeof() allocated struct Curl_creader */
 };
 
@@ -212,10 +220,16 @@ typedef enum {
   CURL_CR_CLIENT  /* data read from client */
 } Curl_creader_phase;
 
-/* Client reader instance */
+/* Client reader instance, allocated on creation.
+ * `void *ctx` is the pointer from the allocation of
+ * the `struct Curl_cwriter` itself. This is suitable for "downcasting"
+ * by the writers implementation. See https://github.com/curl/curl/pull/13054
+ * for the alignment problems that arise otherwise.
+ */
 struct Curl_creader {
   const struct Curl_crtype *crt;  /* type implementation */
   struct Curl_creader *next;  /* Downstream reader. */
+  void *ctx;
   Curl_creader_phase phase; /* phase at which it operates */
 };
 
@@ -236,6 +250,8 @@ CURLcode Curl_creader_def_resume_from(struct Curl_easy *data,
                                       curl_off_t offset);
 CURLcode Curl_creader_def_rewind(struct Curl_easy *data,
                                  struct Curl_creader *reader);
+CURLcode Curl_creader_def_unpause(struct Curl_easy *data,
+                                  struct Curl_creader *reader);
 
 /**
  * Convenience method for calling `reader->do_read()` that
@@ -267,6 +283,14 @@ void Curl_creader_free(struct Curl_easy *data, struct Curl_creader *reader);
  */
 CURLcode Curl_creader_add(struct Curl_easy *data,
                           struct Curl_creader *reader);
+
+/**
+ * Set the given reader, which needs to be of type CURL_CR_CLIENT,
+ * as the new first reader. Discard any installed readers and init
+ * the reader chain anew.
+ * The function takes ownership of `r`.
+ */
+CURLcode Curl_creader_set(struct Curl_easy *data, struct Curl_creader *r);
 
 /**
  * Read at most `blen` bytes at `buf` from the client.
@@ -327,6 +351,11 @@ curl_off_t Curl_creader_client_length(struct Curl_easy *data);
  *         CURLE_PARTIAL_FILE if offset led to 0 total length
  */
 CURLcode Curl_creader_resume_from(struct Curl_easy *data, curl_off_t offset);
+
+/**
+ * Unpause all installed readers.
+ */
+CURLcode Curl_creader_unpause(struct Curl_easy *data);
 
 /**
  * Set the client reader to provide 0 bytes, immediate EOS.
