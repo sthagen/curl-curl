@@ -8,6 +8,8 @@ See-also:
   - CURLINFO_TLS_SESSION (3)
   - curl_easy_getinfo (3)
   - curl_easy_setopt (3)
+Protocol:
+  - TLS
 ---
 
 # NAME
@@ -60,10 +62,6 @@ the active ("in use") SSL connection, with the following underlying types:
 ## GnuTLS
 
 **gnutls_session_t**
-
-## NSS
-
-**PRFileDesc ***
 
 ## OpenSSL
 

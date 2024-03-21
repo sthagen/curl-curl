@@ -11,6 +11,8 @@ See-also:
   - CURLOPT_CA_CACHE_TIMEOUT (3)
   - CURLOPT_SSL_VERIFYHOST (3)
   - CURLOPT_SSL_VERIFYPEER (3)
+Protocol:
+  - TLS
 ---
 
 # NAME
@@ -77,9 +79,7 @@ int main(void)
 
 # AVAILABILITY
 
-For the SSL engines that do not support certificate files the
-CURLOPT_CAINFO(3) option is ignored. Schannel support added in libcurl
-7.60.
+Schannel support added in libcurl 7.60.
 
 # RETURN VALUE
 

@@ -280,14 +280,12 @@ static void free_push_headers(struct h2_stream_ctx *stream)
   stream->push_headers_used = 0;
 }
 
-static void http2_data_done(struct Curl_cfilter *cf,
-                            struct Curl_easy *data, bool premature)
+static void http2_data_done(struct Curl_cfilter *cf, struct Curl_easy *data)
 {
   struct cf_h2_ctx *ctx = cf->ctx;
   struct h2_stream_ctx *stream = H2_STREAM_CTX(data);
 
   DEBUGASSERT(ctx);
-  (void)premature;
   if(!stream)
     return;
 
@@ -841,7 +839,7 @@ static void discard_newhandle(struct Curl_cfilter *cf,
                               struct Curl_easy *newhandle)
 {
   if(newhandle->req.p.http) {
-    http2_data_done(cf, newhandle, TRUE);
+    http2_data_done(cf, newhandle);
   }
   (void)Curl_close(&newhandle);
 }
@@ -1668,7 +1666,7 @@ static ssize_t http2_handle_stream_close(struct Curl_cfilter *cf,
   }
   else if(stream->reset) {
     failf(data, "HTTP/2 stream %u was reset", stream->id);
-    *err = stream->bodystarted? CURLE_PARTIAL_FILE : CURLE_RECV_ERROR;
+    *err = data->req.bytecount? CURLE_PARTIAL_FILE : CURLE_HTTP2;
     return -1;
   }
 
@@ -1809,7 +1807,7 @@ static ssize_t stream_recv(struct Curl_cfilter *cf, struct Curl_easy *data,
           (ctx->conn_closed && Curl_bufq_is_empty(&ctx->inbufq)) ||
           (ctx->goaway && ctx->last_stream_id < stream->id)) {
     CURL_TRC_CF(data, cf, "[%d] returning ERR", stream->id);
-    *err = stream->bodystarted? CURLE_PARTIAL_FILE : CURLE_RECV_ERROR;
+    *err = data->req.bytecount? CURLE_PARTIAL_FILE : CURLE_HTTP2;
     nread = -1;
   }
 
@@ -2466,10 +2464,10 @@ static CURLcode cf_h2_cntrl(struct Curl_cfilter *cf,
     result = http2_data_done_send(cf, data);
     break;
   case CF_CTRL_DATA_DETACH:
-    http2_data_done(cf, data, TRUE);
+    http2_data_done(cf, data);
     break;
   case CF_CTRL_DATA_DONE:
-    http2_data_done(cf, data, arg1 != 0);
+    http2_data_done(cf, data);
     break;
   default:
     break;
