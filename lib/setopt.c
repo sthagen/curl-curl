@@ -915,7 +915,7 @@ CURLcode Curl_vsetopt(struct Curl_easy *data, CURLoption option, va_list param)
       /* accepted */
       break;
 #endif
-#ifdef ENABLE_QUIC
+#ifdef USE_HTTP3
     case CURL_HTTP_VERSION_3:
     case CURL_HTTP_VERSION_3ONLY:
       /* accepted */
@@ -2634,7 +2634,7 @@ CURLcode Curl_vsetopt(struct Curl_easy *data, CURLoption option, va_list param)
     break;
 #endif
 
-#ifdef ENABLE_IPV6
+#ifdef USE_IPV6
   case CURLOPT_ADDRESS_SCOPE:
     /*
      * Use this scope id when using IPv6
