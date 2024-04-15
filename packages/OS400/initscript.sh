@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/sh
 #***************************************************************************
 #                                  _   _ ____  _
 #  Project                     ___| | | |  _ \| |
@@ -120,6 +120,7 @@ action_needed()
 {
         [ ! -e "${1}" ] && return 0
         [ -n "${2}" ] || return 1
+        # shellcheck disable=SC3013
         [ "${1}" -ot "${2}" ] && return 0
         return 1
 }
@@ -147,8 +148,7 @@ canonicalize_path()
         do      IFS="${IFSSAVE}"
                 case "${C}" in
                 .)      ;;
-                ..)     R=$(expr \
-                                 "${R}" : '^\(.*/\)..*')
+                ..)     R="$(expr "${R}" : '^\(.*/\)..*')"
                         ;;
                 ?*)     R="${R}${C}/"
                         ;;
@@ -173,8 +173,7 @@ make_module()
         MODULES="${MODULES} ${1}"
         MODIFSNAME="${LIBIFSNAME}/${1}.MODULE"
         action_needed "${MODIFSNAME}" "${2}" || return 0;
-        SRCDIR="$(dirname \
-                          "$(canonicalize_path "${2}")")"
+        SRCDIR="$(dirname "$(canonicalize_path "${2}")")"
 
         #       #pragma convert has to be in the source file itself, i.e.
         #               putting it in an include file makes it only active
@@ -278,15 +277,16 @@ get_make_vars()
 
 {
         eval "$(sed -e ': begin'                                        \
-                -e '/\\\\$/{'                                           \
+                -e '/\\$/{'                                             \
                 -e 'N'                                                  \
-                -e 's/\\\\\\n/ /'                                       \
+                -e 's/\\\n/ /'                                          \
                 -e 'b begin'                                            \
                 -e '}'                                                  \
-                -e '/^[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=/!d'           \
-                -e 's/@\\([A-Za-z0-9_]*\\)@/${\\1}/g'                   \
-                -e 's/[[:space:]]*=[[:space:]]*/=/'                     \
-                -e 's/=\\(.*[^[:space:]]\\)[[:space:]]*$/=\\"\\1\\"/'   \
-                -e 's/\\\$(\\([^)]*\\))/\${\\1}/g'                      \
-                < \""${1}"\")"
+                -e 's/[[:space:]][[:space:]]*/ /g'                      \
+                -e '/^[A-Za-z_][A-Za-z0-9_]* *=/!d'                     \
+                -e 's/@\([A-Za-z0-9_]*\)@/${\1}/g'                      \
+                -e 's/ *= */=/'                                         \
+                -e 's/=\(.*[^ ]\) *$/="\1"/'                            \
+                -e 's/\$(\([^)]*\))/${\1}/g'                            \
+                < "${1}")"
 }
