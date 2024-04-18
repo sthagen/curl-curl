@@ -508,6 +508,17 @@ static const struct testcase get_parts_list[] ={
 };
 
 static const struct urltestcase get_url_list[] = {
+  /* WHATWG disgrees, it wants "https:/0.0.0.0/" */
+  {"https://0x.0x.0", "https://0x.0x.0/", 0, 0, CURLUE_OK},
+
+  {"https://example.com:000000000000000000000443/foo",
+   "https://example.com/foo",
+   0, CURLU_NO_DEFAULT_PORT, CURLUE_OK},
+  {"https://example.com:000000000000000000000/foo",
+   "https://example.com:0/foo",
+   0, CURLU_NO_DEFAULT_PORT, CURLUE_OK},
+  {"https://192.0x0000A80001", "https://192.168.0.1/", 0, 0, CURLUE_OK},
+  {"https://0xffffffff", "https://255.255.255.255/", 0, 0, CURLUE_OK},
   {"https://1.0x1000000", "https://1.0x1000000/", 0, 0, CURLUE_OK},
   {"https://0x7f.1", "https://127.0.0.1/", 0, 0, CURLUE_OK},
   {"https://1.2.3.256.com", "https://1.2.3.256.com/", 0, 0, CURLUE_OK},
@@ -1081,6 +1092,54 @@ static CURLUcode updateurl(CURLU *u, const char *cmd, unsigned int setflags)
 }
 
 static const struct redircase set_url_list[] = {
+  {"http://example.org/",
+   "../path/././../../moo",
+   "http://example.org/moo",
+   0, 0, CURLUE_OK},
+  {"http://example.org/",
+   "//example.org/../path/../../",
+   "http://example.org/",
+   0, 0, CURLUE_OK},
+  {"http://example.org/",
+   "///example.org/../path/../../",
+   "http://example.org/",
+   0, 0, CURLUE_OK},
+  {"http://example.org/foo/bar",
+   ":23",
+   "http://example.org/foo/:23",
+   0, 0, CURLUE_OK},
+  {"http://example.org/foo/bar",
+   "\\x",
+   "http://example.org/foo/\\x",
+   /* WHATWG disagrees */
+   0, 0, CURLUE_OK},
+  {"http://example.org/foo/bar",
+   "#/",
+   "http://example.org/foo/bar#/",
+   0, 0, CURLUE_OK},
+  {"http://example.org/foo/bar",
+   "?/",
+   "http://example.org/foo/bar?/",
+   0, 0, CURLUE_OK},
+  {"http://example.org/foo/bar",
+   "#;?",
+   "http://example.org/foo/bar#;?",
+   0, 0, CURLUE_OK},
+  {"http://example.org/foo/bar",
+   "#",
+   "http://example.org/foo/bar",
+   /* This happens because the parser removes empty fragments */
+   0, 0, CURLUE_OK},
+  {"http://example.org/foo/bar",
+   "?",
+   "http://example.org/foo/bar",
+   /* This happens because the parser removes empty queries */
+   0, 0, CURLUE_OK},
+  {"http://example.org/foo/bar",
+   "?#",
+   "http://example.org/foo/bar",
+   /* This happens because the parser removes empty queries and fragments */
+   0, 0, CURLUE_OK},
   {"http://example.com/please/../gimme/%TESTNUMBER?foobar#hello",
    "http://example.net/there/it/is/../../tes t case=/%TESTNUMBER0002? yes no",
    "http://example.net/there/tes%20t%20case=/%TESTNUMBER0002?+yes+no",
