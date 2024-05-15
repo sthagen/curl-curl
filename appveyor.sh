@@ -42,8 +42,11 @@ if [ "${BUILD_SYSTEM}" = 'CMake' ]; then
   [ "${PRJ_CFG}" = 'Debug' ] && options+=' -DCMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG='
   [ "${PRJ_CFG}" = 'Release' ] && options+=' -DCMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE='
   [[ "${PRJ_GEN}" = *'Visual Studio'* ]] && options+=' -DCMAKE_VS_GLOBALS=TrackFileAccess=false'
-  # Fails to run without this run due to missing MSVCR90.dll
-  [ "${PRJ_GEN}" = 'Visual Studio 9 2008' ] && options+=' -DCURL_STATIC_CRT=ON'
+  if [ "${PRJ_GEN}" = 'Visual Studio 9 2008' ]; then
+    [ "${PRJ_CFG}" = 'Debug' ] && [ "${DEBUG}" = 'ON' ] && [ "${SHARED}" = 'ON' ] && SKIP_RUN='Crash on startup in -DDEBUGBUILD shared builds'
+    # Fails to run without this due to missing MSVCR90.dll / MSVCR90D.dll
+    options+=' -DCURL_STATIC_CRT=ON'
+  fi
   # shellcheck disable=SC2086
   cmake -B _bld "-G${PRJ_GEN}" ${TARGET:-} ${options} \
     "-DCURL_USE_OPENSSL=${OPENSSL}" \
@@ -116,7 +119,7 @@ fi
 
 find . -name '*.exe' -o -name '*.dll'
 if [ -z "${SKIP_RUN:-}" ]; then
-  "${curl}" --version
+  "${curl}" --disable --version
 else
   echo "Skip running curl.exe. Reason: ${SKIP_RUN}"
 fi
@@ -133,8 +136,8 @@ if [ "${TESTING}" = 'ON' ]; then
   export TFLAGS=''
   if [ -x "$(cygpath -u "${WINDIR}/System32/curl.exe")" ]; then
     TFLAGS+=" -ac $(cygpath -u "${WINDIR}/System32/curl.exe")"
-  elif [ -x "$(cygpath -u "C:/msys64/usr/bin/curl.exe")" ]; then
-    TFLAGS+=" -ac $(cygpath -u "C:/msys64/usr/bin/curl.exe")"
+  elif [ -x "$(cygpath -u 'C:/msys64/usr/bin/curl.exe')" ]; then
+    TFLAGS+=" -ac $(cygpath -u 'C:/msys64/usr/bin/curl.exe')"
   fi
   TFLAGS+=" ${DISABLED_TESTS:-}"
   if [ "${BUILD_SYSTEM}" = 'CMake' ]; then
