@@ -1,5 +1,3 @@
-#ifndef HEADER_CURL_SOCKETPAIR_H
-#define HEADER_CURL_SOCKETPAIR_H
 /***************************************************************************
  *                                  _   _ ____  _
  *  Project                     ___| | | |  _ \| |
@@ -24,40 +22,33 @@
  *
  ***************************************************************************/
 
-#include "curl_setup.h"
+#include "test.h"
+#include "testtrace.h"
 
-#ifdef HAVE_PIPE
-
-#define wakeup_write  write
-#define wakeup_read   read
-#define wakeup_close  close
-#define wakeup_create pipe
-
-#else /* HAVE_PIPE */
-
-#define wakeup_write     swrite
-#define wakeup_read      sread
-#define wakeup_close     sclose
-
-#if defined(USE_UNIX_SOCKETS) && defined(HAVE_SOCKETPAIR)
-#define SOCKET_FAMILY AF_UNIX
-#elif !defined(HAVE_SOCKETPAIR)
-#define SOCKET_FAMILY 0 /* not used */
-#else
-#error "unsupported unix domain and socketpair build combo"
-#endif
-
-#define wakeup_create(p) Curl_socketpair(SOCKET_FAMILY, SOCK_STREAM, 0, p)
-
-#endif /* HAVE_PIPE */
-
-#ifndef HAVE_SOCKETPAIR
 #include <curl/curl.h>
 
-int Curl_socketpair(int domain, int type, int protocol,
-                    curl_socket_t socks[2]);
-#else
-#define Curl_socketpair(a,b,c,d) socketpair(a,b,c,d)
-#endif
+static size_t cb_curl(void *buffer, size_t size, size_t nmemb, void *userp)
+{
+  (void)buffer;
+  (void)size;
+  (void)nmemb;
+  (void)userp;
+  return CURL_WRITEFUNC_ERROR;
+}
 
-#endif /* HEADER_CURL_SOCKETPAIR_H */
+CURLcode test(char *URL)
+{
+  CURL *curl;
+  CURLcode res = CURLE_OK;
+
+  global_init(CURL_GLOBAL_ALL);
+  curl = curl_easy_init();
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, cb_curl);
+  curl_easy_setopt(curl, CURLOPT_URL, URL);
+  res = curl_easy_perform(curl);
+  printf("Returned %d, should be %d.\n", res, CURLE_WRITE_ERROR);
+  fflush(stdout);
+  curl_easy_cleanup(curl);
+  curl_global_cleanup();
+  return CURLE_OK;
+}
