@@ -376,9 +376,15 @@ set_ssl_version_min_max(struct Curl_easy *data,
   long ssl_version = conn_config->version;
   long ssl_version_max = conn_config->version_max;
 
+  if((ssl_version == CURL_SSLVERSION_DEFAULT) ||
+     (ssl_version == CURL_SSLVERSION_TLSv1))
+    ssl_version = CURL_SSLVERSION_TLSv1_0;
+  if(ssl_version_max == CURL_SSLVERSION_MAX_NONE)
+    ssl_version_max = CURL_SSLVERSION_MAX_DEFAULT;
+
   if(peer->transport == TRNSPRT_QUIC) {
-    if((ssl_version != CURL_SSLVERSION_DEFAULT) &&
-       (ssl_version < CURL_SSLVERSION_TLSv1_3)) {
+    if((ssl_version_max != CURL_SSLVERSION_MAX_DEFAULT) &&
+       (ssl_version_max < CURL_SSLVERSION_MAX_TLSv1_3)) {
       failf(data, "QUIC needs at least TLS version 1.3");
       return CURLE_SSL_CONNECT_ERROR;
      }
@@ -386,11 +392,6 @@ set_ssl_version_min_max(struct Curl_easy *data,
     return CURLE_OK;
   }
 
-  if((ssl_version == CURL_SSLVERSION_DEFAULT) ||
-     (ssl_version == CURL_SSLVERSION_TLSv1))
-    ssl_version = CURL_SSLVERSION_TLSv1_0;
-  if(ssl_version_max == CURL_SSLVERSION_MAX_NONE)
-    ssl_version_max = CURL_SSLVERSION_MAX_DEFAULT;
   if(!tls13support) {
     /* If the running GnuTLS doesn't support TLS 1.3, we must not specify a
        prioritylist involving that since it will make GnuTLS return an en
@@ -567,8 +568,8 @@ static CURLcode gtls_update_session_id(struct Curl_cfilter *cf,
       /* extract session ID to the allocated buffer */
       gnutls_session_get_data(session, connect_sessionid, &connect_idsize);
 
-      DEBUGF(infof(data, "get session id (len=%zu) and store in cache",
-                   connect_idsize));
+      CURL_TRC_CF(data, cf, "get session id (len=%zu) and store in cache",
+                  connect_idsize);
       Curl_ssl_sessionid_lock(data);
       incache = !(Curl_ssl_getsessionid(cf, data, &connssl->peer,
                                         &ssl_sessionid, NULL));
@@ -599,8 +600,8 @@ static int gtls_handshake_cb(gnutls_session_t session, unsigned int htype,
   if(when) { /* after message has been processed */
     struct Curl_easy *data = CF_DATA_CURRENT(cf);
     if(data) {
-      DEBUGF(infof(data, "handshake: %s message type %d",
-             incoming? "incoming" : "outgoing", htype));
+      CURL_TRC_CF(data, cf, "handshake: %s message type %d",
+                  incoming? "incoming" : "outgoing", htype);
       switch(htype) {
       case GNUTLS_HANDSHAKE_NEW_SESSION_TICKET: {
         gtls_update_session_id(cf, data, session);
@@ -1629,13 +1630,18 @@ static void gtls_close(struct Curl_cfilter *cf,
 
   (void) data;
   DEBUGASSERT(backend);
-
+  CURL_TRC_CF(data, cf, "close");
   if(backend->gtls.session) {
     char buf[32];
     /* Maybe the server has already sent a close notify alert.
        Read it to avoid an RST on the TCP connection. */
+    CURL_TRC_CF(data, cf, "close, try receive before bye");
     (void)gnutls_record_recv(backend->gtls.session, buf, sizeof(buf));
-    gnutls_bye(backend->gtls.session, GNUTLS_SHUT_WR);
+    CURL_TRC_CF(data, cf, "close, send bye");
+    gnutls_bye(backend->gtls.session, GNUTLS_SHUT_RDWR);
+    /* try one last receive */
+    CURL_TRC_CF(data, cf, "close, receive after bye");
+    (void)gnutls_record_recv(backend->gtls.session, buf, sizeof(buf));
     gnutls_deinit(backend->gtls.session);
     backend->gtls.session = NULL;
   }
