@@ -453,7 +453,7 @@ static bool ssl_prefs_check(struct Curl_easy *data)
 }
 
 static struct ssl_connect_data *cf_ctx_new(struct Curl_easy *data,
-                                     const struct alpn_spec *alpn)
+                                           const struct alpn_spec *alpn)
 {
   struct ssl_connect_data *ctx;
 
@@ -1342,8 +1342,6 @@ const struct Curl_ssl *Curl_ssl =
   &Curl_ssl_multi;
 #elif defined(USE_WOLFSSL)
   &Curl_ssl_wolfssl;
-#elif defined(USE_SECTRANSP)
-  &Curl_ssl_sectransp;
 #elif defined(USE_GNUTLS)
   &Curl_ssl_gnutls;
 #elif defined(USE_MBEDTLS)
@@ -1352,6 +1350,8 @@ const struct Curl_ssl *Curl_ssl =
   &Curl_ssl_rustls;
 #elif defined(USE_OPENSSL)
   &Curl_ssl_openssl;
+#elif defined(USE_SECTRANSP)
+  &Curl_ssl_sectransp;
 #elif defined(USE_SCHANNEL)
   &Curl_ssl_schannel;
 #elif defined(USE_BEARSSL)
@@ -1364,9 +1364,6 @@ static const struct Curl_ssl *available_backends[] = {
 #if defined(USE_WOLFSSL)
   &Curl_ssl_wolfssl,
 #endif
-#if defined(USE_SECTRANSP)
-  &Curl_ssl_sectransp,
-#endif
 #if defined(USE_GNUTLS)
   &Curl_ssl_gnutls,
 #endif
@@ -1375,6 +1372,9 @@ static const struct Curl_ssl *available_backends[] = {
 #endif
 #if defined(USE_OPENSSL)
   &Curl_ssl_openssl,
+#endif
+#if defined(USE_SECTRANSP)
+  &Curl_ssl_sectransp,
 #endif
 #if defined(USE_SCHANNEL)
   &Curl_ssl_schannel,
@@ -1975,10 +1975,10 @@ CURLcode Curl_cf_ssl_proxy_insert_after(struct Curl_cfilter *cf_at,
 
 #endif /* !CURL_DISABLE_PROXY */
 
-bool Curl_ssl_supports(struct Curl_easy *data, int option)
+bool Curl_ssl_supports(struct Curl_easy *data, unsigned int ssl_option)
 {
   (void)data;
-  return (Curl_ssl->supports & option)? TRUE : FALSE;
+  return (Curl_ssl->supports & ssl_option)? TRUE : FALSE;
 }
 
 static struct Curl_cfilter *get_ssl_filter(struct Curl_cfilter *cf)
