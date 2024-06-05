@@ -257,22 +257,6 @@ enum protection_level {
 };
 #endif
 
-/* enum for the nonblocking SSL connection state machine */
-typedef enum {
-  ssl_connect_1,
-  ssl_connect_2,
-  ssl_connect_2_reading,
-  ssl_connect_2_writing,
-  ssl_connect_3,
-  ssl_connect_done
-} ssl_connect_state;
-
-typedef enum {
-  ssl_connection_none,
-  ssl_connection_negotiating,
-  ssl_connection_complete
-} ssl_connection_state;
-
 /* SSL backend-specific data; declared differently by each SSL backend */
 struct ssl_backend_data;
 
@@ -1458,6 +1442,8 @@ enum dupstring {
   STRING_CUSTOMREQUEST,   /* HTTP/FTP/RTSP request/method to use */
   STRING_DEFAULT_PROTOCOL, /* Protocol to use when the URL doesn't specify */
   STRING_DEVICE,          /* local network interface/address to use */
+  STRING_INTERFACE,       /* local network interface to use */
+  STRING_BINDHOST,        /* local address to use */
   STRING_ENCODING,        /* Accept-Encoding string */
 #ifndef CURL_DISABLE_FTP
   STRING_FTP_ACCOUNT,     /* ftp account data */

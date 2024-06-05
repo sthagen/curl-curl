@@ -139,8 +139,44 @@ static CURLcode setstropt_userpwd(char *option, char **userp, char **passwdp)
   return CURLE_OK;
 }
 
+static CURLcode setstropt_interface(
+  char *option, char **devp, char **ifacep, char **hostp)
+{
+  char *dev = NULL;
+  char *iface = NULL;
+  char *host = NULL;
+  size_t len;
+  CURLcode result;
+
+  DEBUGASSERT(devp);
+  DEBUGASSERT(ifacep);
+  DEBUGASSERT(hostp);
+
+  /* Parse the interface details */
+  if(!option || !*option)
+    return CURLE_BAD_FUNCTION_ARGUMENT;
+  len = strlen(option);
+  if(len > 255)
+    return CURLE_BAD_FUNCTION_ARGUMENT;
+
+  result = Curl_parse_interface(option, len, &dev, &iface, &host);
+  if(result)
+    return result;
+
+  free(*devp);
+  *devp = dev;
+
+  free(*ifacep);
+  *ifacep = iface;
+
+  free(*hostp);
+  *hostp = host;
+
+  return CURLE_OK;
+}
+
 #define C_SSLVERSION_VALUE(x) (x & 0xffff)
-#define C_SSLVERSION_MAX_VALUE(x) (x & 0xffff0000)
+#define C_SSLVERSION_MAX_VALUE(x) ((unsigned long)x & 0xffff0000)
 
 static CURLcode protocol2num(const char *str, curl_prot_t *val)
 {
@@ -465,7 +501,7 @@ CURLcode Curl_vsetopt(struct Curl_easy *data, CURLoption option, va_list param)
       arg = va_arg(param, long);
 
       version = C_SSLVERSION_VALUE(arg);
-      version_max = C_SSLVERSION_MAX_VALUE(arg);
+      version_max = (long)C_SSLVERSION_MAX_VALUE(arg);
 
       if(version < CURL_SSLVERSION_DEFAULT ||
          version == CURL_SSLVERSION_SSLv2 ||
@@ -932,7 +968,7 @@ CURLcode Curl_vsetopt(struct Curl_easy *data, CURLoption option, va_list param)
     break;
 
   case CURLOPT_HTTP09_ALLOWED:
-    arg = va_arg(param, unsigned long);
+    arg = (long)va_arg(param, unsigned long);
     if(arg > 1L)
       return CURLE_BAD_FUNCTION_ARGUMENT;
 #ifdef USE_HYPER
@@ -1881,8 +1917,10 @@ CURLcode Curl_vsetopt(struct Curl_easy *data, CURLoption option, va_list param)
      * Set what interface or address/hostname to bind the socket to when
      * performing an operation and thus what from-IP your connection will use.
      */
-    result = Curl_setstropt(&data->set.str[STRING_DEVICE],
-                            va_arg(param, char *));
+    result = setstropt_interface(va_arg(param, char *),
+                                 &data->set.str[STRING_DEVICE],
+                                 &data->set.str[STRING_INTERFACE],
+                                 &data->set.str[STRING_BINDHOST]);
     break;
 #ifndef CURL_DISABLE_BINDLOCAL
   case CURLOPT_LOCALPORT:
@@ -2508,7 +2546,7 @@ CURLcode Curl_vsetopt(struct Curl_easy *data, CURLoption option, va_list param)
 #ifdef USE_SSH
     /* we only include SSH options if explicitly built to support SSH */
   case CURLOPT_SSH_AUTH_TYPES:
-    data->set.ssh_auth_types = (unsigned int)va_arg(param, long);
+    data->set.ssh_auth_types = (int)va_arg(param, long);
     break;
 
   case CURLOPT_SSH_PUBLIC_KEYFILE:
