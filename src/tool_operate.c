@@ -45,6 +45,10 @@
 #  include <proto/dos.h>
 #endif
 
+#ifdef HAVE_NETINET_IN_H
+#  include <netinet/in.h>
+#endif
+
 #define ENABLE_CURLX_PRINTF
 /* use our own printf() functions */
 #include "curlx.h"
@@ -56,6 +60,7 @@
 #include "tool_cb_prg.h"
 #include "tool_cb_rea.h"
 #include "tool_cb_see.h"
+#include "tool_cb_soc.h"
 #include "tool_cb_wrt.h"
 #include "tool_dirhie.h"
 #include "tool_doswin.h"
@@ -93,6 +98,10 @@
 /* since O_BINARY as used in bitmasks, setting it to zero makes it usable in
    source code but yet it doesn't ruin anything */
 #  define O_BINARY 0
+#endif
+
+#ifndef SOL_IP
+#  define SOL_IP IPPROTO_IP
 #endif
 
 #define CURL_CA_CERT_ERRORMSG                                               \
@@ -141,6 +150,55 @@ static bool is_pkcs11_uri(const char *string)
     return FALSE;
   }
 }
+
+#ifdef IP_TOS
+static int get_address_family(curl_socket_t sockfd)
+{
+  struct sockaddr_storage addr;
+  socklen_t addrlen = sizeof(addr);
+  if(getsockname(sockfd, (struct sockaddr *)&addr, &addrlen) == 0)
+    return addr.ss_family;
+  return AF_UNSPEC;
+}
+#endif
+
+#if defined(IP_TOS) || defined(IPV6_TCLASS)
+static int sockopt_callback(void *clientp, curl_socket_t curlfd,
+                            curlsocktype purpose)
+{
+  struct OperationConfig *config = (struct OperationConfig *)clientp;
+  if(purpose != CURLSOCKTYPE_IPCXN)
+    return CURL_SOCKOPT_OK;
+  (void)config;
+  (void)curlfd;
+  if(config->ip_tos > 0) {
+    int tos = (int)config->ip_tos;
+    int result = 0;
+    switch(get_address_family(curlfd)) {
+    case AF_INET:
+#ifdef IP_TOS
+      result = setsockopt(curlfd, SOL_IP, IP_TOS,
+                          (const char *)&tos, sizeof(tos));
+#endif
+      break;
+    case AF_INET6:
+#ifdef IPV6_TCLASS
+      result = setsockopt(curlfd, IPPROTO_IPV6, IPV6_TCLASS,
+                          (const char *)&tos, sizeof(tos));
+#endif
+      break;
+    }
+    if(result < 0) {
+      int error = errno;
+      warnf(config->global,
+            "Setting type of service to %d failed with errno %d: %s;\n",
+            tos, error, strerror(error));
+    }
+  }
+  return CURL_SOCKOPT_OK;
+}
+#endif
+
 
 #ifdef __VMS
 /*
@@ -1289,6 +1347,10 @@ static CURLcode single_transfer(struct GlobalConfig *global,
         if(config->tcp_fastopen)
           my_setopt(curl, CURLOPT_TCP_FASTOPEN, 1L);
 
+        if(config->mptcp)
+          my_setopt(curl, CURLOPT_OPENSOCKETFUNCTION,
+                    tool_socket_open_mptcp_cb);
+
         /* where to store */
         my_setopt(curl, CURLOPT_WRITEDATA, per);
         my_setopt(curl, CURLOPT_INTERLEAVEDATA, per);
@@ -2188,6 +2250,17 @@ static CURLcode single_transfer(struct GlobalConfig *global,
         if(config->ech_config) /* only if set (optional) */
           my_setopt_str(curl, CURLOPT_ECH, config->ech_config);
 #endif
+
+        /* new in 8.9.0 */
+        if(config->ip_tos > 0) {
+#if defined(IP_TOS) || defined(IPV6_TCLASS)
+          my_setopt(curl, CURLOPT_SOCKOPTFUNCTION, sockopt_callback);
+          my_setopt(curl, CURLOPT_SOCKOPTDATA, config);
+#else
+          warnf(config->global,
+                "Type of service is not supported in this build.");
+#endif
+        }
 
         /* initialize retry vars for loop below */
         per->retry_sleep_default = (config->retry_delay) ?
