@@ -179,6 +179,7 @@ typedef enum {
   C_JSON,
   C_JUNK_SESSION_COOKIES,
   C_KEEPALIVE,
+  C_KEEPALIVE_CNT,
   C_KEEPALIVE_TIME,
   C_KEY,
   C_KEY_TYPE,
@@ -340,6 +341,7 @@ typedef enum {
   C_VARIABLE,
   C_VERBOSE,
   C_VERSION,
+  C_VLAN_PRIORITY,
   C_WDEBUG,
   C_WRITE_OUT,
   C_XATTR
@@ -464,6 +466,7 @@ static const struct LongShort aliases[]= {
   {"json",                       ARG_STRG, ' ', C_JSON},
   {"junk-session-cookies",       ARG_BOOL, 'j', C_JUNK_SESSION_COOKIES},
   {"keepalive",                  ARG_BOOL, ' ', C_KEEPALIVE},
+  {"keepalive-cnt",              ARG_STRG, ' ', C_KEEPALIVE_CNT},
   {"keepalive-time",             ARG_STRG, ' ', C_KEEPALIVE_TIME},
   {"key",                        ARG_FILE, ' ', C_KEY},
   {"key-type",                   ARG_STRG, ' ', C_KEY_TYPE},
@@ -624,6 +627,7 @@ static const struct LongShort aliases[]= {
   {"variable",                   ARG_STRG, ' ', C_VARIABLE},
   {"verbose",                    ARG_BOOL, 'v', C_VERBOSE},
   {"version",                    ARG_BOOL, 'V', C_VERSION},
+  {"vlan-priority",              ARG_STRG, ' ', C_VLAN_PRIORITY},
 #ifdef USE_WATT32
   {"wdebug",                     ARG_BOOL, ' ', C_WDEBUG},
 #endif
@@ -1690,6 +1694,9 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         err = str2unummax(&config->ip_tos, nextarg, 0xFF);
       break;
     }
+    case C_VLAN_PRIORITY: /* --vlan-priority */
+      err = str2unummax(&config->vlan_priority, nextarg, 7);
+      break;
     case C_PROXY_DIGEST: /* --proxy-digest */
       config->proxydigest = toggle;
       break;
@@ -1820,6 +1827,9 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
       break;
     case C_KEEPALIVE_TIME: /* --keepalive-time */
       err = str2unum(&config->alivetime, nextarg);
+      break;
+    case C_KEEPALIVE_CNT: /* --keepalive-cnt */
+      err = str2unum(&config->alivecnt, nextarg);
       break;
     case C_POST301: /* --post301 */
       config->post301 = toggle;
