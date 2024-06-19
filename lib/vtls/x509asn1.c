@@ -25,13 +25,15 @@
 #include "curl_setup.h"
 
 #if defined(USE_GNUTLS) || defined(USE_WOLFSSL) ||      \
-  defined(USE_SCHANNEL) || defined(USE_SECTRANSP)
+  defined(USE_SCHANNEL) || defined(USE_SECTRANSP) ||    \
+  defined(USE_MBEDTLS)
 
 #if defined(USE_WOLFSSL) || defined(USE_SCHANNEL)
 #define WANT_PARSEX509 /* uses Curl_parseX509() */
 #endif
 
-#if defined(USE_GNUTLS) || defined(USE_SCHANNEL) || defined(USE_SECTRANSP)
+#if defined(USE_GNUTLS) || defined(USE_SCHANNEL) || defined(USE_SECTRANSP) || \
+  defined(USE_MBEDTLS)
 #define WANT_EXTRACT_CERTINFO /* uses Curl_extract_certinfo() */
 #define WANT_PARSEX509 /* ... uses Curl_parseX509() */
 #endif
@@ -110,9 +112,6 @@ struct Curl_OID {
 };
 
 /* ASN.1 OIDs. */
-static const char       cnOID[] = "2.5.4.3";    /* Common name. */
-static const char       sanOID[] = "2.5.29.17"; /* Subject alternative name. */
-
 static const struct Curl_OID OIDtable[] = {
   { "1.2.840.10040.4.1",        "dsa" },
   { "1.2.840.10040.4.3",        "dsa-with-sha1" },
@@ -136,7 +135,7 @@ static const struct Curl_OID OIDtable[] = {
   { "1.2.840.113549.2.2",       "md2" },
   { "1.2.840.113549.2.5",       "md5" },
   { "1.3.14.3.2.26",            "sha1" },
-  { cnOID,                      "CN" },
+  { "2.5.4.3",                  "CN" },
   { "2.5.4.4",                  "SN" },
   { "2.5.4.5",                  "serialNumber" },
   { "2.5.4.6",                  "C" },
@@ -157,7 +156,7 @@ static const struct Curl_OID OIDtable[] = {
   { "2.5.4.65",                 "pseudonym" },
   { "1.2.840.113549.1.9.1",     "emailAddress" },
   { "2.5.4.72",                 "role" },
-  { sanOID,                     "subjectAltName" },
+  { "2.5.29.17",                "subjectAltName" },
   { "2.5.29.18",                "issuerAltName" },
   { "2.5.29.19",                "basicConstraints" },
   { "2.16.840.1.101.3.4.2.4",   "sha224" },
@@ -602,7 +601,7 @@ static CURLcode ASN1tostr(struct dynbuf *store,
 {
   CURLcode result = CURLE_BAD_FUNCTION_ARGUMENT;
   if(elem->constructed)
-    return CURLE_OK; /* No conversion of structured elements. */
+    return result; /* No conversion of structured elements. */
 
   if(!type)
     type = elem->tag;   /* Type not forced: use element tag as type. */
