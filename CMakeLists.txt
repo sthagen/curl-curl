@@ -110,8 +110,8 @@ endif()
 option(CURL_LTO "Turn on compiler Link Time Optimizations" OFF)
 
 cmake_dependent_option(ENABLE_THREADED_RESOLVER "Set to ON to enable threaded DNS lookup"
-        ON "NOT ENABLE_ARES"
-        OFF)
+  ON "NOT ENABLE_ARES"
+  OFF)
 
 include(PickyWarnings)
 
@@ -1653,7 +1653,7 @@ if(NOT CURL_DISABLE_INSTALL)
   _add_if("UnixSockets"   USE_UNIX_SOCKETS)
   _add_if("libz"          HAVE_LIBZ)
   _add_if("brotli"        HAVE_BROTLI)
-  _add_if("gsasl"         USE_GSASL)  
+  _add_if("gsasl"         USE_GSASL)
   _add_if("zstd"          HAVE_ZSTD)
   _add_if("AsynchDNS"     USE_ARES OR USE_THREADS_POSIX OR USE_THREADS_WIN32)
   _add_if("IDN"           HAVE_LIBIDN2 OR USE_WIN32_IDN OR USE_APPLE_IDN)
