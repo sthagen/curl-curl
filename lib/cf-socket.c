@@ -35,6 +35,9 @@
 #elif defined(HAVE_NETINET_TCP_H)
 #include <netinet/tcp.h>
 #endif
+#ifdef HAVE_NETINET_UDP_H
+#include <netinet/udp.h>
+#endif
 #ifdef HAVE_SYS_IOCTL_H
 #include <sys/ioctl.h>
 #endif
@@ -1852,22 +1855,19 @@ static CURLcode cf_udp_setup_quic(struct Curl_cfilter *cf,
 {
   struct cf_socket_ctx *ctx = cf->ctx;
   int rc;
+  int one = 1;
+
+  (void)one;
 
   /* QUIC needs a connected socket, nonblocking */
   DEBUGASSERT(ctx->sock != CURL_SOCKET_BAD);
 
-#if defined(__APPLE__) && defined(USE_OPENSSL_QUIC)
-  (void)rc;
-  /* On macOS OpenSSL QUIC fails on connected sockets.
-   * see: <https://github.com/openssl/openssl/issues/23251> */
-#else
   rc = connect(ctx->sock, &ctx->addr.sa_addr,
                (curl_socklen_t)ctx->addr.addrlen);
   if(-1 == rc) {
     return socket_connect_result(data, ctx->ip.remote_ip, SOCKERRNO);
   }
   ctx->sock_connected = TRUE;
-#endif
   set_local_ip(cf, data);
   CURL_TRC_CF(data, cf, "%s socket %" CURL_FORMAT_SOCKET_T
               " connected: [%s:%d] -> [%s:%d]",
@@ -1898,6 +1898,13 @@ static CURLcode cf_udp_setup_quic(struct Curl_cfilter *cf,
   }
 #endif
   }
+
+#if defined(UDP_GRO) && (defined(HAVE_SENDMMSG) || defined(HAVE_SENDMSG)) &&  \
+  ((defined(USE_NGTCP2) && defined(USE_NGHTTP3)) || defined(USE_QUICHE))
+  (void)setsockopt(ctx->sock, IPPROTO_UDP, UDP_GRO, &one,
+                   (socklen_t)sizeof(one));
+#endif
+
   return CURLE_OK;
 }
 
