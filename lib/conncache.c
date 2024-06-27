@@ -662,6 +662,7 @@ static void connc_discard_conn(struct conncache *connc,
   struct Curl_easy *data = last_data? last_data : connc->closure_handle;
   bool done = FALSE;
 
+  DEBUGASSERT(data);
   DEBUGASSERT(connc);
   DEBUGASSERT(!conn->bundle);
 
@@ -689,7 +690,7 @@ static void connc_discard_conn(struct conncache *connc,
    * not what we want. */
   if(aborted)
     done = TRUE;
-  else if(!done) {
+  if(!done) {
     /* Attempt to shutdown the connection right away. */
     Curl_attach_connection(data, conn);
     connc_run_conn_shutdown(data, conn, &done);
@@ -906,6 +907,7 @@ static void connc_perform(struct conncache *connc)
   if(!e)
     return;
 
+  DEBUGASSERT(data);
   DEBUGASSERT(!connc->shutdowns.iter_locked);
   DEBUGF(infof(data, "[CCACHE] perform, %zu connections being shutdown",
                Curl_llist_count(&connc->shutdowns.conn_list)));
