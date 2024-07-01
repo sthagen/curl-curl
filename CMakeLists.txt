@@ -656,6 +656,11 @@ macro(openssl_check_quic)
   endif()
 endmacro()
 
+if(USE_WOLFSSL)
+  openssl_check_symbol_exists(wolfSSL_DES_ecb_encrypt "wolfssl/openssl/des.h" HAVE_WOLFSSL_DES_ECB_ENCRYPT "")
+  openssl_check_symbol_exists(wolfSSL_BIO_set_shutdown "wolfssl/ssl.h" HAVE_WOLFSSL_FULL_BIO "")
+endif()
+
 if(USE_OPENSSL OR USE_WOLFSSL)
   if(NOT DEFINED HAVE_SSL_SET0_WBIO)
     openssl_check_symbol_exists(SSL_set0_wbio "openssl/ssl.h" HAVE_SSL_SET0_WBIO "")
@@ -760,6 +765,7 @@ if(USE_MSH3)
   set(USE_MSH3 ON)
   include_directories(${MSH3_INCLUDE_DIRS})
   list(APPEND CURL_LIBS ${MSH3_LIBRARIES})
+  list(APPEND LIBCURL_PC_REQUIRES_PRIVATE "libmsh3")
 endif()
 
 option(USE_OPENSSL_QUIC "Use openssl and nghttp3 libraries for HTTP/3 support" OFF)
@@ -1043,6 +1049,9 @@ if(CURL_USE_GSSAPI)
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} ${GSS_LINKER_FLAGS}")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${GSS_LINKER_FLAGS}")
     list(APPEND CURL_LIBS ${GSS_LIBRARIES})
+    if(GSS_FLAVOUR STREQUAL "MIT")
+      list(APPEND LIBCURL_PC_REQUIRES_PRIVATE "mit-krb5-gssapi")
+    endif()
   else()
     message(WARNING "GSSAPI support has been requested but no supporting libraries found. Skipping.")
   endif()
@@ -1640,9 +1649,15 @@ if(NOT CURL_DISABLE_INSTALL)
     endif()
   endmacro()
 
-  # NTLM support requires crypto function adaptions from various SSL libs
-  if(NOT (CURL_DISABLE_NTLM) AND
-      (USE_OPENSSL OR USE_MBEDTLS OR USE_DARWINSSL OR USE_WIN32_CRYPTO OR USE_GNUTLS))
+  # NTLM support requires crypto functions from various SSL libs.
+  # These conditions must match those in lib/curl_setup.h.
+  if(NOT CURL_DISABLE_NTLM AND
+     (USE_OPENSSL OR
+      USE_MBEDTLS OR
+      USE_GNUTLS OR
+      USE_SECTRANSP OR
+      USE_WIN32_CRYPTO OR
+      (USE_WOLFSSL AND HAVE_WOLFSSL_DES_ECB_ENCRYPT)))
     set(use_curl_ntlm_core ON)
   endif()
 
@@ -1673,10 +1688,10 @@ if(NOT CURL_DISABLE_INSTALL)
   _add_if("HTTP2"         USE_NGHTTP2)
   _add_if("HTTP3"         USE_NGTCP2 OR USE_QUICHE OR USE_OPENSSL_QUIC)
   _add_if("MultiSSL"      CURL_WITH_MULTI_SSL)
-  # TODO wolfSSL only support this from v5.0.0 onwards
   _add_if("HTTPS-proxy"   SSL_ENABLED AND (USE_OPENSSL OR USE_GNUTLS
                           OR USE_SCHANNEL OR USE_RUSTLS OR USE_BEARSSL OR
-                          USE_MBEDTLS OR USE_SECTRANSP))
+                          USE_MBEDTLS OR USE_SECTRANSP OR
+                          (USE_WOLFSSL AND HAVE_WOLFSSL_FULL_BIO)))
   _add_if("unicode"       ENABLE_UNICODE)
   _add_if("threadsafe"    HAVE_ATOMIC OR
                           (USE_THREADS_POSIX AND HAVE_PTHREAD_H) OR
