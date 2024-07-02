@@ -1661,48 +1661,6 @@ if(NOT CURL_DISABLE_INSTALL)
     set(use_curl_ntlm_core ON)
   endif()
 
-  # Clear list and try to detect available features
-  set(_items)
-  _add_if("SSL"           SSL_ENABLED)
-  _add_if("IPv6"          ENABLE_IPV6)
-  _add_if("UnixSockets"   USE_UNIX_SOCKETS)
-  _add_if("libz"          HAVE_LIBZ)
-  _add_if("brotli"        HAVE_BROTLI)
-  _add_if("gsasl"         USE_GSASL)
-  _add_if("zstd"          HAVE_ZSTD)
-  _add_if("AsynchDNS"     USE_ARES OR USE_THREADS_POSIX OR USE_THREADS_WIN32)
-  _add_if("IDN"           HAVE_LIBIDN2 OR USE_WIN32_IDN OR USE_APPLE_IDN)
-  _add_if("Largefile"     (SIZEOF_CURL_OFF_T GREATER 4) AND
-                          ((SIZEOF_OFF_T GREATER 4) OR USE_WIN32_LARGE_FILES))
-  _add_if("SSPI"          USE_WINDOWS_SSPI)
-  _add_if("GSS-API"       HAVE_GSSAPI)
-  _add_if("alt-svc"       NOT CURL_DISABLE_ALTSVC)
-  _add_if("HSTS"          NOT CURL_DISABLE_HSTS)
-  _add_if("SPNEGO"        NOT CURL_DISABLE_NEGOTIATE_AUTH AND
-                          (HAVE_GSSAPI OR USE_WINDOWS_SSPI))
-  _add_if("Kerberos"      NOT CURL_DISABLE_KERBEROS_AUTH AND
-                          (HAVE_GSSAPI OR USE_WINDOWS_SSPI))
-  _add_if("NTLM"          NOT (CURL_DISABLE_NTLM) AND
-                          (use_curl_ntlm_core OR USE_WINDOWS_SSPI))
-  _add_if("TLS-SRP"       USE_TLS_SRP)
-  _add_if("HTTP2"         USE_NGHTTP2)
-  _add_if("HTTP3"         USE_NGTCP2 OR USE_QUICHE OR USE_OPENSSL_QUIC)
-  _add_if("MultiSSL"      CURL_WITH_MULTI_SSL)
-  _add_if("HTTPS-proxy"   SSL_ENABLED AND (USE_OPENSSL OR USE_GNUTLS
-                          OR USE_SCHANNEL OR USE_RUSTLS OR USE_BEARSSL OR
-                          USE_MBEDTLS OR USE_SECTRANSP OR
-                          (USE_WOLFSSL AND HAVE_WOLFSSL_FULL_BIO)))
-  _add_if("unicode"       ENABLE_UNICODE)
-  _add_if("threadsafe"    HAVE_ATOMIC OR
-                          (USE_THREADS_POSIX AND HAVE_PTHREAD_H) OR
-                          (WIN32 AND HAVE_WIN32_WINNT GREATER_EQUAL 0x600))
-  _add_if("PSL"           USE_LIBPSL)
-  if(_items)
-    list(SORT _items)
-  endif()
-  string(REPLACE ";" " " SUPPORT_FEATURES "${_items}")
-  message(STATUS "Enabled features: ${SUPPORT_FEATURES}")
-
   # Clear list and try to detect available protocols
   set(_items)
   _add_if("HTTP"          NOT CURL_DISABLE_HTTP)
@@ -1745,7 +1703,54 @@ if(NOT CURL_DISABLE_INSTALL)
     list(SORT _items)
   endif()
   string(REPLACE ";" " " SUPPORT_PROTOCOLS "${_items}")
-  message(STATUS "Enabled protocols: ${SUPPORT_PROTOCOLS}")
+  string(TOLOWER "${SUPPORT_PROTOCOLS}" SUPPORT_PROTOCOLS_LOWER)
+  message(STATUS "Enabled protocols: ${SUPPORT_PROTOCOLS_LOWER}")
+
+  # Clear list and try to detect available features
+  set(_items)
+  _add_if("SSL"           SSL_ENABLED)
+  _add_if("IPv6"          ENABLE_IPV6)
+  _add_if("UnixSockets"   USE_UNIX_SOCKETS)
+  _add_if("libz"          HAVE_LIBZ)
+  _add_if("brotli"        HAVE_BROTLI)
+  _add_if("gsasl"         USE_GSASL)
+  _add_if("zstd"          HAVE_ZSTD)
+  _add_if("AsynchDNS"     USE_ARES OR USE_THREADS_POSIX OR USE_THREADS_WIN32)
+  _add_if("IDN"           HAVE_LIBIDN2 OR USE_WIN32_IDN OR USE_APPLE_IDN)
+  _add_if("Largefile"     (SIZEOF_CURL_OFF_T GREATER 4) AND
+                          ((SIZEOF_OFF_T GREATER 4) OR USE_WIN32_LARGE_FILES))
+  _add_if("SSPI"          USE_WINDOWS_SSPI)
+  _add_if("GSS-API"       HAVE_GSSAPI)
+  _add_if("alt-svc"       NOT CURL_DISABLE_ALTSVC)
+  _add_if("HSTS"          NOT CURL_DISABLE_HSTS)
+  _add_if("SPNEGO"        NOT CURL_DISABLE_NEGOTIATE_AUTH AND
+                          (HAVE_GSSAPI OR USE_WINDOWS_SSPI))
+  _add_if("Kerberos"      NOT CURL_DISABLE_KERBEROS_AUTH AND
+                          (HAVE_GSSAPI OR USE_WINDOWS_SSPI))
+  _add_if("NTLM"          NOT (CURL_DISABLE_NTLM) AND
+                          (use_curl_ntlm_core OR USE_WINDOWS_SSPI))
+  _add_if("TLS-SRP"       USE_TLS_SRP)
+  _add_if("HTTP2"         USE_NGHTTP2)
+  _add_if("HTTP3"         USE_NGTCP2 OR USE_QUICHE OR USE_OPENSSL_QUIC)
+  _add_if("MultiSSL"      CURL_WITH_MULTI_SSL)
+  _add_if("HTTPS-proxy"   SSL_ENABLED AND (USE_OPENSSL OR USE_GNUTLS
+                          OR USE_SCHANNEL OR USE_RUSTLS OR USE_BEARSSL OR
+                          USE_MBEDTLS OR USE_SECTRANSP OR
+                          (USE_WOLFSSL AND HAVE_WOLFSSL_FULL_BIO)))
+  _add_if("unicode"       ENABLE_UNICODE)
+  _add_if("threadsafe"    HAVE_ATOMIC OR
+                          (USE_THREADS_POSIX AND HAVE_PTHREAD_H) OR
+                          (WIN32 AND HAVE_WIN32_WINNT GREATER_EQUAL 0x600))
+  _add_if("PSL"           USE_LIBPSL)
+  if(_items)
+    if(NOT CMAKE_VERSION VERSION_LESS 3.13)
+      list(SORT _items CASE INSENSITIVE)
+    else()
+      list(SORT _items)
+    endif()
+  endif()
+  string(REPLACE ";" " " SUPPORT_FEATURES "${_items}")
+  message(STATUS "Enabled features: ${SUPPORT_FEATURES}")
 
   # Clear list and collect SSL backends
   set(_items)
