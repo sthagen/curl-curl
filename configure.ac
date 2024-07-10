@@ -540,6 +540,8 @@ if test X"$want_werror" = Xyes; then
     if test "$compiler_num" -ge "500"; then
       CURL_CFLAG_EXTRAS="$CURL_CFLAG_EXTRAS -pedantic-errors"
     fi
+  elif test "$compiler_id" = "CLANG"; then
+    CURL_CFLAG_EXTRAS="$CURL_CFLAG_EXTRAS -pedantic-errors"
   fi
 fi
 AC_SUBST(CURL_CFLAG_EXTRAS)
@@ -595,7 +597,6 @@ CURL_CHECK_WIN32_LARGEFILE
 CURL_CHECK_WIN32_CRYPTO
 
 CURL_DARWIN_CFLAGS
-CURL_DARWIN_SYSTEMCONFIGURATION
 CURL_SUPPORTS_BUILTIN_AVAILABLE
 
 AM_CONDITIONAL([HAVE_WINDRES],
@@ -3873,6 +3874,10 @@ AM_CONDITIONAL(BUILD_LIBHOSTNAME, test x$build_libhostname = xyes)
 
 if test "x$want_ares" != xyes; then
   CURL_CHECK_OPTION_THREADED_RESOLVER
+
+  if test "$ipv6" = yes; then
+    CURL_DARWIN_SYSTEMCONFIGURATION
+  fi
 fi
 
 dnl ************************************************************
@@ -5023,6 +5028,7 @@ AC_MSG_NOTICE([Configured to build curl/libcurl:
   Install prefix:   ${prefix}
   Compiler:         ${CC}
    CFLAGS:          ${CFLAGS}
+   CFLAGS extras:   ${CURL_CFLAG_EXTRAS}
    CPPFLAGS:        ${CPPFLAGS}
    LDFLAGS:         ${LDFLAGS}
    LIBS:            ${LIBS}
