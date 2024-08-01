@@ -171,7 +171,7 @@ jobs:
 
       - name: 'cmake run tests'
         if: ${{ matrix.build == 'cmake' && matrix.tflags != 'skipall' && matrix.tflags != 'skiprun' }}
-        timeout-minutes: 40
+        timeout-minutes: 15
         run: |
           export TFLAGS='-j8 ${{ matrix.tflags }}'
           if [ -x "$(cygpath "${SYSTEMROOT}/System32/curl.exe")" ]; then
@@ -278,7 +278,7 @@ jobs:
         run: |
           export TFLAGS='-j14 ${{ matrix.tflags }}'
           if [ '${{ matrix.sys }}' != 'msys' ]; then
-            TFLAGS+=' !TFTP !MQTT !WebSockets !SMTP ~FTP'
+            TFLAGS+=' !TFTP !MQTT !WebSockets !SMTP !FTP'
           fi
           if [ -x "$(cygpath "${SYSTEMROOT}/System32/curl.exe")" ]; then
             TFLAGS+=" -ac $(cygpath "${SYSTEMROOT}/System32/curl.exe")"
@@ -353,11 +353,11 @@ jobs:
 
       - name: 'cmake run tests'
         if: ${{ matrix.build == 'cmake' && matrix.tflags != 'skipall' && matrix.tflags != 'skiprun' }}
-        timeout-minutes: 40
+        timeout-minutes: 10
         run: |
           export TFLAGS='-j14 ${{ matrix.tflags }}'
           if [ '${{ matrix.sys }}' != 'msys' ]; then
-            TFLAGS+=' !TFTP !MQTT !WebSockets !SMTP ~FTP'
+            TFLAGS+=' !TFTP !MQTT !WebSockets !SMTP !FTP'
           fi
           if [ -x "$(cygpath "${SYSTEMROOT}/System32/curl.exe")" ]; then
             TFLAGS+=" -ac $(cygpath "${SYSTEMROOT}/System32/curl.exe")"
@@ -469,10 +469,10 @@ jobs:
 
       - name: 'cmake run tests'
         if: ${{ matrix.tflags != 'skipall' && matrix.tflags != 'skiprun' }}
-        timeout-minutes: 40
+        timeout-minutes: 10
         run: |
           PATH="$(cygpath "${USERPROFILE}")/my-cache/${{ matrix.dir }}/bin:/c/msys64/usr/bin:$PATH"
-          export TFLAGS='-j14 !TFTP !MQTT !WebSockets ~FTP ${{ matrix.tflags }}'
+          export TFLAGS='-j14 !TFTP !MQTT !WebSockets !FTP ${{ matrix.tflags }}'
           if [ -x "$(cygpath "${SYSTEMROOT}/System32/curl.exe")" ]; then
             TFLAGS+=" -ac $(cygpath "${SYSTEMROOT}/System32/curl.exe")"
           fi
@@ -570,7 +570,7 @@ jobs:
         timeout-minutes: 5
         run: |
           if [[ '${{ matrix.install }}' = *'libressl'* ]]; then
-            # without this, CMake gets confused about the non-vcpkg OpenSSL
+            # without this, CMake gets confused by the non-vcpkg OpenSSL
             # installed on the runner and fails when linking.
             options+=" -DOPENSSL_ROOT_DIR=$VCPKG_INSTALLATION_ROOT/installed/${{ matrix.arch }}-${{ matrix.plat }}"
           fi
@@ -607,7 +607,7 @@ jobs:
         run: |
           find . -name '*.exe' -o -name '*.dll' | grep -v '/examples/'
           if [ '${{ matrix.plat }}' != 'uwp' ]; then
-            PATH="$PWD/bld/lib:$VCPKG_INSTALLATION_ROOT/installed/${{ matrix.arch }}-${{ matrix.plat }}/bin:$PATH"
+            PATH="$PWD/bld/lib:$PATH"
             bld/src/curl.exe --disable --version
           fi
 
@@ -618,9 +618,9 @@ jobs:
 
       - name: 'cmake run tests'
         if: ${{ matrix.tflags != 'skipall' && matrix.tflags != 'skiprun' }}
-        timeout-minutes: 30
+        timeout-minutes: 12
         run: |
-          export TFLAGS='-j14 !TFTP !MQTT !WebSockets !SMTP ~FTP ${{ matrix.tflags }}'
+          export TFLAGS='-j14 !TFTP !MQTT !WebSockets !SMTP !FTP ${{ matrix.tflags }}'
           if [[ '${{ matrix.config }}' = *'-DUSE_WIN32_IDN=ON'* ]]; then
             TFLAGS+=' ~165'
             if [[ '${{ matrix.config }}' != *'-DENABLE_UNICODE=ON'* ]]; then
@@ -629,5 +629,5 @@ jobs:
           elif [[ '${{ matrix.config }}' = *'-DUSE_LIBIDN2=ON'* ]]; then
             TFLAGS+=' ~165 ~1448 ~2046 ~2047'
           fi
-          PATH="$PWD/bld/lib:$VCPKG_INSTALLATION_ROOT/installed/${{ matrix.arch }}-${{ matrix.plat }}/bin:$PATH"
+          PATH="$PWD/bld/lib:$PATH"
           cmake --build bld --config '${{ matrix.type }}' --target test-ci
