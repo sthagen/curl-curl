@@ -1,3 +1,4 @@
+#!/usr/bin/env perl
 #***************************************************************************
 #                                  _   _ ____  _
 #  Project                     ___| | | |  _ \| |
@@ -21,6 +22,35 @@
 # SPDX-License-Identifier: curl
 #
 ###########################################################################
-# Loads 'TESTCASES' from for the 'make show' target in runtests.pl
-transform_makefile_inc("Makefile.inc" "${CMAKE_CURRENT_BINARY_DIR}/Makefile.inc.cmake")
-include("${CMAKE_CURRENT_BINARY_DIR}/Makefile.inc.cmake")
+
+my $varname = "var";
+if($ARGV[0] eq "--var") {
+    shift;
+    $varname = shift @ARGV;
+}
+
+print <<HEAD
+/*
+ * NEVER EVER edit this manually, fix the mk-file-embed.pl script instead!
+ */
+extern const unsigned char ${varname}[];
+const unsigned char ${varname}[] = {
+HEAD
+    ;
+
+while (<STDIN>) {
+    my $line = $_;
+    foreach my $n (split //, $line) {
+        my $ord = ord($n);
+        printf("%s,", $ord);
+        if($ord == 10) {
+             printf("\n");
+        }
+    }
+}
+
+print <<ENDLINE
+0
+};
+ENDLINE
+    ;
