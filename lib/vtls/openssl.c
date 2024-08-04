@@ -723,7 +723,8 @@ static int ossl_bio_cf_out_write(BIO *bio, const char *buf, int blen)
   if(blen < 0)
     return 0;
 
-  nwritten = Curl_conn_cf_send(cf->next, data, buf, (size_t)blen, &result);
+  nwritten = Curl_conn_cf_send(cf->next, data, buf, (size_t)blen, FALSE,
+                               &result);
   CURL_TRC_CF(data, cf, "ossl_bio_cf_out_write(len=%d) -> %d, err=%d",
               blen, (int)nwritten, result);
   BIO_clear_retry_flags(bio);
@@ -3897,7 +3898,7 @@ CURLcode Curl_ossl_ctx_init(struct ossl_ctx *octx,
           if(data->set.tls_ech & CURLECH_HARD)
             return CURLE_SSL_CONNECT_ERROR;
         }
-        Curl_resolv_unlock(data, dns);
+        Curl_resolv_unlink(data, &dns);
       }
     }
 # ifdef OPENSSL_IS_BORINGSSL

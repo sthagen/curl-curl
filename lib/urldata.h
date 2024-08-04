@@ -159,6 +159,7 @@ typedef ssize_t (Curl_send)(struct Curl_easy *data,   /* transfer */
                             int sockindex,            /* socketindex */
                             const void *buf,          /* data to write */
                             size_t len,               /* max amount to write */
+                            bool eos,                 /* last chunk */
                             CURLcode *err);           /* error to return */
 
 /* return the count of bytes read, or -1 on error */
@@ -272,7 +273,7 @@ struct ssl_peer {
   char *sni;             /* SNI version of hostname or NULL if not usable */
   ssl_peer_type type;    /* type of the peer information */
   int port;              /* port we are talking to */
-  int transport;         /* TCP or QUIC */
+  int transport;         /* one of TRNSPRT_* defines */
 };
 
 struct ssl_primary_config {
@@ -831,7 +832,8 @@ struct connectdata {
   struct proxy_info http_proxy;
 #endif
   /* 'primary' and 'secondary' get filled with IP quadruple
-     (local/remote numerical ip address and port) whenever a is *attempted*.
+     (local/remote numerical ip address and port) whenever a connect is
+     *attempted*.
      When more than one address is tried for a connection these will hold data
      for the last attempt. When the connection is actually established
      these are updated with data which comes directly from the socket. */

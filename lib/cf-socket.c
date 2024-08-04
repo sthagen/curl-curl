@@ -679,12 +679,13 @@ static CURLcode bindlocal(struct Curl_easy *data, struct connectdata *conn,
       conn->ip_version = ipver;
 
       if(h) {
+        int h_af = h->addr->ai_family;
         /* convert the resolved address, sizeof myhost >= INET_ADDRSTRLEN */
         Curl_printable_address(h->addr, myhost, sizeof(myhost));
         infof(data, "Name '%s' family %i resolved to '%s' family %i",
-              host, af, myhost, h->addr->ai_family);
-        Curl_resolv_unlock(data, h);
-        if(af != h->addr->ai_family) {
+              host, af, myhost, h_af);
+        Curl_resolv_unlink(data, &h); /* this will NULL, potential free h */
+        if(af != h_af) {
           /* bad IP version combo, signal the caller to try another address
              family if available */
           return CURLE_UNSUPPORTED_PROTOCOL;
@@ -1449,13 +1450,15 @@ static void win_update_sndbuf_size(struct cf_socket_ctx *ctx)
 #endif /* USE_WINSOCK */
 
 static ssize_t cf_socket_send(struct Curl_cfilter *cf, struct Curl_easy *data,
-                              const void *buf, size_t len, CURLcode *err)
+                              const void *buf, size_t len, bool eos,
+                              CURLcode *err)
 {
   struct cf_socket_ctx *ctx = cf->ctx;
   curl_socket_t fdsave;
   ssize_t nwritten;
   size_t orig_len = len;
 
+  (void)eos; /* unused */
   *err = CURLE_OK;
   fdsave = cf->conn->sock[cf->sockindex];
   cf->conn->sock[cf->sockindex] = ctx->sock;
@@ -1464,7 +1467,7 @@ static ssize_t cf_socket_send(struct Curl_cfilter *cf, struct Curl_easy *data,
   /* simulate network blocking/partial writes */
   if(ctx->wblock_percent > 0) {
     unsigned char c = 0;
-    Curl_rand(data, &c, 1);
+    Curl_rand_bytes(data, FALSE, &c, 1);
     if(c >= ((100-ctx->wblock_percent)*256/100)) {
       CURL_TRC_CF(data, cf, "send(len=%zu) SIMULATE EWOULDBLOCK", orig_len);
       *err = CURLE_AGAIN;

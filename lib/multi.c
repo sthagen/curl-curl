@@ -742,10 +742,8 @@ static CURLcode multi_done(struct Curl_easy *data,
 
   data->state.done = TRUE; /* called just now! */
 
-  if(conn->dns_entry) {
-    Curl_resolv_unlock(data, conn->dns_entry); /* done with this */
-    conn->dns_entry = NULL;
-  }
+  if(conn->dns_entry)
+    Curl_resolv_unlink(data, &conn->dns_entry); /* done with this */
   Curl_hostcache_prune(data);
 
   /* if data->set.reuse_forbid is TRUE, it means the libcurl client has
@@ -1103,7 +1101,7 @@ static int perform_getsock(struct Curl_easy *data, curl_socket_t *sock)
       sock[sockindex] = conn->sockfd;
     }
 
-    if(CURL_WANT_SEND(data)) {
+    if(Curl_req_want_send(data)) {
       if((conn->sockfd != conn->writesockfd) ||
          bitmap == GETSOCK_BLANK) {
         /* only if they are not the same socket and we have a readable
