@@ -1057,7 +1057,12 @@ static CURLcode single_transfer(struct GlobalConfig *global,
         /* Single header file for all URLs */
         if(config->headerfile) {
           /* open file for output: */
-          if(strcmp(config->headerfile, "-")) {
+          if(!strcmp(config->headerfile, "%")) {
+            heads->stream = stderr;
+            /* use binary mode for protocol header output */
+            set_binmode(heads->stream);
+          }
+          else if(strcmp(config->headerfile, "-")) {
             FILE *newfile;
 
             /*
@@ -1147,9 +1152,13 @@ static CURLcode single_transfer(struct GlobalConfig *global,
               break;
             }
             if(!*per->outfile && !config->content_disposition) {
-              errorf(global, "Remote filename has no length");
-              result = CURLE_WRITE_ERROR;
-              break;
+              free(per->outfile);
+              per->outfile = strdup("curl_response");
+              if(!per->outfile) {
+                result = CURLE_OUT_OF_MEMORY;
+                break;
+              }
+              warnf(global, "No remote file name, uses \"%s\"", per->outfile);
             }
           }
           else if(state->urls) {
@@ -2683,10 +2692,10 @@ static CURLcode transfer_per_config(struct GlobalConfig *global,
     return CURLE_FAILED_INIT;
   }
 
-  /* On WIN32 we cannot set the path to curl-ca-bundle.crt at compile time. We
-   * look for the file in two ways:
+  /* On Windows we cannot set the path to curl-ca-bundle.crt at compile time.
+   * We look for the file in two ways:
    * 1: look at the environment variable CURL_CA_BUNDLE for a path
-   * 2: if #1 is not found, use the windows API function SearchPath()
+   * 2: if #1 is not found, use the Windows API function SearchPath()
    *    to find it along the app's path (includes app's dir and CWD)
    *
    * We support the environment variable thing for non-Windows platforms

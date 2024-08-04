@@ -45,8 +45,8 @@ SPDX-License-Identifier: curl
 
 ## Requires to run
 
-  - perl (and a unix-style shell)
-  - python (and a unix-style shell, for SMB and TELNET tests)
+  - perl (and a Unix-style shell)
+  - python (and a Unix-style shell, for SMB and TELNET tests)
   - python-impacket (for SMB tests)
   - diff (when a test fails, a diff is shown)
   - stunnel (for HTTPS and FTPS tests)
@@ -222,7 +222,7 @@ SPDX-License-Identifier: curl
   up. Subsets of tests can now be selected by passing keywords to the
   runtests.pl script via the make `TFLAGS` variable.
 
-  New tests are added by finding a free number in `tests/data/Makefile.inc`.
+  New tests are added by finding a free number in `tests/data/Makefile.am`.
 
 ## Write tests
 
