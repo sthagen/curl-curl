@@ -287,17 +287,32 @@ static int wolfssl_bio_cf_out_write(WOLFSSL_BIO *bio,
   struct wolfssl_ctx *backend =
     (struct wolfssl_ctx *)connssl->backend;
   struct Curl_easy *data = CF_DATA_CURRENT(cf);
-  ssize_t nwritten;
+  ssize_t nwritten, skiplen = 0;
   CURLcode result = CURLE_OK;
 
   DEBUGASSERT(data);
+  if(backend->shutting_down && backend->io_send_blocked_len &&
+     (backend->io_send_blocked_len < blen)) {
+    /* bug in wolfSSL: <https://github.com/wolfSSL/wolfssl/issues/7784>
+     * It adds the close notify message again every time we retry
+     * sending during shutdown. */
+    CURL_TRC_CF(data, cf, "bio_write, shutdown restrict send of %d"
+                " to %d bytes", blen, backend->io_send_blocked_len);
+    skiplen = (ssize_t)(blen - backend->io_send_blocked_len);
+    blen = backend->io_send_blocked_len;
+  }
   nwritten = Curl_conn_cf_send(cf->next, data, buf, blen, FALSE, &result);
   backend->io_result = result;
   CURL_TRC_CF(data, cf, "bio_write(len=%d) -> %zd, %d",
               blen, nwritten, result);
   wolfSSL_BIO_clear_retry_flags(bio);
-  if(nwritten < 0 && CURLE_AGAIN == result)
+  if(nwritten < 0 && CURLE_AGAIN == result) {
     BIO_set_retry_write(bio);
+    if(backend->shutting_down && !backend->io_send_blocked_len)
+      backend->io_send_blocked_len = blen;
+  }
+  else if(!result && skiplen)
+    nwritten += skiplen;
   return (int)nwritten;
 }
 
@@ -768,40 +783,89 @@ wolfssl_connect_step1(struct Curl_cfilter *cf, struct Curl_easy *data)
     }
   }
 
-#ifndef NO_FILESYSTEM
   /* Load the client certificate, and private key */
-  if(ssl_config->primary.clientcert) {
-    char *key_file = ssl_config->key;
+#ifndef NO_FILESYSTEM
+  if(ssl_config->primary.cert_blob || ssl_config->primary.clientcert) {
+    const char *cert_file = ssl_config->primary.clientcert;
+    const char *key_file = ssl_config->key;
+    const struct curl_blob *cert_blob = ssl_config->primary.cert_blob;
+    const struct curl_blob *key_blob = ssl_config->key_blob;
     int file_type = do_file_type(ssl_config->cert_type);
+    int rc;
 
-    if(file_type == WOLFSSL_FILETYPE_PEM) {
-      if(wolfSSL_CTX_use_certificate_chain_file(backend->ctx,
-                                                ssl_config->primary.clientcert)
-         != 1) {
-        failf(data, "unable to use client certificate");
-        return CURLE_SSL_CONNECT_ERROR;
-      }
-    }
-    else if(file_type == WOLFSSL_FILETYPE_ASN1) {
-      if(wolfSSL_CTX_use_certificate_file(backend->ctx,
-                                          ssl_config->primary.clientcert,
-                                          file_type) != 1) {
-        failf(data, "unable to use client certificate");
-        return CURLE_SSL_CONNECT_ERROR;
-      }
-    }
-    else {
+    switch(file_type) {
+    case WOLFSSL_FILETYPE_PEM:
+      rc = cert_blob ?
+        wolfSSL_CTX_use_certificate_chain_buffer(backend->ctx,
+                                                 cert_blob->data,
+                                                 (long)cert_blob->len) :
+        wolfSSL_CTX_use_certificate_chain_file(backend->ctx, cert_file);
+      break;
+    case WOLFSSL_FILETYPE_ASN1:
+      rc = cert_blob ?
+        wolfSSL_CTX_use_certificate_buffer(backend->ctx, cert_blob->data,
+                                           (long)cert_blob->len, file_type) :
+        wolfSSL_CTX_use_certificate_file(backend->ctx, cert_file, file_type);
+      break;
+    default:
       failf(data, "unknown cert type");
       return CURLE_BAD_FUNCTION_ARGUMENT;
     }
+    if(rc != 1) {
+      failf(data, "unable to use client certificate");
+      return CURLE_SSL_CONNECT_ERROR;
+    }
 
-    if(!key_file)
-      key_file = ssl_config->primary.clientcert;
+    if(!key_blob && !key_file) {
+      key_blob = cert_blob;
+      key_file = cert_file;
+    }
     else
       file_type = do_file_type(ssl_config->key_type);
 
-    if(wolfSSL_CTX_use_PrivateKey_file(backend->ctx, key_file,
-                                       file_type) != 1) {
+    rc = key_blob ?
+      wolfSSL_CTX_use_PrivateKey_buffer(backend->ctx, key_blob->data,
+                                        (long)key_blob->len, file_type) :
+      wolfSSL_CTX_use_PrivateKey_file(backend->ctx, key_file, file_type);
+    if(rc != 1) {
+      failf(data, "unable to set private key");
+      return CURLE_SSL_CONNECT_ERROR;
+    }
+  }
+#else /* NO_FILESYSTEM */
+  if(ssl_config->primary.cert_blob) {
+    const struct curl_blob *cert_blob = ssl_config->primary.cert_blob;
+    const struct curl_blob *key_blob = ssl_config->key_blob;
+    int file_type = do_file_type(ssl_config->cert_type);
+    int rc;
+
+    switch(file_type) {
+    case WOLFSSL_FILETYPE_PEM:
+      rc = wolfSSL_CTX_use_certificate_chain_buffer(backend->ctx,
+                                                    cert_blob->data,
+                                                    (long)cert_blob->len);
+      break;
+    case WOLFSSL_FILETYPE_ASN1:
+      rc = wolfSSL_CTX_use_certificate_buffer(backend->ctx, cert_blob->data,
+                                              (long)cert_blob->len, file_type);
+      break;
+    default:
+      failf(data, "unknown cert type");
+      return CURLE_BAD_FUNCTION_ARGUMENT;
+    }
+    if(rc != 1) {
+      failf(data, "unable to use client certificate");
+      return CURLE_SSL_CONNECT_ERROR;
+    }
+
+    if(!key_blob)
+      key_blob = cert_blob;
+    else
+      file_type = do_file_type(ssl_config->key_type);
+
+    if(wolfSSL_CTX_use_PrivateKey_buffer(backend->ctx, key_blob->data,
+                                         (long)key_blob->len,
+                                         file_type) != 1) {
       failf(data, "unable to set private key");
       return CURLE_SSL_CONNECT_ERROR;
     }
@@ -1379,7 +1443,10 @@ static CURLcode wolfssl_shutdown(struct Curl_cfilter *cf,
   struct wolfssl_ctx *wctx = (struct wolfssl_ctx *)connssl->backend;
   CURLcode result = CURLE_OK;
   char buf[1024];
-  int nread, err;
+  char error_buffer[256];
+  int nread = -1, err;
+  size_t i;
+  int detail;
 
   DEBUGASSERT(wctx);
   if(!wctx->handle || cf->shutdown) {
@@ -1387,6 +1454,7 @@ static CURLcode wolfssl_shutdown(struct Curl_cfilter *cf,
     goto out;
   }
 
+  wctx->shutting_down = TRUE;
   connssl->io_need = CURL_SSL_IO_NEED_NONE;
   *done = FALSE;
   if(!(wolfSSL_get_shutdown(wctx->handle) & SSL_SENT_SHUTDOWN)) {
@@ -1395,6 +1463,7 @@ static CURLcode wolfssl_shutdown(struct Curl_cfilter *cf,
     ERR_clear_error();
     nread = wolfSSL_read(wctx->handle, buf, (int)sizeof(buf));
     err = wolfSSL_get_error(wctx->handle, nread);
+    CURL_TRC_CF(data, cf, "wolfSSL_read, nread=%d, err=%d", nread, err);
     if(!nread && err == SSL_ERROR_ZERO_RETURN) {
       bool input_pending;
       /* Yes, it did. */
@@ -1415,49 +1484,55 @@ static CURLcode wolfssl_shutdown(struct Curl_cfilter *cf,
     }
   }
 
-  if(send_shutdown && wolfSSL_shutdown(wctx->handle) == 1) {
-    CURL_TRC_CF(data, cf, "SSL shutdown finished");
-    *done = TRUE;
-    goto out;
-  }
-  else {
-    size_t i;
-    /* SSL should now have started the shutdown from our side. Since it
-     * was not complete, we are lacking the close notify from the server. */
-    for(i = 0; i < 10; ++i) {
-      ERR_clear_error();
-      nread = wolfSSL_read(wctx->handle, buf, (int)sizeof(buf));
-      if(nread <= 0)
-        break;
-    }
-    err = wolfSSL_get_error(wctx->handle, nread);
-    switch(err) {
-    case SSL_ERROR_ZERO_RETURN: /* no more data */
-      CURL_TRC_CF(data, cf, "SSL shutdown received");
+  /* SSL should now have started the shutdown from our side. Since it
+   * was not complete, we are lacking the close notify from the server. */
+  if(send_shutdown) {
+    ERR_clear_error();
+    if(wolfSSL_shutdown(wctx->handle) == 1) {
+      CURL_TRC_CF(data, cf, "SSL shutdown finished");
       *done = TRUE;
-      break;
-    case SSL_ERROR_NONE: /* just did not get anything */
-    case SSL_ERROR_WANT_READ:
-      /* SSL has send its notify and now wants to read the reply
-       * from the server. We are not really interested in that. */
-      CURL_TRC_CF(data, cf, "SSL shutdown sent, want receive");
-      connssl->io_need = CURL_SSL_IO_NEED_RECV;
-      break;
-    case SSL_ERROR_WANT_WRITE:
-      CURL_TRC_CF(data, cf, "SSL shutdown send blocked");
+      goto out;
+    }
+    if(SSL_ERROR_WANT_WRITE == wolfSSL_get_error(wctx->handle, nread)) {
+      CURL_TRC_CF(data, cf, "SSL shutdown still wants to send");
       connssl->io_need = CURL_SSL_IO_NEED_SEND;
-      break;
-    default: {
-      char error_buffer[256];
-      int detail = wolfSSL_get_error(wctx->handle, err);
-      CURL_TRC_CF(data, cf, "SSL shutdown, error: '%s'(%d)",
-                  wolfssl_strerror((unsigned long)err, error_buffer,
-                                   sizeof(error_buffer)),
-                  detail);
-      result = CURLE_RECV_ERROR;
-      break;
+      goto out;
     }
-    }
+    /* Having sent the close notify, we use wolfSSL_read() to get the
+     * missing close notify from the server. */
+  }
+
+  for(i = 0; i < 10; ++i) {
+    ERR_clear_error();
+    nread = wolfSSL_read(wctx->handle, buf, (int)sizeof(buf));
+    if(nread <= 0)
+      break;
+  }
+  err = wolfSSL_get_error(wctx->handle, nread);
+  switch(err) {
+  case SSL_ERROR_ZERO_RETURN: /* no more data */
+    CURL_TRC_CF(data, cf, "SSL shutdown received");
+    *done = TRUE;
+    break;
+  case SSL_ERROR_NONE: /* just did not get anything */
+  case SSL_ERROR_WANT_READ:
+    /* SSL has send its notify and now wants to read the reply
+     * from the server. We are not really interested in that. */
+    CURL_TRC_CF(data, cf, "SSL shutdown sent, want receive");
+    connssl->io_need = CURL_SSL_IO_NEED_RECV;
+    break;
+  case SSL_ERROR_WANT_WRITE:
+    CURL_TRC_CF(data, cf, "SSL shutdown send blocked");
+    connssl->io_need = CURL_SSL_IO_NEED_SEND;
+    break;
+  default:
+    detail = wolfSSL_get_error(wctx->handle, err);
+    CURL_TRC_CF(data, cf, "SSL shutdown, error: '%s'(%d)",
+                wolfssl_strerror((unsigned long)err, error_buffer,
+                                 sizeof(error_buffer)),
+                detail);
+    result = CURLE_RECV_ERROR;
+    break;
   }
 
 out:

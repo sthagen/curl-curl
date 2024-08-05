@@ -2113,7 +2113,7 @@ if test X"$OPT_LIBPSL" != Xno; then
   CLEANLIBS="$LIBS"
 
   case "$OPT_LIBPSL" in
-  yes)
+  yes|off)
     dnl --with-libpsl (without path) used
     CURL_CHECK_PKGCONFIG(libpsl)
 
@@ -2126,10 +2126,6 @@ if test X"$OPT_LIBPSL" != Xno; then
       LIB_PSL="-lpsl"
     fi
 
-    ;;
-  off)
-    dnl no --with-libpsl option given, just check default places
-    LIB_PSL="-lpsl"
     ;;
   *)
     dnl use the given --with-libpsl spot
@@ -2164,8 +2160,7 @@ if test X"$OPT_LIBPSL" != Xno; then
       LIBS=$CLEANLIBS
   )
 
-  if test X"$OPT_LIBPSL" != Xoff &&
-     test "$LIBPSL_ENABLED" != "1"; then
+  if test "$LIBPSL_ENABLED" != "1"; then
     AC_MSG_ERROR([libpsl libs and/or directories were not found where specified!])
   fi
 fi
@@ -2495,6 +2490,10 @@ AS_HELP_STRING([--disable-versioned-symbols], [Disable versioned symbols in shar
           versioned_symbols_flavour="MULTISSL_"
         elif test "x$OPENSSL_ENABLED" = "x1"; then
           versioned_symbols_flavour="OPENSSL_"
+        elif test "x$MBEDTLS_ENABLED" = "x1"; then
+          versioned_symbols_flavour="MBEDTLS_"
+        elif test "x$BEARSSL_ENABLED" = "x1"; then
+          versioned_symbols_flavour="BEARSSL_"
         elif test "x$GNUTLS_ENABLED" = "x1"; then
           versioned_symbols_flavour="GNUTLS_"
         elif test "x$WOLFSSL_ENABLED" = "x1"; then
@@ -3510,6 +3509,93 @@ if test X"$want_msh3" != Xno; then
       CPPFLAGS=$CLEANCPPFLAGS
       LIBS=$CLEANLIBS
   )
+fi
+
+dnl **********************************************************************
+dnl libuv is only ever used for debug purposes
+dnl **********************************************************************
+
+OPT_LIBUV=no
+AC_ARG_WITH(libuv,
+AS_HELP_STRING([--with-libuv=PATH],[Enable libuv])
+AS_HELP_STRING([--without-libuv],[Disable libuv]),
+  [OPT_LIBUV=$withval])
+case "$OPT_LIBUV" in
+  no)
+    dnl --without-libuv option used
+    want_libuv="no"
+    ;;
+  yes)
+    dnl --with-libuv option used without path
+    want_libuv="default"
+    want_libuv_path=""
+    ;;
+  *)
+    dnl --with-libuv option used with path
+    want_libuv="yes"
+    want_libuv_path="$withval"
+    ;;
+esac
+
+if test X"$want_libuv" != Xno; then
+  if test x$want_debug != xyes; then
+    AC_MSG_ERROR([Using libuv without debug support enabled is useless])
+  fi
+
+  dnl backup the pre-libuv variables
+  CLEANLDFLAGS="$LDFLAGS"
+  CLEANCPPFLAGS="$CPPFLAGS"
+  CLEANLIBS="$LIBS"
+
+  CURL_CHECK_PKGCONFIG(libuv, $want_libuv_path)
+
+  if test "$PKGCONFIG" != "no" ; then
+    LIB_LIBUV=`CURL_EXPORT_PCDIR([$want_libuv_path])
+      $PKGCONFIG --libs-only-l libuv`
+    AC_MSG_NOTICE([-l is $LIB_LIBUV])
+
+    CPP_LIBUV=`CURL_EXPORT_PCDIR([$want_libuv_path]) dnl
+      $PKGCONFIG --cflags-only-I libuv`
+    AC_MSG_NOTICE([-I is $CPP_LIBUV])
+
+    LD_LIBUV=`CURL_EXPORT_PCDIR([$want_libuv_path])
+      $PKGCONFIG --libs-only-L libuv`
+    AC_MSG_NOTICE([-L is $LD_LIBUV])
+
+    LDFLAGS="$LDFLAGS $LD_LIBUV"
+    CPPFLAGS="$CPPFLAGS $CPP_LIBUV"
+    LIBS="$LIB_LIBUV $LIBS"
+
+    if test "x$cross_compiling" != "xyes"; then
+      DIR_LIBUV=`echo $LD_LIBUV | $SED -e 's/^-L//'`
+    fi
+    AC_CHECK_LIB(uv, uv_default_loop,
+      [
+       AC_CHECK_HEADERS(uv.h,
+          LIBUV_ENABLED=1
+          AC_DEFINE(USE_LIBUV, 1, [if libuv is in use])
+          AC_SUBST(USE_LIBUV, [1])
+          CURL_LIBRARY_PATH="$CURL_LIBRARY_PATH:$DIR_LIBUV"
+          export CURL_LIBRARY_PATH
+          AC_MSG_NOTICE([Added $DIR_LIBUV to CURL_LIBRARY_PATH])
+          LIBCURL_PC_REQUIRES_PRIVATE="$LIBCURL_PC_REQUIRES_PRIVATE libuv"
+       )
+      ],
+        dnl not found, revert back to clean variables
+        LDFLAGS=$CLEANLDFLAGS
+        CPPFLAGS=$CLEANCPPFLAGS
+        LIBS=$CLEANLIBS
+    )
+
+  else
+    dnl no libuv pkg-config found, deal with it
+    if test X"$want_libuv" != Xdefault; then
+      dnl To avoid link errors, we do not allow --with-libuv without
+      dnl a pkgconfig file
+      AC_MSG_ERROR([--with-libuv was specified but could not find libuv pkg-config file.])
+    fi
+  fi
+
 fi
 
 dnl **********************************************************************
