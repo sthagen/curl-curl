@@ -711,6 +711,9 @@ if(USE_NGTCP2)
   if(USE_OPENSSL OR USE_WOLFSSL)
     if(USE_WOLFSSL)
       find_package(NGTCP2 REQUIRED wolfSSL)
+      if(NOT WIN32)
+        find_library(MATH_LIBRARY m)
+      endif()
       list(APPEND LIBCURL_PC_REQUIRES_PRIVATE "libngtcp2_crypto_wolfssl")
     elseif(HAVE_BORINGSSL OR HAVE_AWSLC)
       find_package(NGTCP2 REQUIRED BoringSSL)
@@ -728,7 +731,7 @@ if(USE_NGTCP2)
   endif()
   set(USE_NGTCP2 ON)
   include_directories(${NGTCP2_INCLUDE_DIRS})
-  list(APPEND CURL_LIBS ${NGTCP2_LIBRARIES})
+  list(APPEND CURL_LIBS ${NGTCP2_LIBRARIES} ${MATH_LIBRARY})
   list(APPEND LIBCURL_PC_REQUIRES_PRIVATE "libngtcp2")
 
   find_package(NGHTTP3 REQUIRED)
@@ -1240,14 +1243,14 @@ if(WIN32)
   unset(HAVE_WIN32_WINNT CACHE)
 
   if(HAVE_WIN32_WINNT)
-    if(HAVE_WIN32_WINNT STRLESS "0x0501")
+    if(HAVE_WIN32_WINNT LESS 0x0501)
       # Windows XP is required for freeaddrinfo, getaddrinfo
       message(FATAL_ERROR "Building for Windows XP or newer is required.")
     endif()
 
     # Pre-fill detection results based on target OS version
     if(MINGW OR MSVC)
-      if(HAVE_WIN32_WINNT STRLESS "0x0600")
+      if(HAVE_WIN32_WINNT LESS 0x0600)
         set(HAVE_INET_NTOP 0)
         set(HAVE_INET_PTON 0)
       else()  # Windows Vista or newer
@@ -1607,7 +1610,7 @@ if(MSVC)
 endif()
 
 if(CURL_WERROR)
-  if(MSVC_VERSION)
+  if(MSVC)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /WX")
   else()
     # This assumes clang or gcc style options
@@ -1814,7 +1817,7 @@ if(NOT CURL_DISABLE_INSTALL)
   _add_if("Unicode"       ENABLE_UNICODE)
   _add_if("threadsafe"    HAVE_ATOMIC OR
                           (USE_THREADS_POSIX AND HAVE_PTHREAD_H) OR
-                          (WIN32 AND HAVE_WIN32_WINNT GREATER_EQUAL 0x600))
+                          (WIN32 AND HAVE_WIN32_WINNT GREATER_EQUAL 0x0600))
   _add_if("Debug"         ENABLE_DEBUG)
   _add_if("TrackMemory"   ENABLE_CURLDEBUG)
   _add_if("ECH"           SSL_ENABLED AND HAVE_ECH)
