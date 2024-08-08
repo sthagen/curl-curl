@@ -37,13 +37,13 @@ add_subdirectory(server)
 add_subdirectory(libtest)
 add_subdirectory(unit)
 
-function(add_runtests targetname test_flags)
+function(add_runtests _targetname _test_flags)
   # Use a special '$TFLAGS' placeholder as last argument which will be
   # replaced by the contents of the environment variable in runtests.pl.
   # This is a workaround for CMake's limitation where commands executed by
   # 'make' or 'ninja' cannot portably reference environment variables.
-  string(REPLACE " " ";" _test_flags_list "${test_flags}")
-  add_custom_target(${targetname}
+  string(REPLACE " " ";" _test_flags_list "${_test_flags}")
+  add_custom_target(${_targetname}
     COMMAND
       "${PERL_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/runtests.pl"
       ${_test_flags_list}
@@ -56,7 +56,7 @@ endfunction()
 # Create configurehelp.pm, used by tests needing to run the C preprocessor.
 if(MSVC OR CMAKE_COMPILER_IS_GNUCC OR CMAKE_C_COMPILER_ID MATCHES "Clang")
   set(_cpp_cmd "\"${CMAKE_C_COMPILER}\" -E")
-  if(APPLE AND NOT CMAKE_OSX_SYSROOT STREQUAL "")
+  if(APPLE AND CMAKE_OSX_SYSROOT)
     set(_cpp_cmd "${_cpp_cmd} -isysroot ${CMAKE_OSX_SYSROOT}")
   endif()
   # Add header directories, like autotools builds do.
