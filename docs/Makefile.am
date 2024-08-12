@@ -50,6 +50,7 @@ EXTRA_DIST =                                    \
  BUGS.md                                        \
  CHECKSRC.md                                    \
  CIPHERS.md                                     \
+ CIPHERS-TLS12.md                               \
  CMakeLists.txt                                 \
  CODE_OF_CONDUCT.md                             \
  CODE_REVIEW.md                                 \
@@ -81,6 +82,7 @@ EXTRA_DIST =                                    \
  INSTALL.md                                     \
  INTERNALS.md                                   \
  IPFS.md                                        \
+ LLIST.md                                       \
  KNOWN_BUGS                                     \
  MAIL-ETIQUETTE.md                              \
  MANUAL.md                                      \
