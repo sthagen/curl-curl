@@ -599,6 +599,9 @@ sub checksystemfeatures {
             if ($libcurl =~ /WinIDN/) {
                 $feature{"WinIDN"} = 1;
             }
+            if ($libcurl =~ /libidn2/) {
+                $feature{"libidn2"} = 1;
+            }
             if ($libcurl =~ /libssh2/i) {
                 $feature{"libssh2"} = 1;
             }
@@ -832,7 +835,9 @@ sub checksystemfeatures {
     }
 
     my $hostname=join(' ', runclientoutput("hostname"));
+    chomp $hostname;
     my $hosttype=join(' ', runclientoutput("uname -a"));
+    chomp $hosttype;
     my $hostos=$^O;
 
     # display summary information about curl and the test host
@@ -841,8 +846,8 @@ sub checksystemfeatures {
             "* $libcurl\n",
             "* Features: $feat\n",
             "* Disabled: $dis\n",
-            "* Host: $hostname",
-            "* System: $hosttype",
+            "* Host: $hostname\n",
+            "* System: $hosttype\n",
             "* OS: $hostos\n");
 
     if($jobs) {
