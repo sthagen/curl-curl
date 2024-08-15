@@ -247,10 +247,8 @@ static size_t trhash(void *key, size_t key_length, size_t slots_num)
 
 static size_t trhash_compare(void *k1, size_t k1_len, void *k2, size_t k2_len)
 {
-  (void)k1_len;
   (void)k2_len;
-
-  return *(struct Curl_easy **)k1 == *(struct Curl_easy **)k2;
+  return !memcmp(k1, k2, k1_len);
 }
 
 static void trhash_dtor(void *nada)
@@ -2929,18 +2927,24 @@ CURLMcode Curl_multi_pollset_ev(struct Curl_multi *multi,
     }
     if(last_action && (last_action != cur_action)) {
       /* Socket was used already, but different action now */
-      if(last_action & CURL_POLL_IN)
+      if(last_action & CURL_POLL_IN) {
+        DEBUGASSERT(entry->readers);
         entry->readers--;
-      if(last_action & CURL_POLL_OUT)
+      }
+      if(last_action & CURL_POLL_OUT) {
+        DEBUGASSERT(entry->writers);
         entry->writers--;
-      if(cur_action & CURL_POLL_IN)
+      }
+      if(cur_action & CURL_POLL_IN) {
         entry->readers++;
+      }
       if(cur_action & CURL_POLL_OUT)
         entry->writers++;
     }
     else if(!last_action &&
             !Curl_hash_pick(&entry->transfers, (char *)&data, /* hash key */
                             sizeof(struct Curl_easy *))) {
+      DEBUGASSERT(entry->users < 100000); /* detect weird values */
       /* a new transfer using this socket */
       entry->users++;
       if(cur_action & CURL_POLL_IN)
@@ -3002,23 +3006,27 @@ CURLMcode Curl_multi_pollset_ev(struct Curl_multi *multi,
     if(entry) {
       unsigned char oldactions = last_ps->actions[i];
       /* this socket has been removed. Decrease user count */
+      DEBUGASSERT(entry->users);
       entry->users--;
       if(oldactions & CURL_POLL_OUT)
         entry->writers--;
       if(oldactions & CURL_POLL_IN)
         entry->readers--;
       if(!entry->users) {
+        bool dead = FALSE;
         if(multi->socket_cb) {
           set_in_callback(multi, TRUE);
           rc = multi->socket_cb(data, s, CURL_POLL_REMOVE,
                                 multi->socket_userp, entry->socketp);
           set_in_callback(multi, FALSE);
-          if(rc == -1) {
-            multi->dead = TRUE;
-            return CURLM_ABORTED_BY_CALLBACK;
-          }
+          if(rc == -1)
+            dead = TRUE;
         }
         sh_delentry(entry, &multi->sockhash, s);
+        if(dead) {
+          multi->dead = TRUE;
+          return CURLM_ABORTED_BY_CALLBACK;
+        }
       }
       else {
         /* still users, but remove this handle as a user of this socket */

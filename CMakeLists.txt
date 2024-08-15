@@ -162,6 +162,10 @@ include(PickyWarnings)
 option(ENABLE_DEBUG "Set to ON to enable curl debug features" OFF)
 option(ENABLE_CURLDEBUG "Set to ON to build with TrackMemory feature enabled" ${ENABLE_DEBUG})
 
+if(MSVC)
+  set(ENABLE_CURLDEBUG OFF)  # FIXME: TrackMemory fails with MSVC according to test 558 and 1330. Tested with static build, Debug mode.
+endif()
+
 if(ENABLE_DEBUG)
   set_property(DIRECTORY APPEND PROPERTY COMPILE_DEFINITIONS "DEBUGBUILD")
 endif()
@@ -218,6 +222,7 @@ if(ENABLE_ARES)
   find_package(CARES REQUIRED)
   list(APPEND CURL_LIBS ${CARES_LIBRARIES})
   list(APPEND LIBCURL_PC_REQUIRES_PRIVATE "libcares")
+  add_definitions("-DCARES_NO_DEPRECATED")  # Ignore c-ares deprecation warnings
 endif()
 
 include(CurlSymbolHiding)
@@ -1042,13 +1047,15 @@ mark_as_advanced(CURL_USE_LIBPSL)
 set(USE_LIBPSL OFF)
 
 if(CURL_USE_LIBPSL)
-  find_package(LibPSL)
+  find_package(LibPSL)  # TODO: add REQUIRED to match autotools
   if(LIBPSL_FOUND)
     list(APPEND CURL_LIBS ${LIBPSL_LIBRARIES})
     list(APPEND LIBCURL_PC_REQUIRES_PRIVATE "libpsl")
     list(APPEND CMAKE_REQUIRED_INCLUDES "${LIBPSL_INCLUDE_DIRS}")
     include_directories(${LIBPSL_INCLUDE_DIRS})
     set(USE_LIBPSL ON)
+  else()
+    message(WARNING "libpsl is enabled, but not found.")
   endif()
 endif()
 
@@ -1103,6 +1110,7 @@ if(CURL_USE_GSASL)
   endif()
   if(GSASL_FOUND)
     list(APPEND CURL_LIBS ${GSASL_LINK_LIBRARIES})
+    list(APPEND LIBCURL_PC_REQUIRES_PRIVATE "libgsasl")
     set(USE_GSASL ON)
   endif()
 endif()
