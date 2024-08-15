@@ -21,48 +21,28 @@
 # SPDX-License-Identifier: curl
 #
 ###########################################################################
-# Find the msh3 library
+# Find the rustls library
 #
 # Result Variables:
 #
-# MSH3_FOUND         System has msh3
-# MSH3_INCLUDE_DIRS  The msh3 include directories
-# MSH3_LIBRARIES     The msh3 library names
-# MSH3_VERSION       Version of msh3
+# RUSTLS_FOUND         System has rustls
+# RUSTLS_INCLUDE_DIRS  The rustls include directories
+# RUSTLS_LIBRARIES     The rustls library names
 
-if(CURL_USE_PKGCONFIG)
-  find_package(PkgConfig QUIET)
-  pkg_search_module(PC_MSH3 "libmsh3")
-endif()
+find_path(RUSTLS_INCLUDE_DIR "rustls.h")
 
-find_path(MSH3_INCLUDE_DIR "msh3.h"
-  HINTS
-    ${PC_MSH3_INCLUDEDIR}
-    ${PC_MSH3_INCLUDE_DIRS}
-)
-
-find_library(MSH3_LIBRARY NAMES "msh3"
-  HINTS
-    ${PC_MSH3_LIBDIR}
-    ${PC_MSH3_LIBRARY_DIRS}
-)
-
-if(PC_MSH3_VERSION)
-  set(MSH3_VERSION ${PC_MSH3_VERSION})
-endif()
+find_library(RUSTLS_LIBRARY "rustls")
 
 include(FindPackageHandleStandardArgs)
-find_package_handle_standard_args(MSH3
+find_package_handle_standard_args(rustls
   REQUIRED_VARS
-    MSH3_INCLUDE_DIR
-    MSH3_LIBRARY
-  VERSION_VAR
-    MSH3_VERSION
+    RUSTLS_INCLUDE_DIR
+    RUSTLS_LIBRARY
 )
 
-if(MSH3_FOUND)
-  set(MSH3_INCLUDE_DIRS ${MSH3_INCLUDE_DIR})
-  set(MSH3_LIBRARIES    ${MSH3_LIBRARY})
+if(RUSTLS_FOUND)
+  set(RUSTLS_INCLUDE_DIRS ${RUSTLS_INCLUDE_DIR})
+  set(RUSTLS_LIBRARIES    ${RUSTLS_LIBRARY})
 endif()
 
-mark_as_advanced(MSH3_INCLUDE_DIR MSH3_LIBRARY)
+mark_as_advanced(RUSTLS_INCLUDE_DIR RUSTLS_LIBRARY)
