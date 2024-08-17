@@ -40,7 +40,7 @@
 
 if(CURL_USE_PKGCONFIG)
   find_package(PkgConfig QUIET)
-  pkg_search_module(PC_NGTCP2 "libngtcp2")
+  pkg_check_modules(PC_NGTCP2 "libngtcp2")
 endif()
 
 find_path(NGTCP2_INCLUDE_DIR "ngtcp2/ngtcp2.h"
@@ -57,23 +57,30 @@ find_library(NGTCP2_LIBRARY NAMES "ngtcp2"
 
 if(PC_NGTCP2_VERSION)
   set(NGTCP2_VERSION ${PC_NGTCP2_VERSION})
+elseif(NGTCP2_INCLUDE_DIR AND EXISTS "${NGTCP2_INCLUDE_DIR}/ngtcp2/version.h")
+  set(_version_regex "#[\t ]*define[\t ]+NGTCP2_VERSION[\t ]+\"([^\"]*)\"")
+  file(STRINGS "${NGTCP2_INCLUDE_DIR}/ngtcp2/version.h" _version_str REGEX "${_version_regex}")
+  string(REGEX REPLACE "${_version_regex}" "\\1" _version_str "${_version_str}")
+  set(NGTCP2_VERSION "${_version_str}")
+  unset(_version_regex)
+  unset(_version_str)
 endif()
 
 if(NGTCP2_FIND_COMPONENTS)
-  set(NGTCP2_CRYPTO_BACKEND "")
+  set(_ngtcp2_crypto_backend "")
   foreach(_component IN LISTS NGTCP2_FIND_COMPONENTS)
     if(_component MATCHES "^(BoringSSL|quictls|wolfSSL|GnuTLS)")
-      if(NGTCP2_CRYPTO_BACKEND)
+      if(_ngtcp2_crypto_backend)
         message(FATAL_ERROR "NGTCP2: Only one crypto library can be selected")
       endif()
-      set(NGTCP2_CRYPTO_BACKEND ${_component})
+      set(_ngtcp2_crypto_backend ${_component})
     endif()
   endforeach()
 
-  if(NGTCP2_CRYPTO_BACKEND)
-    string(TOLOWER "ngtcp2_crypto_${NGTCP2_CRYPTO_BACKEND}" _crypto_library)
+  if(_ngtcp2_crypto_backend)
+    string(TOLOWER "ngtcp2_crypto_${_ngtcp2_crypto_backend}" _crypto_library)
     if(CURL_USE_PKGCONFIG)
-      pkg_search_module(PC_${_crypto_library} "lib${_crypto_library}")
+      pkg_check_modules(PC_${_crypto_library} "lib${_crypto_library}")
     endif()
     find_library(${_crypto_library}_LIBRARY NAMES ${_crypto_library}
       HINTS
@@ -81,7 +88,7 @@ if(NGTCP2_FIND_COMPONENTS)
         ${PC_${_crypto_library}_LIBRARY_DIRS}
     )
     if(${_crypto_library}_LIBRARY)
-      set(NGTCP2_${NGTCP2_CRYPTO_BACKEND}_FOUND TRUE)
+      set(NGTCP2_${_ngtcp2_crypto_backend}_FOUND TRUE)
       set(NGTCP2_CRYPTO_LIBRARY ${${_crypto_library}_LIBRARY})
     endif()
   endif()

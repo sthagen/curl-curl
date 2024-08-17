@@ -32,7 +32,7 @@
 
 if(CURL_USE_PKGCONFIG)
   find_package(PkgConfig QUIET)
-  pkg_search_module(PC_CARES "libcares")
+  pkg_check_modules(PC_CARES "libcares")
 endif()
 
 find_path(CARES_INCLUDE_DIR "ares.h"
@@ -49,6 +49,13 @@ find_library(CARES_LIBRARY NAMES ${CARES_NAMES} "cares"
 
 if(PC_CARES_VERSION)
   set(CARES_VERSION ${PC_CARES_VERSION})
+elseif(CARES_INCLUDE_DIR AND EXISTS "${CARES_INCLUDE_DIR}/ares_version.h")
+  set(_version_regex "#[\t ]*define[\t ]+ARES_VERSION_STR[\t ]+\"([^\"]*)\"")
+  file(STRINGS "${CARES_INCLUDE_DIR}/ares_version.h" _version_str REGEX "${_version_regex}")
+  string(REGEX REPLACE "${_version_regex}" "\\1" _version_str "${_version_str}")
+  set(CARES_VERSION "${_version_str}")
+  unset(_version_regex)
+  unset(_version_str)
 endif()
 
 include(FindPackageHandleStandardArgs)
