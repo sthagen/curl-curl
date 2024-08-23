@@ -425,8 +425,10 @@ CURLcode Curl_vsetopt(struct Curl_easy *data, CURLoption option, va_list param)
      * TFTP option that specifies the block size to use for data transmission.
      */
     arg = va_arg(param, long);
-    if(arg > TFTP_BLKSIZE_MAX || arg < TFTP_BLKSIZE_MIN)
-      return CURLE_BAD_FUNCTION_ARGUMENT;
+    if(arg < TFTP_BLKSIZE_MIN)
+      arg = 512;
+    else if(arg > TFTP_BLKSIZE_MAX)
+      arg = TFTP_BLKSIZE_MAX;
     data->set.tftp_blksize = arg;
     break;
 #endif
@@ -2698,17 +2700,27 @@ CURLcode Curl_vsetopt(struct Curl_easy *data, CURLoption option, va_list param)
 
   case CURLOPT_PROTOCOLS_STR: {
     argptr = va_arg(param, char *);
-    result = protocol2num(argptr, &data->set.allowed_protocols);
-    if(result)
-      return result;
+    if(argptr) {
+      result = protocol2num(argptr, &data->set.allowed_protocols);
+      if(result)
+        return result;
+    }
+    else
+      /* make a NULL argument reset to default */
+      data->set.allowed_protocols = (curl_prot_t) CURLPROTO_ALL;
     break;
   }
 
   case CURLOPT_REDIR_PROTOCOLS_STR: {
     argptr = va_arg(param, char *);
-    result = protocol2num(argptr, &data->set.redir_protocols);
-    if(result)
-      return result;
+    if(argptr) {
+      result = protocol2num(argptr, &data->set.redir_protocols);
+      if(result)
+        return result;
+    }
+    else
+      /* make a NULL argument reset to default */
+      data->set.redir_protocols = (curl_prot_t) CURLPROTO_REDIR;
     break;
   }
 
@@ -3188,8 +3200,7 @@ CURLcode Curl_vsetopt(struct Curl_easy *data, CURLoption option, va_list param)
     argptr = va_arg(param, char *);
     if(!argptr) {
       data->set.tls_ech = CURLECH_DISABLE;
-      result = CURLE_BAD_FUNCTION_ARGUMENT;
-      return result;
+      return CURLE_OK;
     }
     plen = strlen(argptr);
     if(plen > CURL_MAX_INPUT_LENGTH) {
