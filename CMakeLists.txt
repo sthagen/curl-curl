@@ -54,7 +54,7 @@ include(CheckCCompilerFlag)
 
 project(CURL C)
 
-set(_flags)
+unset(_flags)
 if(APPLE)
   set(_flags "${_flags} APPLE")
 endif()
@@ -83,10 +83,12 @@ if(VCPKG_TOOLCHAIN)
   set(_flags "${_flags} VCPKG")
 endif()
 message(STATUS "CMake platform flags:${_flags}")
-set(_flags)
+unset(_flags)
 
 if(CMAKE_CROSSCOMPILING)
-  message(STATUS "Cross-compiling: ${CMAKE_HOST_SYSTEM_NAME}/${CMAKE_HOST_SYSTEM_PROCESSOR} -> ${CMAKE_SYSTEM_NAME}/${CMAKE_SYSTEM_PROCESSOR}")
+  message(STATUS "Cross-compiling: "
+    "${CMAKE_HOST_SYSTEM_NAME}/${CMAKE_HOST_SYSTEM_PROCESSOR} -> "
+    "${CMAKE_SYSTEM_NAME}/${CMAKE_SYSTEM_PROCESSOR}")
 endif()
 
 function(curl_dumpvars)  # Dump all defined variables with their values
@@ -98,13 +100,12 @@ function(curl_dumpvars)  # Dump all defined variables with their values
   message("::endgroup::")
 endfunction()
 
-file(STRINGS ${CURL_SOURCE_DIR}/include/curl/curlver.h _curl_version_h_contents REGEX "#define LIBCURL_VERSION( |_NUM )")
-string(REGEX MATCH "#define LIBCURL_VERSION \"[^\"]*"
-  CURL_VERSION ${_curl_version_h_contents})
+file(STRINGS "${CURL_SOURCE_DIR}/include/curl/curlver.h" _curl_version_h_contents REGEX "#define LIBCURL_VERSION( |_NUM )")
+string(REGEX MATCH "#define LIBCURL_VERSION \"[^\"]*" CURL_VERSION ${_curl_version_h_contents})
 string(REGEX REPLACE "[^\"]+\"" "" CURL_VERSION ${CURL_VERSION})
-string(REGEX MATCH "#define LIBCURL_VERSION_NUM 0x[0-9a-fA-F]+"
-  CURL_VERSION_NUM ${_curl_version_h_contents})
+string(REGEX MATCH "#define LIBCURL_VERSION_NUM 0x[0-9a-fA-F]+" CURL_VERSION_NUM ${_curl_version_h_contents})
 string(REGEX REPLACE "[^0]+0x" "" CURL_VERSION_NUM ${CURL_VERSION_NUM})
+unset(_curl_version_h_contents)
 
 message(STATUS "curl version=[${CURL_VERSION}]")
 
@@ -131,6 +132,11 @@ option(CURL_DISABLE_INSTALL "Disable installation targets" OFF)
 
 if(WIN32)
   option(CURL_STATIC_CRT "Build libcurl with static CRT on Windows (/MT)" OFF)
+  if(CURL_STATIC_CRT)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MT")
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MTd")
+  endif()
 
   option(ENABLE_UNICODE "Use the Unicode version of the Windows API functions" OFF)
   if(ENABLE_UNICODE)
@@ -214,7 +220,7 @@ else()
 endif()
 
 # Override to force-disable or force-enable the use of pkg-config.
-if(UNIX OR (MSVC AND VCPKG_TOOLCHAIN))  # Keep this in sync with CMake/curl-config.cmake.in
+if(UNIX OR (MSVC AND VCPKG_TOOLCHAIN))  # Keep in sync with CMake/curl-config.cmake.in
   set(_curl_use_pkgconfig_default ON)
 else()
   set(_curl_use_pkgconfig_default OFF)
@@ -360,8 +366,7 @@ if(ENABLE_IPV6 AND NOT WIN32)
   if(NOT HAVE_SOCKADDR_IN6_SIN6_ADDR)
     message(WARNING "struct sockaddr_in6 not available, disabling IPv6 support")
     # Force the feature off as this name is used as guard macro...
-    set(ENABLE_IPV6 OFF
-        CACHE BOOL "Enable IPv6 support" FORCE)
+    set(ENABLE_IPV6 OFF CACHE BOOL "Enable IPv6 support" FORCE)
   endif()
 
   if(APPLE AND NOT ENABLE_ARES)
@@ -393,12 +398,6 @@ if(ENABLE_CURL_MANUAL OR BUILD_LIBCURL_DOCS)
   if(NOT HAVE_MANUAL_TOOLS)
     message(WARNING "Perl not found. Will not build manuals.")
   endif()
-endif()
-
-if(CURL_STATIC_CRT)
-  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-  set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MT")
-  set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MTd")
 endif()
 
 # Disable warnings on Borland to avoid changing 3rd party code.
@@ -940,7 +939,7 @@ if(NOT CURL_DISABLE_LDAP)
         include_directories(${CMAKE_LDAP_INCLUDE_DIR})
       endif()
       set(NEED_LBER_H ON)
-      set(_header_list)
+      unset(_header_list)
       if(WIN32)
         list(APPEND _header_list "windows.h")
       endif()
@@ -1003,31 +1002,13 @@ if(CURL_DISABLE_LDAP)
   endif()
 endif()
 
-# Check for libidn2
-option(USE_LIBIDN2 "Use libidn2 for IDN support" ON)
-if(USE_LIBIDN2)
-  find_package(Libidn2)
-  if(LIBIDN2_FOUND)
-    set(CURL_LIBS "${LIBIDN2_LIBRARIES};${CURL_LIBS}")
-    list(APPEND CURL_LIBDIRS ${LIBIDN2_LIBRARY_DIRS})
-    set(LIBCURL_PC_REQUIRES_PRIVATE "libidn2;${LIBCURL_PC_REQUIRES_PRIVATE}")
-    include_directories(${LIBIDN2_INCLUDE_DIRS})
-    link_directories(${LIBIDN2_LIBRARY_DIRS})
-    if(LIBIDN2_CFLAGS)
-      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${LIBIDN2_CFLAGS}")
-    endif()
-    set(HAVE_IDN2_H 1)
-    set(HAVE_LIBIDN2 1)
-  endif()
-else()
-  set(HAVE_LIBIDN2 OFF)
-endif()
-
 if(WIN32)
   option(USE_WIN32_IDN "Use WinIDN for IDN support" OFF)
   if(USE_WIN32_IDN)
     list(APPEND CURL_LIBS "normaliz")
   endif()
+else()
+  set(USE_WIN32_IDN OFF)
 endif()
 
 if(APPLE)
@@ -1042,6 +1023,28 @@ if(APPLE)
     else()
       set(USE_APPLE_IDN OFF)
     endif()
+  endif()
+else()
+  set(USE_APPLE_IDN OFF)
+endif()
+
+# Check for libidn2
+option(USE_LIBIDN2 "Use libidn2 for IDN support" ON)
+set(HAVE_IDN2_H OFF)
+set(HAVE_LIBIDN2 OFF)
+if(USE_LIBIDN2 AND NOT USE_APPLE_IDN AND NOT USE_WIN32_IDN)
+  find_package(Libidn2)
+  if(LIBIDN2_FOUND)
+    set(CURL_LIBS "${LIBIDN2_LIBRARIES};${CURL_LIBS}")
+    list(APPEND CURL_LIBDIRS ${LIBIDN2_LIBRARY_DIRS})
+    set(LIBCURL_PC_REQUIRES_PRIVATE "libidn2;${LIBCURL_PC_REQUIRES_PRIVATE}")
+    include_directories(${LIBIDN2_INCLUDE_DIRS})
+    link_directories(${LIBIDN2_LIBRARY_DIRS})
+    if(LIBIDN2_CFLAGS)
+      set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${LIBIDN2_CFLAGS}")
+    endif()
+    set(HAVE_IDN2_H 1)
+    set(HAVE_LIBIDN2 1)
   endif()
 endif()
 
@@ -1115,7 +1118,7 @@ if(NOT USE_LIBSSH2 AND NOT USE_LIBSSH AND CURL_USE_WOLFSSH)
   endif()
 endif()
 
-option(CURL_USE_GSASL "Use libgsasl implementation" OFF)
+option(CURL_USE_GSASL "Use libgsasl" OFF)
 mark_as_advanced(CURL_USE_GSASL)
 if(CURL_USE_GSASL)
   find_package(Libgsasl REQUIRED)
@@ -1250,14 +1253,14 @@ endif()
 # CA handling
 #
 if(_curl_ca_bundle_supported)
-  set(CURL_CA_BUNDLE "auto" CACHE STRING
-    "Path to the CA bundle. Set 'none' to disable or 'auto' for auto-detection. Defaults to 'auto'.")
+  set(CURL_CA_BUNDLE "auto" CACHE
+    STRING "Path to the CA bundle. Set 'none' to disable or 'auto' for auto-detection. Defaults to 'auto'.")
   set(CURL_CA_FALLBACK OFF CACHE BOOL
     "Set ON to use built-in CA store of TLS backend. Defaults to OFF")
-  set(CURL_CA_PATH "auto" CACHE STRING
-    "Location of default CA path. Set 'none' to disable or 'auto' for auto-detection. Defaults to 'auto'.")
-  set(CURL_CA_EMBED "" CACHE STRING
-    "Path to the CA bundle to embed into the curl tool.")
+  set(CURL_CA_PATH "auto" CACHE
+    STRING "Location of default CA path. Set 'none' to disable or 'auto' for auto-detection. Defaults to 'auto'.")
+  set(CURL_CA_EMBED "" CACHE
+    STRING "Path to the CA bundle to embed into the curl tool.")
 
   if(CURL_CA_BUNDLE STREQUAL "")
     message(FATAL_ERROR "Invalid value of CURL_CA_BUNDLE. Use 'none', 'auto' or file path.")
@@ -1303,8 +1306,8 @@ if(_curl_ca_bundle_supported)
           "/etc/ssl/cert.pem")
         if(EXISTS "${_search_ca_bundle_path}")
           message(STATUS "Found CA bundle: ${_search_ca_bundle_path}")
-          set(CURL_CA_BUNDLE "${_search_ca_bundle_path}" CACHE STRING
-            "Path to the CA bundle. Set 'none' to disable or 'auto' for auto-detection. Defaults to 'auto'.")
+          set(CURL_CA_BUNDLE "${_search_ca_bundle_path}" CACHE
+            STRING "Path to the CA bundle. Set 'none' to disable or 'auto' for auto-detection. Defaults to 'auto'.")
           set(_curl_ca_bundle_set TRUE CACHE BOOL "Path to the CA bundle has been set")
           break()
         endif()
@@ -1317,8 +1320,8 @@ if(_curl_ca_bundle_supported)
       if(_curl_ca_files_found)
         unset(_curl_ca_files_found)
         message(STATUS "Found CA path: ${_search_ca_path}")
-        set(CURL_CA_PATH "${_search_ca_path}" CACHE STRING
-          "Location of default CA path. Set 'none' to disable or 'auto' for auto-detection. Defaults to 'auto'.")
+        set(CURL_CA_PATH "${_search_ca_path}" CACHE
+          STRING "Location of default CA path. Set 'none' to disable or 'auto' for auto-detection. Defaults to 'auto'.")
         set(_curl_ca_path_set TRUE CACHE BOOL "Path to the CA bundle has been set")
       endif()
     endif()
@@ -1584,7 +1587,7 @@ if(NOT WIN32 AND NOT CMAKE_CROSSCOMPILING)
     }" HAVE_WRITABLE_ARGV)
 endif()
 
-set(CMAKE_REQUIRED_FLAGS)
+unset(CMAKE_REQUIRED_FLAGS)
 
 option(ENABLE_WEBSOCKETS "Enable WebSockets (experimental)" OFF)
 
@@ -1649,7 +1652,7 @@ if(HAVE_FIONBIO OR
    HAVE_IOCTLSOCKET OR
    HAVE_IOCTLSOCKET_CASE OR
    HAVE_O_NONBLOCK)
-  set(HAVE_DISABLED_NONBLOCKING)
+  unset(HAVE_DISABLED_NONBLOCKING)
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCC AND APPLE)
@@ -1741,7 +1744,7 @@ function(transform_makefile_inc _input_file _output_file)
   string(REPLACE "$(top_builddir)" "\${CURL_BINARY_DIR}" _makefile_inc_text ${_makefile_inc_text})
 
   string(REGEX REPLACE "\\\\\n" "!π!α!" _makefile_inc_text ${_makefile_inc_text})
-  string(REGEX REPLACE "([a-zA-Z_][a-zA-Z0-9_]*)[\t ]*=[\t ]*([^\n]*)" "SET(\\1 \\2)" _makefile_inc_text ${_makefile_inc_text})
+  string(REGEX REPLACE "([a-zA-Z_][a-zA-Z0-9_]*)[\t ]*=[\t ]*([^\n]*)" "set(\\1 \\2)" _makefile_inc_text ${_makefile_inc_text})
   string(REPLACE "!π!α!" "\n" _makefile_inc_text ${_makefile_inc_text})
 
   # Replace $() with ${}
@@ -1815,7 +1818,7 @@ if(NOT CURL_DISABLE_INSTALL)
   endif()
 
   # Clear list and try to detect available protocols
-  set(_items)
+  unset(_items)
   _add_if("HTTP"          NOT CURL_DISABLE_HTTP)
   _add_if("IPFS"          NOT CURL_DISABLE_HTTP)
   _add_if("IPNS"          NOT CURL_DISABLE_HTTP)
@@ -1855,10 +1858,10 @@ if(NOT CURL_DISABLE_INSTALL)
   endif()
   string(REPLACE ";" " " SUPPORT_PROTOCOLS "${_items}")
   string(TOLOWER "${SUPPORT_PROTOCOLS}" _support_protocols_lower)
-  message("Protocols: ${_support_protocols_lower}")
+  message(STATUS "Protocols: ${_support_protocols_lower}")
 
   # Clear list and try to detect available features
-  set(_items)
+  unset(_items)
   _add_if("SSL"           _ssl_enabled)
   _add_if("IPv6"          ENABLE_IPV6)
   _add_if("UnixSockets"   USE_UNIX_SOCKETS)
@@ -1907,12 +1910,13 @@ if(NOT CURL_DISABLE_INSTALL)
     endif()
   endif()
   string(REPLACE ";" " " SUPPORT_FEATURES "${_items}")
-  message("Features: ${SUPPORT_FEATURES}")
+  message(STATUS "Features: ${SUPPORT_FEATURES}")
 
   # Clear list and collect SSL backends
-  set(_items)
+  unset(_items)
   _add_if("Schannel"         _ssl_enabled AND USE_SCHANNEL)
-  _add_if("OpenSSL"          _ssl_enabled AND USE_OPENSSL)
+  _add_if("OpenSSL"          _ssl_enabled AND USE_OPENSSL AND OPENSSL_VERSION VERSION_LESS 3.0.0)
+  _add_if("OpenSSL v3+"      _ssl_enabled AND USE_OPENSSL AND NOT OPENSSL_VERSION VERSION_LESS 3.0.0)
   _add_if("Secure Transport" _ssl_enabled AND USE_SECTRANSP)
   _add_if("mbedTLS"          _ssl_enabled AND USE_MBEDTLS)
   _add_if("BearSSL"          _ssl_enabled AND USE_BEARSSL)
@@ -1938,18 +1942,20 @@ if(NOT CURL_DISABLE_INSTALL)
   # TODO: probably put a -D... options here?
   set(CONFIGURE_OPTIONS       "")
   set(CURLVERSION             "${CURL_VERSION}")
+  set(VERSIONNUM              "${CURL_VERSION_NUM}")
+  set(prefix                  "${CMAKE_INSTALL_PREFIX}")
   set(exec_prefix             "\${prefix}")
   set(includedir              "\${prefix}/include")
   set(LDFLAGS                 "${CMAKE_SHARED_LINKER_FLAGS}")
-  set(LIBCURL_PC_LIBS_PRIVATE "")
   set(libdir                  "${CMAKE_INSTALL_PREFIX}/lib")
+  # "a" (Linux) or "lib" (Windows)
+  string(REPLACE "." "" libext "${CMAKE_STATIC_LIBRARY_SUFFIX}")
 
-  # For processing full path libraries into -L and -l ld options,
-  # the directories that go with the -L option are cached, so they
-  # only get added once per such directory.
-  set(_libcurl_libs_dirs)
-  # To avoid getting unnecessary -L options for known system directories,
-  # _libcurl_libs_dirs is seeded with them.
+  set(_ldflags "")
+  set(LIBCURL_PC_LIBS_PRIVATE "")
+
+  # Avoid getting unnecessary -L options for known system directories.
+  unset(_sys_libdirs)
   foreach(_libdir IN LISTS CMAKE_SYSTEM_PREFIX_PATH)
     if(_libdir MATCHES "/$")
       set(_libdir "${_libdir}lib")
@@ -1957,18 +1963,21 @@ if(NOT CURL_DISABLE_INSTALL)
       set(_libdir "${_libdir}/lib")
     endif()
     if(IS_DIRECTORY "${_libdir}")
-      list(APPEND _libcurl_libs_dirs "${_libdir}")
+      list(APPEND _sys_libdirs "${_libdir}")
     endif()
     if(DEFINED CMAKE_LIBRARY_ARCHITECTURE)
       set(_libdir "${_libdir}/${CMAKE_LIBRARY_ARCHITECTURE}")
       if(IS_DIRECTORY "${_libdir}")
-        list(APPEND _libcurl_libs_dirs "${_libdir}")
+        list(APPEND _sys_libdirs "${_libdir}")
       endif()
     endif()
   endforeach()
 
-  foreach(_lib IN LISTS CURL_LIBDIRS)
-    set(LIBCURL_PC_LIBS_PRIVATE "${LIBCURL_PC_LIBS_PRIVATE} -L${_lib}")
+  foreach(_libdir IN LISTS CURL_LIBDIRS)
+    list(FIND _sys_libdirs "${_libdir}" _libdir_index)
+    if(_libdir_index LESS 0)
+      list(APPEND _ldflags "-L${_libdir}")
+    endif()
   endforeach()
 
   foreach(_lib IN LISTS CMAKE_C_IMPLICIT_LINK_LIBRARIES CURL_LIBS)
@@ -1986,58 +1995,59 @@ if(NOT CURL_DISABLE_INSTALL)
         continue()
       endif()
     endif()
-    if(_lib MATCHES "^-")
-      set(LIBCURL_PC_LIBS_PRIVATE "${LIBCURL_PC_LIBS_PRIVATE} ${_lib}")
+    if(_lib MATCHES "^-")  # '-framework <name>'
+      list(APPEND _ldflags "${_lib}")
     elseif(_lib MATCHES ".*/.*")
       # This gets a bit more complex, because we want to specify the
       # directory separately, and only once per directory
-      string(REGEX REPLACE "^(.*)/[^/]*$" "\\1" _libdir "${_lib}")
-      string(REGEX REPLACE "^.*/([^/.]*).*$" "\\1" _libname "${_lib}")
+      get_filename_component(_libdir ${_lib} DIRECTORY)
+      get_filename_component(_libname ${_lib} NAME_WE)
       if(_libname MATCHES "^lib")
-        list(FIND _libcurl_libs_dirs "${_libdir}" _libdir_index)
+        list(FIND _sys_libdirs "${_libdir}" _libdir_index)
         if(_libdir_index LESS 0)
-          list(APPEND _libcurl_libs_dirs "${_libdir}")
-          set(LIBCURL_PC_LIBS_PRIVATE "${LIBCURL_PC_LIBS_PRIVATE} -L${_libdir}")
+          list(APPEND _ldflags "-L${_libdir}")
         endif()
         string(REGEX REPLACE "^lib" "" _libname "${_libname}")
-        set(LIBCURL_PC_LIBS_PRIVATE "${LIBCURL_PC_LIBS_PRIVATE} -l${_libname}")
+        list(APPEND LIBCURL_PC_LIBS_PRIVATE "-l${_libname}")
       else()
-        set(LIBCURL_PC_LIBS_PRIVATE "${LIBCURL_PC_LIBS_PRIVATE} ${_lib}")
+        list(APPEND LIBCURL_PC_LIBS_PRIVATE "${_lib}")
       endif()
     else()
-      set(LIBCURL_PC_LIBS_PRIVATE "${LIBCURL_PC_LIBS_PRIVATE} -l${_lib}")
+      list(APPEND LIBCURL_PC_LIBS_PRIVATE "-l${_lib}")
     endif()
   endforeach()
 
-  # Export a .pc file for client projects not using CMake
   if(LIBCURL_PC_REQUIRES_PRIVATE)
     string(REPLACE ";" "," LIBCURL_PC_REQUIRES_PRIVATE "${LIBCURL_PC_REQUIRES_PRIVATE}")
+  endif()
+  if(LIBCURL_PC_LIBS_PRIVATE)
+    string(REPLACE ";" " " LIBCURL_PC_LIBS_PRIVATE "${LIBCURL_PC_LIBS_PRIVATE}")
+  endif()
+  if(_ldflags)
+    list(REMOVE_DUPLICATES _ldflags)
+    string(REPLACE ";" " " _ldflags "${_ldflags}")
+    set(LIBCURL_PC_LIBS_PRIVATE "${_ldflags} ${LIBCURL_PC_LIBS_PRIVATE}")
+    string(STRIP "${LIBCURL_PC_LIBS_PRIVATE}" LIBCURL_PC_LIBS_PRIVATE)
   endif()
   set(LIBCURL_PC_CFLAGS_PRIVATE "-DCURL_STATICLIB")
 
   # Merge pkg-config private fields into public ones when static-only
   if(BUILD_SHARED_LIBS)
-    set(ENABLE_SHARED          "yes")
-    set(LIBCURL_PC_REQUIRES    "")
-    set(LIBCURL_PC_LIBS        "")
-    set(LIBCURL_PC_CFLAGS      "")
+    set(ENABLE_SHARED       "yes")
+    set(LIBCURL_PC_REQUIRES "")
+    set(LIBCURL_PC_LIBS     "")
+    set(LIBCURL_PC_CFLAGS   "")
   else()
-    set(ENABLE_SHARED          "no")
-    set(LIBCURL_PC_REQUIRES    "${LIBCURL_PC_REQUIRES_PRIVATE}")
-    set(LIBCURL_PC_LIBS        "${LIBCURL_PC_LIBS_PRIVATE}")
-    set(LIBCURL_PC_CFLAGS      "${LIBCURL_PC_CFLAGS_PRIVATE}")
+    set(ENABLE_SHARED       "no")
+    set(LIBCURL_PC_REQUIRES "${LIBCURL_PC_REQUIRES_PRIVATE}")
+    set(LIBCURL_PC_LIBS     "${LIBCURL_PC_LIBS_PRIVATE}")
+    set(LIBCURL_PC_CFLAGS   "${LIBCURL_PC_CFLAGS_PRIVATE}")
   endif()
   if(BUILD_STATIC_LIBS)
-    set(ENABLE_STATIC "yes")
+    set(ENABLE_STATIC       "yes")
   else()
-    set(ENABLE_STATIC "no")
+    set(ENABLE_STATIC       "no")
   endif()
-  # "a" (Linux) or "lib" (Windows)
-  string(REPLACE "." "" libext "${CMAKE_STATIC_LIBRARY_SUFFIX}")
-  set(prefix "${CMAKE_INSTALL_PREFIX}")
-  # Set this to "yes" to append all libraries on which -lcurl is dependent
-  set(REQUIRE_LIB_DEPS "no")
-  set(VERSIONNUM "${CURL_VERSION_NUM}")
 
   # Finally generate a "curl-config" matching this config.
   # Consumed variables:
