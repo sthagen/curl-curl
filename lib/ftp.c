@@ -327,7 +327,6 @@ static void freedirs(struct ftp_conn *ftpc)
   Curl_safefree(ftpc->newhost);
 }
 
-#ifdef CURL_DO_LINEEND_CONV
 /***********************************************************************
  *
  * Lineend Conversions
@@ -369,7 +368,6 @@ static CURLcode ftp_cw_lc_write(struct Curl_easy *data,
       }
       /* either we just wrote the newline or it is part of the next
        * chunk of bytes we write. */
-      data->state.crlf_conversions++;
       ctx->newline_pending = FALSE;
     }
 
@@ -400,7 +398,6 @@ static CURLcode ftp_cw_lc_write(struct Curl_easy *data,
     /* EndOfStream, if we have a trailing cr, now is the time to write it */
     if(ctx->newline_pending) {
       ctx->newline_pending = FALSE;
-      data->state.crlf_conversions++;
       return Curl_cwriter_write(data, writer->next, type, &nl, 1);
     }
     /* Always pass on the EOS type indicator */
@@ -418,7 +415,6 @@ static const struct Curl_cwtype ftp_cw_lc = {
   sizeof(struct ftp_cw_lc_ctx)
 };
 
-#endif /* CURL_DO_LINEEND_CONV */
 /***********************************************************************
  *
  * AcceptServerConnect()
@@ -3547,14 +3543,6 @@ static CURLcode ftp_done(struct Curl_easy *data, CURLcode status,
   else {
     if((-1 != data->req.size) &&
        (data->req.size != data->req.bytecount) &&
-#ifdef CURL_DO_LINEEND_CONV
-       /* Most FTP servers do not adjust their file SIZE response for CRLFs,
-        * so we will check to see if the discrepancy can be explained by the
-        * number of CRLFs we have changed to LFs.
-        */
-       ((data->req.size + data->state.crlf_conversions) !=
-        data->req.bytecount) &&
-#endif /* CURL_DO_LINEEND_CONV */
        (data->req.maxdownload != data->req.bytecount)) {
       failf(data, "Received only partial file: %" CURL_FORMAT_CURL_OFF_T
             " bytes", data->req.bytecount);
@@ -4152,27 +4140,22 @@ static CURLcode ftp_do(struct Curl_easy *data, bool *done)
   CURLcode result = CURLE_OK;
   struct connectdata *conn = data->conn;
   struct ftp_conn *ftpc = &conn->proto.ftpc;
+  /* FTP data may need conversion. */
+  struct Curl_cwriter *ftp_lc_writer;
 
   *done = FALSE; /* default to false */
   ftpc->wait_data_conn = FALSE; /* default to no such wait */
 
-#ifdef CURL_DO_LINEEND_CONV
-  {
-    /* FTP data may need conversion. */
-    struct Curl_cwriter *ftp_lc_writer;
+  result = Curl_cwriter_create(&ftp_lc_writer, data, &ftp_cw_lc,
+                               CURL_CW_CONTENT_DECODE);
+  if(result)
+    return result;
 
-    result = Curl_cwriter_create(&ftp_lc_writer, data, &ftp_cw_lc,
-                                 CURL_CW_CONTENT_DECODE);
-    if(result)
-      return result;
-
-    result = Curl_cwriter_add(data, ftp_lc_writer);
-    if(result) {
-      Curl_cwriter_free(data, ftp_lc_writer);
-      return result;
-    }
+  result = Curl_cwriter_add(data, ftp_lc_writer);
+  if(result) {
+    Curl_cwriter_free(data, ftp_lc_writer);
+    return result;
   }
-#endif /* CURL_DO_LINEEND_CONV */
 
   if(data->state.wildcardmatch) {
     result = wc_statemach(data);

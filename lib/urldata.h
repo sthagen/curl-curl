@@ -1268,12 +1268,6 @@ struct UrlState {
 
   /* a place to store the most recently set (S)FTP entrypath */
   char *most_recent_ftp_entrypath;
-#if !defined(_WIN32) && !defined(MSDOS) && !defined(__EMX__)
-/* do FTP line-end conversions on most platforms */
-#define CURL_DO_LINEEND_CONV
-  /* for FTP downloads: how many CRLFs did we converted to LFs? */
-  curl_off_t crlf_conversions;
-#endif
   char *range; /* range, if used. See README for detailed specification on
                   this syntax. */
   curl_off_t resume_from; /* continue [ftp] transfer from here */
