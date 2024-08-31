@@ -330,6 +330,12 @@ mark_as_advanced(CURL_DISABLE_TFTP)
 option(CURL_DISABLE_VERBOSE_STRINGS "Disable verbose strings" OFF)
 mark_as_advanced(CURL_DISABLE_VERBOSE_STRINGS)
 
+if(CURL_DISABLE_HTTP)
+  set(CURL_DISABLE_RTSP ON)
+  set(CURL_DISABLE_ALTSVC ON)
+  set(CURL_DISABLE_HSTS ON)
+endif()
+
 # Corresponds to HTTP_ONLY in lib/curl_setup.h
 option(HTTP_ONLY "Disable all protocols except HTTP (This overrides all CURL_DISABLE_* options)" OFF)
 mark_as_advanced(HTTP_ONLY)
@@ -492,6 +498,8 @@ count_true(_enabled_ssl_options_count
 )
 if(_enabled_ssl_options_count GREATER 1)
   set(CURL_WITH_MULTI_SSL ON)
+elseif(_enabled_ssl_options_count EQUAL 0)
+  set(CURL_DISABLE_HSTS ON)
 endif()
 
 if(CURL_USE_SCHANNEL)
@@ -1430,7 +1438,8 @@ if(SIZEOF_SUSECONDS_T)
   set(HAVE_SUSECONDS_T 1)
 endif()
 
-if(NOT CMAKE_CROSSCOMPILING)
+if(NOT WIN32 AND NOT CMAKE_CROSSCOMPILING AND
+   (NOT DEFINED RANDOM_FILE OR RANDOM_FILE))
   find_file(RANDOM_FILE "urandom" "/dev")
   mark_as_advanced(RANDOM_FILE)
 endif()
