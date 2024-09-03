@@ -291,7 +291,7 @@ option(CURL_DISABLE_IMAP "Disable IMAP" OFF)
 mark_as_advanced(CURL_DISABLE_IMAP)
 option(CURL_DISABLE_LDAP "Disable LDAP" OFF)
 mark_as_advanced(CURL_DISABLE_LDAP)
-option(CURL_DISABLE_LDAPS "Disable LDAPS" OFF)
+option(CURL_DISABLE_LDAPS "Disable LDAPS" ${CURL_DISABLE_LDAP})
 mark_as_advanced(CURL_DISABLE_LDAPS)
 option(CURL_DISABLE_LIBCURL_OPTION "Disable --libcurl option from the curl tool" OFF)
 mark_as_advanced(CURL_DISABLE_LIBCURL_OPTION)
@@ -1438,12 +1438,6 @@ if(SIZEOF_LONG_LONG)
 endif()
 if(SIZEOF_SUSECONDS_T)
   set(HAVE_SUSECONDS_T 1)
-endif()
-
-if(NOT WIN32 AND NOT CMAKE_CROSSCOMPILING AND
-   (NOT DEFINED RANDOM_FILE OR RANDOM_FILE))
-  find_file(RANDOM_FILE "urandom" "/dev")
-  mark_as_advanced(RANDOM_FILE)
 endif()
 
 # Check for some functions that are used
