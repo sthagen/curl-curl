@@ -547,9 +547,11 @@ static CURLcode baller_start_next(struct Curl_cfilter *cf,
 {
   if(cf->sockindex == FIRSTSOCKET) {
     baller_next_addr(baller);
-    /* If we get inconclusive answers from the server(s), we make
-     * a second iteration over the address list */
-    if(!baller->addr && baller->inconclusive && !baller->rewinded)
+    /* If we get inconclusive answers from the server(s), we start
+     * again until this whole thing times out. This allows us to
+     * connect to servers that are gracefully restarting and the
+     * packet routing to the new instance has not happened yet (e.g. QUIC). */
+    if(!baller->addr && baller->inconclusive)
       baller_rewind(baller);
     baller_start(cf, data, baller, timeoutms);
   }
@@ -800,8 +802,10 @@ static CURLcode start_connect(struct Curl_cfilter *cf,
   }
   else {
     /* no user preference, we try ipv6 always first when available */
+#ifdef USE_IPV6
     ai_family0 = AF_INET6;
     addr0 = addr_first_match(remotehost->addr, ai_family0);
+#endif
     /* next candidate is ipv4 */
     ai_family1 = AF_INET;
     addr1 = addr_first_match(remotehost->addr, ai_family1);
