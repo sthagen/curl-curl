@@ -69,14 +69,14 @@ jobs:
         with:
           msystem: ${{ matrix.sys }}
           # https://packages.msys2.org/search
-          install: gcc ${{ matrix.build }} make openssl-devel zlib-devel brotli-devel libnghttp2-devel libpsl-devel libssh2-devel
+          install: gcc ${{ matrix.build }} ${{ matrix.build == 'autotools' && 'make' || 'ninja' }} openssl-devel zlib-devel brotli-devel libnghttp2-devel libpsl-devel libssh2-devel
       - uses: msys2/setup-msys2@ddf331adaebd714795f1042345e6ca57bd66cea8 # v2
         if: ${{ matrix.sys != 'msys' }}
         with:
           msystem: ${{ matrix.sys }}
           install: >-
             mingw-w64-${{ matrix.env }}-cc
-            mingw-w64-${{ matrix.env }}-${{ matrix.build }} make
+            mingw-w64-${{ matrix.env }}-${{ matrix.build }} ${{ matrix.build == 'autotools' && 'make' || '' }}
             mingw-w64-${{ matrix.env }}-openssl
             mingw-w64-${{ matrix.env }}-libssh2
             mingw-w64-${{ matrix.env }}-libpsl
@@ -171,7 +171,7 @@ jobs:
           fi
           [ '${{ matrix.type }}' = 'Debug' ] && options+=' -DCMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG='
           [ '${{ matrix.type }}' = 'Release' ] && options+=' -DCMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE='
-          cmake -B bld ${options} \
+          cmake -B bld -G Ninja ${options} \
             "-DCMAKE_C_FLAGS=${cflags}" \
             "-DCMAKE_RC_COMPILE_OBJECT=${rcopts}" \
             '-DCMAKE_BUILD_TYPE=${{ matrix.type }}' \
@@ -358,7 +358,7 @@ jobs:
       TRIPLET: 'x86_64-w64-mingw32'
     steps:
       - name: 'install packages'
-        run: sudo apt-get --quiet 2 --option Dpkg::Use-Pty=0 install mingw-w64
+        run: sudo apt-get --quiet 2 --option Dpkg::Use-Pty=0 install mingw-w64 ${{ matrix.build == 'cmake' && 'ninja-build' || '' }}
 
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
 
@@ -388,7 +388,7 @@ jobs:
       - name: 'cmake configure'
         if: ${{ matrix.build == 'cmake' }}
         run: |
-          cmake -B bld \
+          cmake -B bld -G Ninja \
             -DCMAKE_SYSTEM_NAME=Windows \
             -DCMAKE_C_COMPILER_TARGET=${TRIPLET} \
             -DCMAKE_C_COMPILER=${TRIPLET}-gcc \
@@ -420,19 +420,19 @@ jobs:
       matrix:
         include:
           - name: 'schannel MultiSSL U'
-            install: 'brotli zlib zstd libpsl nghttp2 libssh2[core,zlib] pkgconf gsasl openssl mbedtls'
+            install: 'brotli zlib zstd libpsl nghttp2 libssh2[core,zlib] pkgconf gsasl openssl mbedtls shiftmedia-libgnutls'
             arch: 'x64'
             plat: 'windows'
             type: 'Debug'
             tflags: '~1516 ~2301 ~2302 ~2303 ~2307'
-            config: '-DENABLE_DEBUG=ON -DENABLE_UNICODE=ON  -DCURL_USE_SCHANNEL=ON  -DCURL_BROTLI=ON -DCURL_ZSTD=ON -DBUILD_SHARED_LIBS=OFF -DCURL_USE_LIBSSH2=ON -DCURL_USE_OPENSSL=ON -DCURL_USE_MBEDTLS=ON -DCURL_DEFAULT_SSL_BACKEND=schannel -DCURL_USE_GSASL=ON -DUSE_WIN32_IDN=ON'
+            config: '-DENABLE_DEBUG=ON -DENABLE_UNICODE=ON  -DCURL_USE_SCHANNEL=ON  -DCURL_BROTLI=ON -DCURL_ZSTD=ON -DBUILD_SHARED_LIBS=OFF -DCURL_USE_LIBSSH2=ON -DCURL_USE_OPENSSL=ON -DCURL_USE_MBEDTLS=ON -DCURL_USE_GNUTLS=ON -DCURL_DEFAULT_SSL_BACKEND=schannel -DCURL_USE_GSASL=ON -DUSE_WIN32_IDN=ON'
           - name: 'openssl'
-            install: 'brotli zlib zstd libpsl nghttp2 nghttp3 openssl libssh2 pkgconf gsasl c-ares'
+            install: 'brotli zlib zstd libpsl nghttp2 nghttp3 openssl libssh2 pkgconf gsasl c-ares libuv'
             arch: 'x64'
             plat: 'windows'
             type: 'Debug'
             tflags: '~1516 ~2301 ~2302 ~2303 ~2307'
-            config: '-DENABLE_DEBUG=ON -DENABLE_UNICODE=OFF -DCURL_USE_SCHANNEL=OFF -DCURL_BROTLI=ON -DCURL_ZSTD=ON -DBUILD_SHARED_LIBS=OFF -DCURL_USE_LIBSSH2=ON -DCURL_USE_OPENSSL=ON -DUSE_OPENSSL_QUIC=ON -DCURL_USE_GSASL=ON -DENABLE_ARES=ON'
+            config: '-DENABLE_DEBUG=ON -DENABLE_UNICODE=OFF -DCURL_USE_SCHANNEL=OFF -DCURL_BROTLI=ON -DCURL_ZSTD=ON -DBUILD_SHARED_LIBS=OFF -DCURL_USE_LIBSSH2=ON -DCURL_USE_OPENSSL=ON -DUSE_OPENSSL_QUIC=ON -DCURL_USE_GSASL=ON -DENABLE_ARES=ON -DCURL_USE_LIBUV=ON'
           - name: 'openssl'
             install: 'brotli zlib zstd        nghttp2 nghttp3 openssl libssh2'
             arch: 'x64'
@@ -461,8 +461,8 @@ jobs:
             type: 'Debug'
             tflags: '~1516'
             config: '-DENABLE_DEBUG=ON -DENABLE_UNICODE=OFF -DCURL_USE_SCHANNEL=OFF -DCURL_BROTLI=ON -DCURL_ZSTD=ON -DBUILD_SHARED_LIBS=OFF -DCURL_USE_LIBSSH2=ON -DCURL_USE_WOLFSSL=ON -DUSE_NGTCP2=ON -DCURL_USE_GSASL=ON'
-          - name: 'mbedtls'
-            install: 'brotli zlib zstd libpsl nghttp2 mbedtls libssh pkgconf gsasl'
+          - name: 'gnutls'
+            install: 'brotli zlib zstd libpsl nghttp2 shiftmedia-libgnutls libssh pkgconf gsasl ngtcp2[gnutls] nghttp3'
             arch: 'x64'
             plat: 'windows'
             type: 'Debug'
@@ -471,7 +471,7 @@ jobs:
             #          read its configuration from, making it vulnerable to attacks on
             #          Windows. Do not use this component till there is a fix for these.
             # https://github.com/curl/curl-for-win/blob/3951808deb04df9489ee17430f236ed54436f81a/libssh.sh#L6-L8
-            config: '-DENABLE_DEBUG=ON -DENABLE_UNICODE=OFF -DCURL_USE_SCHANNEL=OFF -DCURL_BROTLI=ON -DCURL_ZSTD=ON -DBUILD_SHARED_LIBS=OFF -DCURL_USE_LIBSSH2=OFF -DCURL_USE_LIBSSH=ON -DCURL_USE_MBEDTLS=ON -DCURL_USE_GSASL=ON'
+            config: '-DENABLE_DEBUG=ON -DENABLE_UNICODE=OFF -DCURL_USE_SCHANNEL=OFF -DCURL_BROTLI=ON -DCURL_ZSTD=ON -DBUILD_SHARED_LIBS=OFF -DCURL_USE_LIBSSH2=OFF -DCURL_USE_LIBSSH=ON -DCURL_USE_GNUTLS=ON -DCURL_USE_GSASL=ON -DUSE_NGTCP2=ON'
       fail-fast: false
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
