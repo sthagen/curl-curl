@@ -300,7 +300,7 @@ static CURLcode cw_download_write(struct Curl_easy *data,
 
   /* Error on too large filesize is handled below, after writing
    * the permitted bytes */
-  if(data->set.max_filesize) {
+  if(data->set.max_filesize && !data->req.ignorebody) {
     size_t wmax = get_max_body_write_len(data, data->set.max_filesize);
     if(nwrite > wmax) {
       nwrite = wmax;
@@ -398,7 +398,7 @@ CURLcode Curl_cwriter_create(struct Curl_cwriter **pwriter,
   result = cwt->do_init(data, writer);
 
 out:
-  *pwriter = result? NULL : writer;
+  *pwriter = result ? NULL : writer;
   if(result)
     free(writer);
   return result;
@@ -930,7 +930,7 @@ CURLcode Curl_creader_create(struct Curl_creader **preader,
   result = crt->do_init(data, reader);
 
 out:
-  *preader = result? NULL : reader;
+  *preader = result ? NULL : reader;
   if(result)
     free(reader);
   return result;
