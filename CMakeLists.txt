@@ -500,9 +500,17 @@ cmake_dependent_option(CURL_USE_WOLFSSL "Enable wolfSSL for SSL/TLS" OFF CURL_EN
 cmake_dependent_option(CURL_USE_GNUTLS "Enable GnuTLS for SSL/TLS" OFF CURL_ENABLE_SSL OFF)
 cmake_dependent_option(CURL_USE_RUSTLS "Enable Rustls for SSL/TLS" OFF CURL_ENABLE_SSL OFF)
 
-set(_openssl_default ON)
-if(WIN32 OR CURL_USE_SECTRANSP OR CURL_USE_SCHANNEL OR CURL_USE_MBEDTLS OR CURL_USE_WOLFSSL)
+if(WIN32 OR
+   CURL_USE_SECTRANSP OR
+   CURL_USE_SCHANNEL OR
+   CURL_USE_MBEDTLS OR
+   CURL_USE_BEARSSL OR
+   CURL_USE_WOLFSSL OR
+   CURL_USE_GNUTLS OR
+   CURL_USE_RUSTLS)
   set(_openssl_default OFF)
+else()
+  set(_openssl_default ON)
 endif()
 cmake_dependent_option(CURL_USE_OPENSSL "Enable OpenSSL for SSL/TLS" ${_openssl_default} CURL_ENABLE_SSL OFF)
 option(USE_OPENSSL_QUIC "Use OpenSSL and nghttp3 libraries for HTTP/3 support" OFF)
@@ -703,11 +711,9 @@ endif()
 # and before calling openssl_check_symbol_exists().
 
 set(HAVE_LIBZ OFF)
-set(USE_ZLIB OFF)
-optional_dependency(ZLIB)
+curl_dependency_option(ZLIB)
 if(ZLIB_FOUND)
   set(HAVE_LIBZ ON)
-  set(USE_ZLIB ON)
 
   # Depend on ZLIB via imported targets. This allows our dependents to
   # get our dependencies transitively.
@@ -858,7 +864,6 @@ if(USE_NGTCP2)
   else()
     message(FATAL_ERROR "ngtcp2 requires OpenSSL, wolfSSL or GnuTLS")
   endif()
-  set(USE_NGTCP2 ON)
   include_directories(${NGTCP2_INCLUDE_DIRS})
   list(APPEND CURL_LIBS ${NGTCP2_LIBRARIES})
   list(APPEND LIBCURL_PC_REQUIRES_PRIVATE "libngtcp2")
@@ -880,7 +885,6 @@ if(USE_QUICHE)
     message(FATAL_ERROR "quiche requires BoringSSL")
   endif()
   openssl_check_quic()
-  set(USE_QUICHE ON)
   include_directories(${QUICHE_INCLUDE_DIRS})
   list(APPEND CURL_LIBS ${QUICHE_LIBRARIES})
   list(APPEND LIBCURL_PC_REQUIRES_PRIVATE "quiche")
@@ -899,7 +903,6 @@ if(USE_MSH3)
     message(FATAL_ERROR "Only one HTTP/3 backend can be selected!")
   endif()
   find_package(MSH3 REQUIRED)
-  set(USE_MSH3 ON)
   include_directories(${MSH3_INCLUDE_DIRS})
   list(APPEND CURL_LIBS ${MSH3_LIBRARIES})
   list(APPEND LIBCURL_PC_REQUIRES_PRIVATE "libmsh3")
@@ -1487,7 +1490,6 @@ check_symbol_exists("stricmp"         "${CURL_INCLUDES};string.h" HAVE_STRICMP)
 check_symbol_exists("strcmpi"         "${CURL_INCLUDES};string.h" HAVE_STRCMPI)
 check_symbol_exists("memrchr"         "${CURL_INCLUDES};string.h" HAVE_MEMRCHR)
 check_symbol_exists("alarm"           "${CURL_INCLUDES}" HAVE_ALARM)
-check_symbol_exists("arc4random"      "${CURL_INCLUDES};stdlib.h" HAVE_ARC4RANDOM)
 check_symbol_exists("fcntl"           "${CURL_INCLUDES}" HAVE_FCNTL)
 check_symbol_exists("getppid"         "${CURL_INCLUDES}" HAVE_GETPPID)
 check_symbol_exists("utimes"          "${CURL_INCLUDES}" HAVE_UTIMES)
@@ -1523,6 +1525,10 @@ check_symbol_exists("getrlimit"       "${CURL_INCLUDES}" HAVE_GETRLIMIT)
 check_symbol_exists("setlocale"       "${CURL_INCLUDES}" HAVE_SETLOCALE)
 check_symbol_exists("setmode"         "${CURL_INCLUDES}" HAVE_SETMODE)
 check_symbol_exists("setrlimit"       "${CURL_INCLUDES}" HAVE_SETRLIMIT)
+
+if(NOT _ssl_enabled)
+  check_symbol_exists("arc4random" "${CURL_INCLUDES};stdlib.h" HAVE_ARC4RANDOM)
+endif()
 
 if(NOT MSVC OR (MSVC_VERSION GREATER_EQUAL 1900))
   # Earlier MSVC compilers had faulty snprintf implementations
@@ -2144,7 +2150,7 @@ if(NOT CURL_DISABLE_INSTALL)
   #   LIB_SELECTED
   #   TARGETS_EXPORT_NAME
   #   USE_OPENSSL
-  #   USE_ZLIB
+  #   HAVE_LIBZ
   configure_package_config_file("CMake/curl-config.cmake.in"
     "${_project_config}"
     INSTALL_DESTINATION ${CURL_INSTALL_CMAKE_DIR}
@@ -2184,4 +2190,31 @@ if(NOT CURL_DISABLE_INSTALL)
       OWNER_READ OWNER_WRITE OWNER_EXECUTE
       GROUP_READ GROUP_EXECUTE
       WORLD_READ WORLD_EXECUTE)
+endif()
+
+# Save build info for test runner to pick up and log
+if(CMAKE_OSX_SYSROOT)
+  set(_cmake_sysroot ${CMAKE_OSX_SYSROOT})
+elseif(CMAKE_SYSROOT)
+  set(_cmake_sysroot ${CMAKE_SYSROOT})
+endif()
+set(_buildinfo "\
+buildinfo.configure.tool: cmake
+buildinfo.configure.command: ${CMAKE_COMMAND}
+buildinfo.configure.version: ${CMAKE_VERSION}
+buildinfo.configure.args:${_cmake_args}
+buildinfo.configure.generator: ${CMAKE_GENERATOR}
+buildinfo.configure.make: ${CMAKE_MAKE_PROGRAM}
+buildinfo.host.cpu: ${CMAKE_HOST_SYSTEM_PROCESSOR}
+buildinfo.host.os: ${CMAKE_HOST_SYSTEM_NAME}
+buildinfo.target.cpu: ${CMAKE_SYSTEM_PROCESSOR}
+buildinfo.target.os: ${CMAKE_SYSTEM_NAME}
+buildinfo.target.flags:${_target_flags}
+buildinfo.compiler: ${CMAKE_C_COMPILER_ID}
+buildinfo.compiler.version: ${CMAKE_C_COMPILER_VERSION}
+buildinfo.sysroot: ${_cmake_sysroot}
+")
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/buildinfo.txt" "# This is a generated file.  Do not edit.\n${_buildinfo}")
+if(NOT "$ENV{CURL_BUILDINFO}$ENV{CURL_CI}$ENV{CI}" STREQUAL "")
+  message(STATUS "\n${_buildinfo}")
 endif()
