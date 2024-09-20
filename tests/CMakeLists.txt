@@ -21,8 +21,6 @@
 # SPDX-License-Identifier: curl
 #
 ###########################################################################
-set(CMAKE_UNITY_BUILD OFF)
-
 find_program(TEST_NGHTTPX "nghttpx")
 if(NOT TEST_NGHTTPX)
   set(TEST_NGHTTPX "nghttpx")
@@ -100,5 +98,5 @@ add_runtests(test-full      "-a -p -r")
 # ~flaky means that it ignores results of tests using the flaky keyword
 add_runtests(test-nonflaky  "-a -p ~flaky ~timing-dependent")
 add_runtests(test-ci        "-a -p ~flaky ~timing-dependent -r -rm -j2")
-add_runtests(test-torture   "-a -t")
+add_runtests(test-torture   "-a -t -j2")
 add_runtests(test-event     "-a -e")

@@ -55,17 +55,17 @@ jobs:
           - name: torture
             install: libpsl-dev libbrotli-dev libzstd-dev zlib1g-dev libnghttp2-dev libssh2-1-dev libc-ares-dev
             configure: --with-openssl --enable-debug --enable-ares --enable-websockets
-            tflags: -n -t --shallow=25 !FTP
+            tflags: -n -t --shallow=25 !FTP -j10
           - name: torture-ftp
             install: libpsl-dev libbrotli-dev libzstd-dev zlib1g-dev libnghttp2-dev libssh2-1-dev libc-ares-dev
             configure: --with-openssl --enable-debug --enable-ares
-            tflags: -n -t --shallow=20 FTP
+            tflags: -n -t --shallow=20 FTP -j10
 
     steps:
       - run: |
           sudo rm -f /etc/apt/sources.list.d/microsoft-prod.list
           sudo apt-get update
-          sudo apt-get install libtool autoconf automake pkg-config stunnel4 ${{ matrix.build.install }}
+          sudo apt-get install libtool autoconf automake pkgconf stunnel4 ${{ matrix.build.install }}
           sudo python3 -m pip install impacket
         name: 'install prereqs and impacket'
 
