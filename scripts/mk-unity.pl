@@ -1,3 +1,4 @@
+#!/usr/bin/env perl
 #***************************************************************************
 #                                  _   _ ____  _
 #  Project                     ___| | | |  _ \| |
@@ -5,7 +6,7 @@
 #                            | (__| |_| |  _ <| |___
 #                             \___|\___/|_| \_\_____|
 #
-# Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
+# Copyright (C) Viktor Szakats
 #
 # This software is licensed as described in the file COPYING, which
 # you should have received as part of this distribution. The terms
@@ -22,22 +23,41 @@
 #
 ###########################################################################
 
-add_custom_target(curl-examples)
+# Helper script for "unity"-like support in autotools, to generate the umbrella
+# C source that includes the individual source files. Reads Makefile.inc and
+# accepts the variable name containing all the source files to include. Also
+# allow a list of exceptions that are to be excluded from the generated file.
 
-# Get 'check_PROGRAMS' variable
-transform_makefile_inc("Makefile.inc" "${CMAKE_CURRENT_BINARY_DIR}/Makefile.inc.cmake")
-include("${CMAKE_CURRENT_BINARY_DIR}/Makefile.inc.cmake")
+use strict;
+use warnings;
 
-foreach(_target IN LISTS check_PROGRAMS)
-  set(_target_name "curl-example-${_target}")
-  add_executable(${_target_name} EXCLUDE_FROM_ALL "${_target}.c")
-  add_dependencies(curl-examples ${_target_name})
-  target_link_libraries(${_target_name} ${LIB_SELECTED} ${CURL_LIBS})
-  target_compile_definitions(${_target_name} PRIVATE "CURL_NO_OLDIES")
-  if(LIB_SELECTED STREQUAL LIB_STATIC AND WIN32)
-    set_property(TARGET ${_target_name} APPEND PROPERTY COMPILE_DEFINITIONS "CURL_STATICLIB")
-  endif()
-  set_target_properties(${_target_name} PROPERTIES
-    OUTPUT_NAME "${_target}" UNITY_BUILD OFF
-    PROJECT_LABEL "Example ${_target}")
-endforeach()
+if(!@ARGV) {
+    die "Usage: $0 [<c-sources>] [--exclude <exclude-c-sources>]\n";
+}
+
+# Specific sources to exclude or add as an extra source file
+my @src;
+my %exclude;
+my $in_exclude = 0;
+foreach my $src (@ARGV) {
+    if($in_exclude) {
+        $exclude{$src} = 1;
+    }
+    elsif($src eq "--exclude") {
+        $in_exclude = 1;
+    }
+    else {
+        push @src, $src;
+    }
+}
+
+print <<HEADER
+/* !checksrc! disable COPYRIGHT all */
+HEADER
+    ;
+
+foreach my $src (@src) {
+    if($src =~ /\.c$/g && !exists $exclude{$src}) {
+        print "#include \"$src\"\n";
+    }
+}
