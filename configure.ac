@@ -168,6 +168,7 @@ curl_verbose_msg="enabled (--disable-verbose)"
    curl_sspi_msg="no      (--enable-sspi)"
    curl_ldap_msg="no      (--enable-ldap / --with-ldap-lib / --with-lber-lib)"
   curl_ldaps_msg="no      (--enable-ldaps)"
+   curl_ipfs_msg="no      (--enable-ipfs)"
    curl_rtsp_msg="no      (--enable-rtsp)"
    curl_rtmp_msg="no      (--with-librtmp)"
     curl_psl_msg="no      (--with-libpsl)"
@@ -591,8 +592,8 @@ CURL_CHECK_WIN32_CRYPTO
 
 CURL_DARWIN_CFLAGS
 
-case $host_os in
-  darwin*)
+case $host in
+  *-apple-*)
     CURL_SUPPORTS_BUILTIN_AVAILABLE
     ;;
 esac
@@ -640,8 +641,10 @@ AS_HELP_STRING([--disable-http],[Disable HTTP support]),
     AC_MSG_RESULT(no)
     AC_DEFINE(CURL_DISABLE_HTTP, 1, [to disable HTTP])
     disable_http="yes"
-    AC_MSG_WARN([disable HTTP disables FTP over proxy and RTSP])
+    AC_MSG_WARN([disable HTTP disables FTP over proxy, IPFS and RTSP])
     AC_SUBST(CURL_DISABLE_HTTP, [1])
+    AC_DEFINE(CURL_DISABLE_IPFS, 1, [to disable IPFS])
+    AC_SUBST(CURL_DISABLE_IPFS, [1])
     AC_DEFINE(CURL_DISABLE_RTSP, 1, [to disable RTSP])
     AC_SUBST(CURL_DISABLE_RTSP, [1])
     dnl toggle off alt-svc too when HTTP is disabled
@@ -690,6 +693,32 @@ AS_HELP_STRING([--disable-file],[Disable FILE support]),
     ;;
   esac ],
     AC_MSG_RESULT(yes)
+)
+AC_MSG_CHECKING([whether to support IPFS])
+AC_ARG_ENABLE(ipfs,
+AS_HELP_STRING([--enable-ipfs],[Enable IPFS support])
+AS_HELP_STRING([--disable-ipfs],[Disable IPFS support]),
+[ case "$enableval" in
+  no)
+    AC_MSG_RESULT(no)
+    AC_DEFINE(CURL_DISABLE_IPFS, 1, [to disable IPFS])
+    AC_SUBST(CURL_DISABLE_IPFS, [1])
+    ;;
+  *)
+    if test x$CURL_DISABLE_HTTP = x1; then
+      AC_MSG_ERROR(HTTP support needs to be enabled in order to enable IPFS support!)
+    else
+      AC_MSG_RESULT(yes)
+      curl_ipfs_msg="enabled"
+    fi
+    ;;
+  esac ],
+    if test "x$CURL_DISABLE_HTTP" != "x1"; then
+      AC_MSG_RESULT(yes)
+      curl_ipfs_msg="enabled"
+    else
+      AC_MSG_RESULT(no)
+    fi
 )
 AC_MSG_CHECKING([whether to support ldap])
 AC_ARG_ENABLE(ldap,
@@ -1956,7 +1985,7 @@ if test x"$want_gss" = xyes; then
     LIBS="-lgss $LIBS"
   elif test -z "$GSSAPI_LIB_DIR"; then
     case $host in
-      *-*-darwin*)
+      *-apple-*)
         LIBS="-lgssapi_krb5 -lresolv $LIBS"
         ;;
       *)
@@ -2517,7 +2546,11 @@ AC_ARG_ENABLE(versioned-symbols,
 AS_HELP_STRING([--enable-versioned-symbols], [Enable versioned symbols in shared library])
 AS_HELP_STRING([--disable-versioned-symbols], [Disable versioned symbols in shared library]),
 [ case "$enableval" in
-  yes) AC_MSG_RESULT(yes)
+  no)
+    AC_MSG_RESULT(no)
+    ;;
+  *)
+    AC_MSG_RESULT(yes)
     AC_MSG_CHECKING([if libraries can be versioned])
     GLD=`$LD --help < /dev/null 2>/dev/null | grep version-script`
     if test -z "$GLD"; then
@@ -2525,7 +2558,9 @@ AS_HELP_STRING([--disable-versioned-symbols], [Disable versioned symbols in shar
       AC_MSG_WARN([You need an ld version supporting the --version-script option])
     else
       AC_MSG_RESULT(yes)
-      if test "x$CURL_WITH_MULTI_SSL" = "x1"; then
+      if test "x$enableval" != "xyes"; then
+        versioned_symbols_flavour="$enableval"
+      elif test "x$CURL_WITH_MULTI_SSL" = "x1"; then
         versioned_symbols_flavour="MULTISSL_"
       elif test "x$OPENSSL_ENABLED" = "x1"; then
         versioned_symbols_flavour="OPENSSL_"
@@ -2533,14 +2568,12 @@ AS_HELP_STRING([--disable-versioned-symbols], [Disable versioned symbols in shar
         versioned_symbols_flavour="MBEDTLS_"
       elif test "x$BEARSSL_ENABLED" = "x1"; then
         versioned_symbols_flavour="BEARSSL_"
-      elif test "x$GNUTLS_ENABLED" = "x1"; then
-        versioned_symbols_flavour="GNUTLS_"
       elif test "x$WOLFSSL_ENABLED" = "x1"; then
         versioned_symbols_flavour="WOLFSSL_"
-      elif test "x$SCHANNEL_ENABLED" = "x1"; then
-        versioned_symbols_flavour="SCHANNEL_"
-      elif test "x$SECURETRANSPORT_ENABLED" = "x1"; then
-        versioned_symbols_flavour="SECURE_TRANSPORT_"
+      elif test "x$GNUTLS_ENABLED" = "x1"; then
+        versioned_symbols_flavour="GNUTLS_"
+      elif test "x$RUSTLS_ENABLED" = "x1"; then
+        versioned_symbols_flavour="RUSTLS_"
       else
         versioned_symbols_flavour=""
       fi
@@ -2548,17 +2581,14 @@ AS_HELP_STRING([--disable-versioned-symbols], [Disable versioned symbols in shar
     fi
     ;;
 
-  *)
-    AC_MSG_RESULT(no)
-    ;;
   esac
 ], [
 AC_MSG_RESULT(no)
 ]
 )
 
-AC_SUBST([CURL_LT_SHLIB_VERSIONED_FLAVOUR],
-  ["$versioned_symbols_flavour"])
+AC_SUBST([CURL_LIBCURL_VERSIONED_SYMBOLS_PREFIX], ["$versioned_symbols_flavour"])
+AC_SUBST([CURL_LIBCURL_VERSIONED_SYMBOLS_SONAME], ["4"])  dnl Keep in sync with VERSIONCHANGE - VERSIONDEL in lib/Makefile.soname
 AM_CONDITIONAL([CURL_LT_SHLIB_USE_VERSIONED_SYMBOLS],
   [test "x$versioned_symbols" = 'xyes'])
 
@@ -2680,8 +2710,8 @@ dnl Check for the presence of AppleIDN
 dnl **********************************************************************
 
 tst_links_appleidn='no'
-case $host_os in
-  darwin*)
+case $host in
+  *-apple-*)
     AC_MSG_CHECKING([whether to build with Apple IDN])
     OPT_IDN="default"
     AC_ARG_WITH(apple-idn,
@@ -5125,7 +5155,7 @@ AC_SUBST(SUPPORT_FEATURES)
 
 dnl For supported protocols in pkg-config file
 if test "x$CURL_DISABLE_HTTP" != "x1"; then
-  SUPPORT_PROTOCOLS="$SUPPORT_PROTOCOLS HTTP IPFS IPNS"
+  SUPPORT_PROTOCOLS="$SUPPORT_PROTOCOLS HTTP"
   if test "x$SSL_ENABLED" = "x1"; then
     SUPPORT_PROTOCOLS="$SUPPORT_PROTOCOLS HTTPS"
   fi
@@ -5202,6 +5232,9 @@ fi
 if test "x$USE_WOLFSSH" = "x1"; then
   SUPPORT_PROTOCOLS="$SUPPORT_PROTOCOLS SFTP"
 fi
+if test "x$CURL_DISABLE_IPFS" != "x1"; then
+  SUPPORT_PROTOCOLS="$SUPPORT_PROTOCOLS IPFS IPNS"
+fi
 if test "x$CURL_DISABLE_RTSP" != "x1"; then
   SUPPORT_PROTOCOLS="$SUPPORT_PROTOCOLS RTSP"
 fi
@@ -5241,6 +5274,8 @@ if test "x$want_curldebug_assumed" = "xyes" &&
   ac_configure_args="$ac_configure_args --enable-curldebug"
 fi
 
+CURL_PREPARE_CONFIGUREHELP_PM
+
 AC_CONFIG_FILES([\
   Makefile \
   docs/Makefile \
@@ -5256,6 +5291,7 @@ AC_CONFIG_FILES([\
   lib/libcurl.vers \
   tests/Makefile \
   tests/config \
+  tests/configurehelp.pm \
   tests/certs/Makefile \
   tests/certs/scripts/Makefile \
   tests/data/Makefile \
@@ -5271,8 +5307,6 @@ AC_CONFIG_FILES([\
   libcurl.pc
 ])
 AC_OUTPUT
-
-CURL_GENERATE_CONFIGUREHELP_PM
 
 SUPPORT_PROTOCOLS_LOWER=`echo "$SUPPORT_PROTOCOLS" | tr A-Z a-z`
 
@@ -5312,6 +5346,7 @@ AC_MSG_NOTICE([Configured to build curl/libcurl:
   ca fallback:      ${with_ca_fallback}
   LDAP:             ${curl_ldap_msg}
   LDAPS:            ${curl_ldaps_msg}
+  IPFS/IPNS:        ${curl_ipfs_msg}
   RTSP:             ${curl_rtsp_msg}
   RTMP:             ${curl_rtmp_msg}
   PSL:              ${curl_psl_msg}

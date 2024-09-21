@@ -1304,7 +1304,7 @@ AS_HELP_STRING([--without-ca-path], [Don't use a default CA path]),
   fi
 
   if test "x$ca" != "xno"; then
-    CURL_CA_BUNDLE='"'$ca'"'
+    CURL_CA_BUNDLE="$ca"
     AC_DEFINE_UNQUOTED(CURL_CA_BUNDLE, "$ca", [Location of default ca bundle])
     AC_SUBST(CURL_CA_BUNDLE)
     AC_MSG_RESULT([$ca])
@@ -1518,44 +1518,20 @@ AC_DEFUN([CURL_CHECK_PKGCONFIG], [
 ])
 
 
-dnl CURL_GENERATE_CONFIGUREHELP_PM
+dnl CURL_PREPARE_CONFIGUREHELP_PM
 dnl -------------------------------------------------
-dnl Generate test harness configurehelp.pm module, defining and
+dnl Prepare test harness configurehelp.pm module, defining and
 dnl initializing some perl variables with values which are known
 dnl when the configure script runs. For portability reasons, test
 dnl harness needs information on how to run the C preprocessor.
 
-AC_DEFUN([CURL_GENERATE_CONFIGUREHELP_PM], [
+AC_DEFUN([CURL_PREPARE_CONFIGUREHELP_PM], [
   AC_REQUIRE([AC_PROG_CPP])dnl
   tmp_cpp=`eval echo "$ac_cpp" 2>/dev/null`
   if test -z "$tmp_cpp"; then
     tmp_cpp='cpp'
   fi
-  cat >./tests/configurehelp.pm <<_EOF
-[@%:@] This is a generated file.  Do not edit.
-
-package configurehelp;
-
-use strict;
-use warnings;
-use Exporter;
-
-use vars qw(
-    @ISA
-    @EXPORT_OK
-    \$Cpreprocessor
-    );
-
-@ISA = qw(Exporter);
-
-@EXPORT_OK = qw(
-    \$Cpreprocessor
-    );
-
-\$Cpreprocessor = '$tmp_cpp';
-
-1;
-_EOF
+  AC_SUBST(CURL_CPP, $tmp_cpp)
 ])
 
 
@@ -1666,8 +1642,8 @@ dnl
 AC_DEFUN([CURL_DARWIN_CFLAGS], [
 
   tst_cflags="no"
-  case $host_os in
-    darwin*)
+  case $host in
+    *-apple-*)
       tst_cflags="yes"
       ;;
   esac

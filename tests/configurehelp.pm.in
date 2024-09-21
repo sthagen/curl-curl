@@ -22,20 +22,24 @@
 #
 ###########################################################################
 
-prefix=@prefix@
-exec_prefix=@exec_prefix@
-libdir=@libdir@
-includedir=@includedir@
-supported_protocols="@SUPPORT_PROTOCOLS@"
-supported_features="@SUPPORT_FEATURES@"
+package configurehelp;
 
-Name: libcurl
-URL: https://curl.se/
-Description: Library to transfer files with HTTP, FTP, etc.
-Version: @CURLVERSION@
-Requires: @LIBCURL_PC_REQUIRES@
-Requires.private: @LIBCURL_PC_REQUIRES_PRIVATE@
-Libs: -L${libdir} -lcurl @LIBCURL_PC_LIBS@
-Libs.private: @LDFLAGS@ @LIBCURL_PC_LIBS_PRIVATE@
-Cflags: -I${includedir} @LIBCURL_PC_CFLAGS@
-Cflags.private: @LIBCURL_PC_CFLAGS_PRIVATE@
+use strict;
+use warnings;
+use Exporter;
+
+use vars qw(
+    @ISA
+    @EXPORT_OK
+    $Cpreprocessor
+    );
+
+@ISA = qw(Exporter);
+
+@EXPORT_OK = qw(
+    $Cpreprocessor
+    );
+
+$Cpreprocessor = '@CURL_CPP@';
+
+1;
