@@ -377,7 +377,7 @@ static CURLcode pre_transfer(struct GlobalConfig *global,
         break;
       default:
         per->infd = open(per->uploadfile, O_RDONLY | O_BINARY,
-                        "rfm=stmlf", "ctx=stm");
+                         "rfm=stmlf", "ctx=stm");
       }
     }
     if(per->infd == -1)
@@ -3041,7 +3041,7 @@ static CURLcode transfer_per_config(struct GlobalConfig *global,
      * default filename curl-ca-bundle.crt in the user's PATH.
      *
      * If Schannel is the selected SSL backend then these locations are
-     * ignored. We allow setting CA location for schannel only when explicitly
+     * ignored. We allow setting CA location for Schannel only when explicitly
      * specified by the user via CURLOPT_CAINFO / --cacert.
      */
     if(tls_backend_info->backend != CURLSSLBACKEND_SCHANNEL) {

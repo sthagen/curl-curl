@@ -629,6 +629,29 @@ AS_HELP_STRING([--disable-unity],[Disable unity (default)]),
 
 AM_CONDITIONAL([USE_UNITY], [test "$want_unity" = 'yes'])
 
+dnl -----------------------
+dnl whether to bundle tests
+dnl -----------------------
+
+want_test_bundles='no'
+AC_MSG_CHECKING([whether to build tests into single-binary bundles])
+AC_ARG_ENABLE(test-bundles,
+AS_HELP_STRING([--enable-test-bundles],[Enable test bundles])
+AS_HELP_STRING([--disable-test-bundles],[Disable test bundles (default)]),
+[ case "$enableval" in
+  yes)
+    want_test_bundles='yes'
+    AC_MSG_RESULT([yes])
+    ;;
+  *)
+    AC_MSG_RESULT([no])
+    ;;
+  esac ],
+    AC_MSG_RESULT([no])
+)
+
+AM_CONDITIONAL([USE_TEST_BUNDLES], [test "$want_test_bundles" = 'yes'])
+
 dnl ************************************************************
 dnl switch off particular protocols
 dnl
@@ -2583,7 +2606,7 @@ AS_HELP_STRING([--disable-versioned-symbols], [Disable versioned symbols in shar
 
   esac
 ], [
-AC_MSG_RESULT(no)
+  AC_MSG_RESULT(no)
 ]
 )
 
@@ -4064,8 +4087,8 @@ fi
 CURL_CHECK_NONBLOCKING_SOCKET
 
 if test "x$BUILD_DOCS" != "x0" -o "x$USE_MANUAL" != "x0" -o "x$CURL_CA_EMBED" != "x"; then
-  AC_PATH_PROG( PERL, perl, ,
-    $PATH:/usr/local/bin/perl:/usr/bin/:/usr/local/bin )
+  AC_PATH_PROG(PERL, perl,,
+    $PATH:/usr/local/bin/perl:/usr/bin/:/usr/local/bin)
   AC_SUBST(PERL)
 
   if test -z "$PERL"; then
@@ -4132,7 +4155,7 @@ AS_HELP_STRING([--disable-pthreads],[Disable POSIX threads]),
       AC_MSG_RESULT(auto)
       want_pthreads=auto
     fi
-    ]
+  ]
 )
 
 dnl turn off pthreads if rt is disabled
