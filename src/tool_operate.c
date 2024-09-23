@@ -1090,6 +1090,12 @@ static CURLcode single_transfer(struct GlobalConfig *global,
              * OperationConfig, so that it does not need to be opened/closed
              * for every transfer.
              */
+            if(config->create_dirs) {
+              result = create_dir_hierarchy(config->headerfile, global);
+              /* create_dir_hierarchy shows error upon CURLE_WRITE_ERROR */
+              if(result)
+                break;
+            }
             if(!per->prev || per->prev->config != config) {
               newfile = fopen(config->headerfile, "wb");
               if(newfile)
@@ -3083,8 +3089,18 @@ static CURLcode transfer_per_config(struct GlobalConfig *global,
       }
 
 #ifdef _WIN32
-      if(!env)
+      if(!env) {
+#if defined(CURL_CA_SEARCH_SAFE)
+        char *cacert = NULL;
+        FILE *cafile = Curl_execpath("curl-ca-bundle.crt", &cacert);
+        if(cafile) {
+          fclose(cafile);
+          config->cacert = strdup(cacert);
+        }
+#elif !defined(CURL_WINDOWS_UWP) && !defined(CURL_DISABLE_CA_SEARCH)
         result = FindWin32CACert(config, TEXT("curl-ca-bundle.crt"));
+#endif
+      }
 #endif
     }
     curl_easy_cleanup(curltls);

@@ -2184,6 +2184,50 @@ fi
 
 AM_CONDITIONAL(CURL_CA_EMBED_SET, test "x$CURL_CA_EMBED" != "x")
 
+dnl ----------------------
+dnl check unsafe CA search
+dnl ----------------------
+
+if test "$curl_cv_native_windows" = "yes"; then
+  AC_MSG_CHECKING([whether to enable unsafe CA bundle search in PATH on Windows])
+  AC_ARG_ENABLE(ca-search,
+AS_HELP_STRING([--enable-ca-search],[Enable unsafe CA bundle search in PATH on Windows (default)])
+AS_HELP_STRING([--disable-ca-search],[Disable unsafe CA bundle search in PATH on Windows]),
+  [ case "$enableval" in
+    no)
+      AC_MSG_RESULT([no])
+      AC_DEFINE(CURL_DISABLE_CA_SEARCH, 1, [If unsafe CA bundle search in PATH on Windows is disabled])
+      ;;
+    *)
+      AC_MSG_RESULT([yes])
+      ;;
+    esac ],
+      AC_MSG_RESULT([yes])
+  )
+fi
+
+dnl --------------------
+dnl check safe CA search
+dnl --------------------
+
+if test "$curl_cv_native_windows" = "yes"; then
+  AC_MSG_CHECKING([whether to enable safe CA bundle search (within the curl tool directory) on Windows])
+  AC_ARG_ENABLE(ca-search-safe,
+AS_HELP_STRING([--enable-ca-search-safe],[Enable safe CA bundle search])
+AS_HELP_STRING([--disable-ca-search-safe],[Disable safe CA bundle search (default)]),
+  [ case "$enableval" in
+    yes)
+      AC_MSG_RESULT([yes])
+      AC_DEFINE(CURL_CA_SEARCH_SAFE, 1, [If safe CA bundle search is enabled])
+      ;;
+    *)
+      AC_MSG_RESULT([no])
+      ;;
+    esac ],
+      AC_MSG_RESULT([no])
+  )
+fi
+
 dnl **********************************************************************
 dnl Check for libpsl
 dnl **********************************************************************
@@ -3573,7 +3617,7 @@ AC_INCLUDES_DEFAULT
 fi
 
 dnl **********************************************************************
-dnl Check for msh3 (QUIC)
+dnl Check for msh3/msquic (QUIC)
 dnl **********************************************************************
 
 OPT_MSH3="no"
@@ -3612,7 +3656,7 @@ if test X"$want_msh3" != Xno; then
       AC_MSG_ERROR([the detected TLS library does not support QUIC, making --with-msh3 a no-no])
     fi
     if test "$OPENSSL_ENABLED" != "1"; then
-      AC_MSG_ERROR([msh3 requires OpenSSL])
+      AC_MSG_ERROR([msh3/msquic requires OpenSSL])
     fi
   fi
 
