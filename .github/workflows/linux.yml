@@ -47,6 +47,8 @@ env:
   mod_h2-version: 2.0.29
   # renovate: datasource=github-tags depName=nibanks/msh3 versioning=semver registryUrl=https://github.com
   msh3-version: 0.6.0
+  # renovate: datasource=github-tags depName=awslabs/aws-lc versioning=semver registryUrl=https://github.com
+  awslc-version: 1.34.2
   # handled in renovate.json
   openssl3-version: openssl-3.1.3
   # unhandled
@@ -94,6 +96,18 @@ jobs:
             configure: CC=clang LDFLAGS="-Wl,-rpath,$HOME/libressl/lib" --with-openssl=$HOME/libressl --enable-debug
             singleuse: --unit
 
+          - name: wolfssl-all
+            install_packages: zlib1g-dev
+            install_steps: wolfssl-all
+            configure: LDFLAGS="-Wl,-rpath,$HOME/wolfssl-all/lib" --with-wolfssl=$HOME/wolfssl-all --enable-debug
+            singleuse: --unit
+
+          - name: wolfssl-opensslextra valgrind
+            install_packages: zlib1g-dev valgrind
+            install_steps: wolfssl-opensslextra
+            configure: LDFLAGS="-Wl,-rpath,$HOME/wolfssl-opensslextra/lib" --with-wolfssl=$HOME/wolfssl-opensslextra --enable-debug
+            singleuse: --unit
+
           - name: mbedtls valgrind
             install_packages: libnghttp2-dev valgrind
             install_steps: mbedtls pytest
@@ -110,6 +124,18 @@ jobs:
             install_packages: zlib1g-dev valgrind
             install_steps: quictls msh3
             configure: LDFLAGS="-Wl,-rpath,$HOME/msh3/lib -Wl,-rpath,$HOME/quictls/lib" --with-msh3=$HOME/msh3 --with-openssl=$HOME/quictls --enable-debug
+            singleuse: --unit
+
+          - name: awslc
+            install_packages: zlib1g-dev
+            install_steps: awslc
+            configure: LDFLAGS="-Wl,-rpath,$HOME/awslc/lib" --with-openssl=$HOME/awslc
+            singleuse: --unit
+
+          - name: awslc
+            install_packages: zlib1g-dev
+            install_steps: awslc
+            generate: -DOPENSSL_ROOT_DIR=$HOME/awslc
             singleuse: --unit
 
           - name: openssl default
@@ -319,6 +345,48 @@ jobs:
           ./configure --disable-dependency-tracking --prefix=$HOME/libressl
           make install
 
+      - name: cache wolfssl (all)
+        if: contains(matrix.build.install_steps, 'wolfssl-all')
+        uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4
+        id: cache-wolfssl-all
+        env:
+          cache-name: cache-wolfssl-all
+        with:
+          path: /home/runner/wolfssl-all
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ env.libressl-version }}
+
+      - name: 'build wolfssl (all)'
+        if: contains(matrix.build.install_steps, 'wolfssl-all') && steps.cache-wolfssl-all.outputs.cache-hit != 'true'
+        run: |
+          source .github/scripts/VERSIONS
+          curl -LOsSf --retry 6 --retry-connrefused --max-time 999 https://github.com/wolfSSL/wolfssl/archive/v$WOLFSSL_VER-stable.tar.gz
+          tar -xzf v$WOLFSSL_VER-stable.tar.gz
+          cd wolfssl-$WOLFSSL_VER-stable
+          ./autogen.sh
+          ./configure --disable-dependency-tracking --enable-tls13 --enable-harden --prefix=$HOME/wolfssl-all --enable-all
+          make install
+
+      - name: cache wolfssl (opensslextra)
+        if: contains(matrix.build.install_steps, 'wolfssl-opensslextra')
+        uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4
+        id: cache-wolfssl-opensslextra
+        env:
+          cache-name: cache-wolfssl-opensslextra
+        with:
+          path: /home/runner/wolfssl-opensslextra
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ env.libressl-version }}
+
+      - name: 'build wolfssl (opensslextra)'
+        if: contains(matrix.build.install_steps, 'wolfssl-opensslextra') && steps.cache-wolfssl-opensslextra.outputs.cache-hit != 'true'
+        run: |
+          source .github/scripts/VERSIONS
+          curl -LOsSf --retry 6 --retry-connrefused --max-time 999 https://github.com/wolfSSL/wolfssl/archive/v$WOLFSSL_VER-stable.tar.gz
+          tar -xzf v$WOLFSSL_VER-stable.tar.gz
+          cd wolfssl-$WOLFSSL_VER-stable
+          ./autogen.sh
+          ./configure --disable-dependency-tracking --enable-tls13 --enable-harden --prefix=$HOME/wolfssl-opensslextra --enable-opensslextra
+          make install
+
       - name: cache mbedtls
         if: contains(matrix.build.install_steps, 'mbedtls')
         uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4
@@ -414,6 +482,28 @@ jobs:
           cmake --build .
           cmake --install .
 
+      - name: cache awslc
+        if: contains(matrix.build.install_steps, 'awslc')
+        uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # v4
+        id: cache-awslc
+        env:
+          cache-name: cache-awslc
+        with:
+          path: /home/runner/awslc
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ env.awslc-version }}
+
+      - name: build awslc
+        if: contains(matrix.build.install_steps, 'awslc') && steps.cache-awslc.outputs.cache-hit != 'true'
+        run: |
+          curl -LOsSf --retry 6 --retry-connrefused --max-time 999 \
+            https://github.com/awslabs/aws-lc/archive/refs/tags/v${{ env.awslc-version }}.tar.gz
+          tar xzf v${{ env.awslc-version }}.tar.gz
+          mkdir aws-lc-${{ env.awslc-version }}-build
+          cd aws-lc-${{ env.awslc-version }}-build
+          cmake -G Ninja -DCMAKE_INSTALL_PREFIX=$HOME/awslc ../aws-lc-${{ env.awslc-version }}
+          cmake --build . --parallel
+          cmake --install .
+
       - if: contains(matrix.build.install_steps, 'rust')
         run: |
           cd $HOME
@@ -495,6 +585,7 @@ jobs:
         name: 'autoreconf'
 
       - run: |
+          [[ '${{ matrix.build.install_steps }}' = *'awslc'* ]] && sudo apt remove --yes libssl-dev
           ${{ matrix.build.configure-prefix }} \
           ./configure --disable-dependency-tracking --enable-unity --enable-test-bundles --enable-warnings --enable-werror \
             ${{ matrix.build.configure }}
@@ -502,6 +593,7 @@ jobs:
         name: 'configure (autotools)'
 
       - run: |
+          [[ '${{ matrix.build.install_steps }}' = *'awslc'* ]] && sudo apt remove --yes libssl-dev
           cmake . \
             -DCMAKE_C_COMPILER_TARGET=$(uname -m)-pc-linux-gnu -DBUILD_STATIC_LIBS=ON \
             -DCMAKE_UNITY_BUILD=ON -DCURL_TEST_BUNDLES=ON -DCURL_WERROR=ON \
@@ -534,6 +626,10 @@ jobs:
 
       - run: ./src/curl -V
         name: 'check curl -V output'
+
+      - run: cmake --install . --prefix $HOME/curl --strip
+        if: ${{ matrix.build.generate }}
+        name: 'cmake install'
 
       - run: make V=1 -C tests
         if: ${{ matrix.build.configure && matrix.build.install_steps != 'skipall' }}
