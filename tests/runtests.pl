@@ -83,6 +83,7 @@ BEGIN {
 
 use Digest::MD5 qw(md5);
 use List::Util 'sum';
+use I18N::Langinfo qw(langinfo CODESET);
 
 use pathhelp qw(
     exe_ext
@@ -824,6 +825,8 @@ sub checksystemfeatures {
     $feature{"xattr"} = 1;
     $feature{"large-time"} = 1;
     $feature{"sha512-256"} = 1;
+    $feature{"local-http"} = servers::localhttp();
+    $feature{"codeset-utf8"} = lc(langinfo(CODESET())) eq "utf-8";
 
     # make each protocol an enabled "feature"
     for my $p (@protocols) {
@@ -1714,6 +1717,25 @@ sub singletest_check {
         $ok .= "-"; # memory not checked
     }
 
+    my @notexists = getpart("verify", "notexists");
+    if(@notexists) {
+        # a list of directory entries that must not exist
+        my $err;
+        while (@notexists) {
+            my $fname = shift @notexists;
+            chomp $fname;
+            if (-e $fname) {
+                logmsg "Found '$fname' when not supposed to exist.\n";
+                $err++;
+            }
+            elsif($verbose) {
+                logmsg "Found '$fname' confirmed to not exist.\n";
+            }
+        }
+        if($err) {
+            return -1;
+        }
+    }
     if($valgrind) {
         if($usedvalgrind) {
             if(!opendir(DIR, "$logdir")) {

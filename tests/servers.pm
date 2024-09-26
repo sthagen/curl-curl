@@ -59,6 +59,7 @@ BEGIN {
             stopserver
             stopservers
             subvariables
+            localhttp
         ),
 
         # for debugging only
@@ -2989,6 +2990,10 @@ sub subvariables {
     $$thing =~ s/${prefix}SOCKSUNIXPATH/$SOCKSUNIXPATH/g;
 
     # client IP addresses
+    my $nb = $CLIENT6IP;
+    $nb =~ s/^\[(.*)\]/$1/; # trim off the brackets
+
+    $$thing =~ s/${prefix}CLIENT6IP-NB/$nb/g;
     $$thing =~ s/${prefix}CLIENT6IP/$CLIENT6IP/g;
     $$thing =~ s/${prefix}CLIENTIP/$CLIENTIP/g;
 
@@ -3040,5 +3045,8 @@ sub subvariables {
     $$thing =~ s/${prefix}H2CVER/$h2cver/g;
 }
 
+sub localhttp {
+    return $HOSTIP eq "127.0.0.1";
+}
 
 1;
