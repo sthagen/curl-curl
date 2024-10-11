@@ -31,7 +31,7 @@ macro(check_include_file_concat _file _variable)
   check_include_files("${CURL_INCLUDES};${_file}" ${_variable})
   if(${_variable})
     set(CURL_INCLUDES ${CURL_INCLUDES} ${_file})
-    set(CURL_TEST_DEFINES "${CURL_TEST_DEFINES} -D${_variable}")
+    set(CURL_TEST_DEFINES "${CURL_TEST_DEFINES} -D${_variable}")  # Apply to curl_internal_test()
   endif()
 endmacro()
 
@@ -73,4 +73,13 @@ macro(curl_dependency_option _dependency)
   elseif(CURL_${_dependency})
     find_package(${_dependency} REQUIRED)
   endif()
+endmacro()
+
+# Convert the passed paths (or list of paths) to libpath linker options
+# and add them to CMAKE_REQUIRED_LINK_OPTIONS.
+macro(curl_required_libpaths)
+  set(_libpaths "${ARGN}")
+  foreach(_libpath IN LISTS _libpaths)
+    list(APPEND CMAKE_REQUIRED_LINK_OPTIONS "${CMAKE_LIBRARY_PATH_FLAG}${_libpath}")
+  endforeach()
 endmacro()
