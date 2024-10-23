@@ -43,9 +43,9 @@ permissions: {}
 env:
   MAKEFLAGS: -j 5
   # handled in renovate.json
-  openssl3-version: openssl-3.3.0
-  # unhandled
-  quictls-version: 3.3.0-quic1
+  openssl-version: 3.4.0
+  # handled in renovate.json
+  quictls-version: 3.3.0
   # renovate: datasource=github-tags depName=gnutls/gnutls versioning=semver registryUrl=https://github.com
   gnutls-version: 3.8.7
   wolfssl-version: master
@@ -96,7 +96,7 @@ jobs:
           cache-name: cache-quictls-no-deprecated
         with:
           path: /home/runner/quictls/build
-          key: ${{ runner.os }}-http3-build-${{ env.cache-name }}-${{ env.quictls-version }}
+          key: ${{ runner.os }}-http3-build-${{ env.cache-name }}-${{ env.quictls-version }}-quic1
 
       - name: cache gnutls
         uses: actions/cache@3624ceb22c1c5a301c8db4169662070a689d9ea8 # v4
@@ -173,7 +173,7 @@ jobs:
       - if: steps.cache-quictls-no-deprecated.outputs.cache-hit != 'true'
         run: |
           cd $HOME
-          git clone --quiet --depth=1 -b openssl-${{ env.quictls-version }} https://github.com/quictls/openssl quictls
+          git clone --quiet --depth=1 -b openssl-${{ env.quictls-version }}-quic1 https://github.com/quictls/openssl quictls
           cd quictls
           ./config no-deprecated --prefix=$PWD/build --libdir=lib
           make
@@ -291,12 +291,12 @@ jobs:
               -DHTTPD_NGHTTPX="$HOME/nghttp2/build/bin/nghttpx"
 
           - name: openssl-quic
-            PKG_CONFIG_PATH: '$HOME/openssl3/build/lib64/pkgconfig'
+            PKG_CONFIG_PATH: '$HOME/openssl/build/lib64/pkgconfig'
             configure: >-
-              LDFLAGS="-Wl,-rpath,$HOME/openssl3/build/lib64"
+              LDFLAGS="-Wl,-rpath,$HOME/openssl/build/lib64"
               --enable-warnings --enable-werror --enable-debug --disable-ntlm
               --with-test-nghttpx="$HOME/nghttp2/build/bin/nghttpx"
-              --with-openssl=$HOME/openssl3/build --with-openssl-quic
+              --with-openssl=$HOME/openssl/build --with-openssl-quic
               --with-nghttp3=$HOME/nghttp3/build
 
           - name: quiche
@@ -395,22 +395,22 @@ jobs:
           key: ${{ runner.os }}-http3-build-${{ env.cache-name }}-${{ env.nghttp2-version }}
           fail-on-cache-miss: true
 
-      - name: cache openssl3
+      - name: cache openssl
         if: matrix.build.name == 'openssl-quic'
         uses: actions/cache@3624ceb22c1c5a301c8db4169662070a689d9ea8 # v4
-        id: cache-openssl3
+        id: cache-openssl
         env:
-          cache-name: cache-openssl3
+          cache-name: cache-openssl
         with:
-          path: /home/runner/openssl3/build
-          key: ${{ runner.os }}-http3-build-${{ env.cache-name }}-${{ env.openssl3-version }}
+          path: /home/runner/openssl/build
+          key: ${{ runner.os }}-http3-build-${{ env.cache-name }}-${{ env.openssl-version }}
 
-      - name: 'install openssl3'
-        if: matrix.build.name == 'openssl-quic' && steps.cache-openssl3.outputs.cache-hit != 'true'
+      - name: 'install openssl'
+        if: matrix.build.name == 'openssl-quic' && steps.cache-openssl.outputs.cache-hit != 'true'
         run: |
-          git clone --quiet --depth=1 -b ${{ env.openssl3-version }} https://github.com/openssl/openssl
+          git clone --quiet --depth=1 -b openssl-${{ env.openssl-version }} https://github.com/openssl/openssl
           cd openssl
-          ./config --prefix=$HOME/openssl3/build
+          ./config --prefix=$HOME/openssl/build
           make -j1 install_sw
           cat exporters/openssl.pc
 
