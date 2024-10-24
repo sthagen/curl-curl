@@ -168,8 +168,6 @@ class TestDownload:
     @pytest.mark.parametrize("proto", ['http/1.1'])
     def test_02_07b_download_reuse(self, env: Env,
                                    httpd, nghttpx, repeat, proto):
-        if env.curl_uses_lib('wolfssl'):
-            pytest.skip("wolfssl session reuse borked")
         count = 6
         curl = CurlClient(env=env)
         urln = f'https://{env.authority_for(env.domain1, proto)}/data.json?[0-{count-1}]'
@@ -474,12 +472,6 @@ class TestDownload:
     # make extreme parallel h2 upgrades, check invalid conn reuse
     # before protocol switch has happened
     def test_02_25_h2_upgrade_x(self, env: Env, httpd, repeat):
-        # not locally reproducible timeouts with certain SSL libs
-        # Since this test is about connection reuse handling, we skip
-        # it on these builds. Although we would certainly like to understand
-        # why this happens.
-        if env.curl_uses_lib('bearssl'):
-            pytest.skip('CI workflows timeout on bearssl build')
         url = f'http://localhost:{env.http_port}/data-100k'
         client = LocalClient(name='h2-upgrade-extreme', env=env, timeout=15)
         if not client.exists():
