@@ -156,8 +156,8 @@ option(ENABLE_ARES "Enable c-ares support" OFF)
 option(CURL_DISABLE_INSTALL "Disable installation targets" OFF)
 
 if(WIN32)
-  option(CURL_STATIC_CRT "Build libcurl with static CRT on Windows (/MT)" OFF)
-  if(CURL_STATIC_CRT)
+  option(CURL_STATIC_CRT "Build libcurl with static CRT with MSVC (/MT)" OFF)
+  if(CURL_STATIC_CRT AND MSVC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
     set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MT")
     set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MTd")
@@ -291,7 +291,7 @@ option(CURL_DISABLE_KERBEROS_AUTH "Disable Kerberos authentication" OFF)
 mark_as_advanced(CURL_DISABLE_KERBEROS_AUTH)
 option(CURL_DISABLE_NEGOTIATE_AUTH "Disable negotiate authentication" OFF)
 mark_as_advanced(CURL_DISABLE_NEGOTIATE_AUTH)
-option(CURL_DISABLE_AWS "Disable AWS-SIG4" OFF)
+option(CURL_DISABLE_AWS "Disable aws-sigv4" OFF)
 mark_as_advanced(CURL_DISABLE_AWS)
 option(CURL_DISABLE_DICT "Disable DICT" OFF)
 mark_as_advanced(CURL_DISABLE_DICT)
@@ -299,10 +299,6 @@ option(CURL_DISABLE_DOH "Disable DNS-over-HTTPS" OFF)
 mark_as_advanced(CURL_DISABLE_DOH)
 option(CURL_DISABLE_FILE "Disable FILE" OFF)
 mark_as_advanced(CURL_DISABLE_FILE)
-cmake_dependent_option(CURL_DISABLE_FORM_API "Disable form-api"
-  OFF "NOT CURL_DISABLE_MIME"
-  ON)
-mark_as_advanced(CURL_DISABLE_FORM_API)
 option(CURL_DISABLE_FTP "Disable FTP" OFF)
 mark_as_advanced(CURL_DISABLE_FTP)
 option(CURL_DISABLE_GETOPTIONS "Disable curl_easy_options API for existing options to curl_easy_setopt" OFF)
@@ -327,10 +323,14 @@ option(CURL_DISABLE_LIBCURL_OPTION "Disable --libcurl option from the curl tool"
 mark_as_advanced(CURL_DISABLE_LIBCURL_OPTION)
 option(CURL_DISABLE_MIME "Disable MIME support" OFF)
 mark_as_advanced(CURL_DISABLE_MIME)
+cmake_dependent_option(CURL_DISABLE_FORM_API "Disable form-api"
+  OFF "NOT CURL_DISABLE_MIME"
+  ON)
+mark_as_advanced(CURL_DISABLE_FORM_API)
 option(CURL_DISABLE_MQTT "Disable MQTT" OFF)
-mark_as_advanced(CURL_DISABLE_BINDLOCAL)
-option(CURL_DISABLE_BINDLOCAL "Disable local binding support" OFF)
 mark_as_advanced(CURL_DISABLE_MQTT)
+option(CURL_DISABLE_BINDLOCAL "Disable local binding support" OFF)
+mark_as_advanced(CURL_DISABLE_BINDLOCAL)
 option(CURL_DISABLE_NETRC "Disable netrc parser" OFF)
 mark_as_advanced(CURL_DISABLE_NETRC)
 option(CURL_DISABLE_NTLM "Disable NTLM support" OFF)
@@ -357,7 +357,7 @@ option(CURL_DISABLE_SMTP "Disable SMTP" OFF)
 mark_as_advanced(CURL_DISABLE_SMTP)
 option(CURL_DISABLE_SOCKETPAIR "Disable use of socketpair for curl_multi_poll" OFF)
 mark_as_advanced(CURL_DISABLE_SOCKETPAIR)
-option(CURL_DISABLE_WEBSOCKETS "Disable WebSockets" OFF)
+option(CURL_DISABLE_WEBSOCKETS "Disable WebSocket" OFF)
 mark_as_advanced(CURL_DISABLE_WEBSOCKETS)
 option(CURL_DISABLE_TELNET "Disable Telnet" OFF)
 mark_as_advanced(CURL_DISABLE_TELNET)
@@ -1325,7 +1325,7 @@ if(_curl_ca_bundle_supported)
   set(CURL_CA_BUNDLE "auto" CACHE
     STRING "Path to the CA bundle. Set 'none' to disable or 'auto' for auto-detection. Defaults to 'auto'.")
   set(CURL_CA_FALLBACK OFF CACHE BOOL
-    "Set ON to use built-in CA store of TLS backend. Defaults to OFF")
+    "Use built-in CA store of TLS backend. Defaults to OFF")
   set(CURL_CA_PATH "auto" CACHE
     STRING "Location of default CA path. Set 'none' to disable or 'auto' for auto-detection. Defaults to 'auto'.")
   set(CURL_CA_EMBED "" CACHE
@@ -1414,8 +1414,8 @@ endif()
 
 # Check for header files
 if(WIN32)
-  set(CURL_INCLUDES ${CURL_INCLUDES} "winsock2.h")
-  set(CURL_INCLUDES ${CURL_INCLUDES} "ws2tcpip.h")
+  list(APPEND CURL_INCLUDES "winsock2.h")
+  list(APPEND CURL_INCLUDES "ws2tcpip.h")
 
   if(HAVE_WIN32_WINNT)
     if(HAVE_WIN32_WINNT LESS 0x0501)
@@ -1821,11 +1821,11 @@ if(CURL_LTO)
   cmake_policy(SET CMP0069 NEW)
 
   include(CheckIPOSupported)
-  check_ipo_supported(RESULT CURL_HAS_LTO OUTPUT CURL_LTO_ERROR LANGUAGES C)
+  check_ipo_supported(RESULT CURL_HAS_LTO OUTPUT _lto_error LANGUAGES C)
   if(CURL_HAS_LTO)
     message(STATUS "LTO supported and enabled")
   else()
-    message(FATAL_ERROR "LTO has been requested, but the compiler does not support it\n${CURL_LTO_ERROR}")
+    message(FATAL_ERROR "LTO has been requested, but the compiler does not support it\n${_lto_error}")
   endif()
 endif()
 
@@ -1852,7 +1852,7 @@ endfunction()
 
 include(GNUInstallDirs)
 
-set(CURL_INSTALL_CMAKE_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
+set(_install_cmake_dir "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}")
 set(TARGETS_EXPORT_NAME "${PROJECT_NAME}Targets")
 set(_generated_dir "${CMAKE_CURRENT_BINARY_DIR}/generated")
 set(_project_config "${_generated_dir}/${PROJECT_NAME}Config.cmake")
@@ -2237,17 +2237,17 @@ if(NOT CURL_DISABLE_INSTALL)
   #   HAVE_LIBZ
   configure_package_config_file("CMake/curl-config.cmake.in"
     "${_project_config}"
-    INSTALL_DESTINATION ${CURL_INSTALL_CMAKE_DIR}
+    INSTALL_DESTINATION ${_install_cmake_dir}
     PATH_VARS CMAKE_INSTALL_INCLUDEDIR)
 
   if(CURL_ENABLE_EXPORT_TARGET)
     install(EXPORT "${TARGETS_EXPORT_NAME}"
       NAMESPACE "${PROJECT_NAME}::"
-      DESTINATION ${CURL_INSTALL_CMAKE_DIR})
+      DESTINATION ${_install_cmake_dir})
   endif()
 
   install(FILES ${_version_config} ${_project_config}
-    DESTINATION ${CURL_INSTALL_CMAKE_DIR})
+    DESTINATION ${_install_cmake_dir})
 
   # Workaround for MSVS10 to avoid the Dialog Hell
   # FIXME: This could be removed with future version of CMake.
