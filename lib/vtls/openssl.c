@@ -1015,7 +1015,7 @@ static int passwd_callback(char *buf, int num, int encrypting,
  */
 static bool rand_enough(void)
 {
-  return (0 != RAND_status()) ? TRUE : FALSE;
+  return (0 != RAND_status());
 }
 
 static CURLcode ossl_seed(struct Curl_easy *data)
@@ -2683,9 +2683,7 @@ static void ossl_trace(int direction, int ssl_ver, int content_type,
                         "%s (%s), %s, %s (%d):\n",
                         verstr, direction ? "OUT" : "IN",
                         tls_rt_name, msg_name, msg_type);
-    if(0 <= txt_len && (unsigned)txt_len < sizeof(ssl_buf)) {
-      Curl_debug(data, CURLINFO_TEXT, ssl_buf, (size_t)txt_len);
-    }
+    Curl_debug(data, CURLINFO_TEXT, ssl_buf, (size_t)txt_len);
   }
 
   Curl_debug(data, (direction == 1) ? CURLINFO_SSL_DATA_OUT :
