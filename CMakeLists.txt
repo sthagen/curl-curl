@@ -46,23 +46,6 @@
 cmake_minimum_required(VERSION 3.7...3.16 FATAL_ERROR)
 message(STATUS "Using CMake version ${CMAKE_VERSION}")
 
-# Collect command-line arguments for buildinfo.txt.
-# Must reside at the top of the script to work as expected.
-get_cmake_property(_cache_vars CACHE_VARIABLES)
-unset(_cmake_args)
-foreach(_cache_var ${_cache_vars})
-  get_property(_cache_var_helpstring CACHE ${_cache_var} PROPERTY HELPSTRING)
-  if(_cache_var_helpstring STREQUAL "No help, variable specified on the command line.")
-    get_property(_cache_var_type CACHE ${_cache_var} PROPERTY TYPE)
-    if(_cache_var_type STREQUAL "UNINITIALIZED")
-      set(_cache_var_type)
-    else()
-      set(_cache_var_type ":${_cache_var_type}")
-    endif()
-    set(_cmake_args "${_cmake_args} -D${_cache_var}${_cache_var_type}=\"${${_cache_var}}\"")
-  endif()
-endforeach()
-
 function(curl_dumpvars)  # Dump all defined variables with their values
   message("::group::CMake Variable Dump")
   get_cmake_property(_vars VARIABLES)
@@ -851,7 +834,7 @@ if(USE_ECH)
   if(USE_OPENSSL OR USE_WOLFSSL)
     # Be sure that the TLS library actually supports ECH.
     if(NOT DEFINED HAVE_ECH)
-      if(USE_OPENSSL AND HAVE_BORINGSSL)
+      if(USE_OPENSSL AND (HAVE_BORINGSSL OR HAVE_AWSLC))
         openssl_check_symbol_exists("SSL_set1_ech_config_list" "openssl/ssl.h" HAVE_ECH "")
       elseif(USE_OPENSSL)
         openssl_check_symbol_exists("SSL_ech_set1_echconfig" "openssl/ech.h" HAVE_ECH "")
@@ -860,12 +843,12 @@ if(USE_ECH)
       endif()
     endif()
     if(NOT HAVE_ECH)
-      message(FATAL_ERROR "ECH support missing in OpenSSL/BoringSSL/wolfSSL")
+      message(FATAL_ERROR "ECH support missing in OpenSSL/BoringSSL/AWS-LC/wolfSSL")
     else()
       message(STATUS "ECH enabled.")
     endif()
   else()
-    message(FATAL_ERROR "ECH requires ECH-enablded OpenSSL, BoringSSL or wolfSSL")
+    message(FATAL_ERROR "ECH requires ECH-enablded OpenSSL, BoringSSL, AWS-LC or wolfSSL")
   endif()
 endif()
 
@@ -2295,7 +2278,6 @@ set(_buildinfo "\
 buildinfo.configure.tool: cmake
 buildinfo.configure.command: ${CMAKE_COMMAND}
 buildinfo.configure.version: ${CMAKE_VERSION}
-buildinfo.configure.args:${_cmake_args}
 buildinfo.configure.generator: ${CMAKE_GENERATOR}
 buildinfo.configure.make: ${CMAKE_MAKE_PROGRAM}
 buildinfo.host.cpu: ${CMAKE_HOST_SYSTEM_PROCESSOR}
