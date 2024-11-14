@@ -468,7 +468,7 @@ include(CheckCSourceCompiles)
 if(WIN32)
   include("${CMAKE_CURRENT_SOURCE_DIR}/CMake/Platforms/WindowsCache.cmake")
 elseif(APPLE)
-  # Fast-track predicable feature detections
+  # Fast-track predictable feature detections
   set(HAVE_EVENTFD 0)
   set(HAVE_GETPASS_R 0)
   set(HAVE_SENDMMSG 0)
@@ -2054,7 +2054,6 @@ if(NOT CURL_DISABLE_INSTALL)
   else()
     set(libdir                "\${exec_prefix}/${CMAKE_INSTALL_LIBDIR}")
   endif()
-  set(LDFLAGS                 "${CMAKE_SHARED_LINKER_FLAGS}")
   # "a" (Linux) or "lib" (Windows)
   string(REPLACE "." "" libext "${CMAKE_STATIC_LIBRARY_SUFFIX}")
 
@@ -2135,11 +2134,12 @@ if(NOT CURL_DISABLE_INSTALL)
   if(LIBCURL_PC_LIBS_PRIVATE)
     string(REPLACE ";" " " LIBCURL_PC_LIBS_PRIVATE "${LIBCURL_PC_LIBS_PRIVATE}")
   endif()
+  set(LIBCURL_PC_LDFLAGS_PRIVATE "${CMAKE_SHARED_LINKER_FLAGS}")
   if(_ldflags)
     list(REMOVE_DUPLICATES _ldflags)
     string(REPLACE ";" " " _ldflags "${_ldflags}")
-    set(LDFLAGS "${LDFLAGS} ${_ldflags}")
-    string(STRIP "${LDFLAGS}" LDFLAGS)
+    set(LIBCURL_PC_LDFLAGS_PRIVATE "${LIBCURL_PC_LDFLAGS_PRIVATE} ${_ldflags}")
+    string(STRIP "${LIBCURL_PC_LDFLAGS_PRIVATE}" LIBCURL_PC_LDFLAGS_PRIVATE)
   endif()
   set(LIBCURL_PC_CFLAGS_PRIVATE "-DCURL_STATICLIB")
 
@@ -2171,8 +2171,8 @@ if(NOT CURL_DISABLE_INSTALL)
   #   ENABLE_STATIC
   #   exec_prefix
   #   includedir
-  #   LDFLAGS
   #   LIBCURL_PC_CFLAGS
+  #   LIBCURL_PC_LDFLAGS_PRIVATE
   #   LIBCURL_PC_LIBS_PRIVATE
   #   libdir
   #   libext
@@ -2196,9 +2196,9 @@ if(NOT CURL_DISABLE_INSTALL)
   #   CURLVERSION
   #   exec_prefix
   #   includedir
-  #   LDFLAGS
   #   LIBCURL_PC_CFLAGS
   #   LIBCURL_PC_CFLAGS_PRIVATE
+  #   LIBCURL_PC_LDFLAGS_PRIVATE
   #   LIBCURL_PC_LIBS
   #   LIBCURL_PC_LIBS_PRIVATE
   #   LIBCURL_PC_REQUIRES
