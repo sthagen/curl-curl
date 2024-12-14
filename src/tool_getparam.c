@@ -1051,8 +1051,8 @@ static ParameterError parse_url(struct GlobalConfig *global,
     /* fill in the URL */
     err = getstr(&url->url, nextarg, DENY_BLANK);
     url->flags |= GETOUT_URL;
-    if((++config->num_urls > 1) && (config->etag_save_file ||
-                                    config->etag_compare_file)) {
+    if(!err && (++config->num_urls > 1) && (config->etag_save_file ||
+                                            config->etag_compare_file)) {
       errorf(global, "The etag options only work on a single URL");
       return PARAM_BAD_USE;
     }
@@ -1135,11 +1135,13 @@ static ParameterError parse_ech(struct GlobalConfig *global,
     err = PARAM_LIBCURL_DOESNT_SUPPORT;
   else if(strlen(nextarg) > 4 && strncasecompare("pn:", nextarg, 3)) {
     /* a public_name */
+    nextarg += 3;
     err = getstr(&config->ech_public, nextarg, DENY_BLANK);
   }
   else if(strlen(nextarg) > 5 && strncasecompare("ecl:", nextarg, 4)) {
     /* an ECHConfigList */
-    if('@' != *(nextarg + 4)) {
+    nextarg += 4;
+    if('@' != *nextarg) {
       err = getstr(&config->ech_config, nextarg, DENY_BLANK);
     }
     else {
