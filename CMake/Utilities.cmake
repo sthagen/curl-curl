@@ -24,7 +24,7 @@
 # File containing various utilities
 
 # Returns number of arguments that evaluate to true
-function(count_true _output_count_var)
+function(curl_count_true _output_count_var)
   set(lst_len 0)
   foreach(option_var IN LISTS ARGN)
     if(${option_var})
@@ -32,4 +32,22 @@ function(count_true _output_count_var)
     endif()
   endforeach()
   set(${_output_count_var} ${lst_len} PARENT_SCOPE)
+endfunction()
+
+# Dump all defined variables with their values
+function(curl_dumpvars)
+  message("::group::CMake Variable Dump")
+  get_cmake_property(_vars VARIABLES)
+  foreach(_var IN ITEMS ${_vars})
+    get_property(_var_type CACHE ${_var} PROPERTY TYPE)
+    get_property(_var_advanced CACHE ${_var} PROPERTY ADVANCED)
+    if(_var_type)
+      set(_var_type ":${_var_type}")
+    endif()
+    if(_var_advanced)
+      set(_var_advanced " [adv]")
+    endif()
+    message("${_var}${_var_type}${_var_advanced} = ${${_var}}")
+  endforeach()
+  message("::endgroup::")
 endfunction()

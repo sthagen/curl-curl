@@ -40,14 +40,6 @@
 #include <sys/types.h>
 #endif
 
-#ifdef NEED_MALLOC_H
-#include <malloc.h>
-#endif
-
-#ifdef NEED_MEMORY_H
-#include <memory.h>
-#endif
-
 #ifdef HAVE_SYS_STAT_H
 #include <sys/stat.h>
 #endif
@@ -195,7 +187,7 @@ struct timeval {
 #  define sclose(x)  closesocket((x))
 #elif defined(HAVE_CLOSESOCKET_CAMEL)
 #  define sclose(x)  CloseSocket((x))
-#elif defined(HAVE_CLOSE_S)
+#elif defined(MSDOS)  /* Watt-32 */
 #  define sclose(x)  close_s((x))
 #elif defined(USE_LWIPSOCK)
 #  define sclose(x)  lwip_close((x))

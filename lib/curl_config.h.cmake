@@ -565,9 +565,6 @@
 /* Define to 1 if you have the <sys/filio.h> header file. */
 #cmakedefine HAVE_SYS_FILIO_H 1
 
-/* Define to 1 if you have the <sys/wait.h> header file. */
-#cmakedefine HAVE_SYS_WAIT_H 1
-
 /* Define to 1 if you have the <sys/ioctl.h> header file. */
 #cmakedefine HAVE_SYS_IOCTL_H 1
 
@@ -624,9 +621,6 @@
 
 /* Define this symbol if your OS supports changing the contents of argv */
 #cmakedefine HAVE_WRITABLE_ARGV 1
-
-/* Define to 1 if you need the malloc.h header file even with stdlib.h */
-#cmakedefine NEED_MALLOC_H 1
 
 /* Define to 1 if _REENTRANT preprocessor symbol must be defined. */
 #cmakedefine NEED_REENTRANT 1
@@ -742,6 +736,9 @@ ${SIZEOF_TIME_T_CODE}
 /* if OpenSSL is in use */
 #cmakedefine USE_OPENSSL 1
 
+/* if AmiSSL is in use */
+#cmakedefine USE_AMISSL 1
+
 /* if librtmp/rtmpdump is in use */
 #cmakedefine USE_LIBRTMP 1
 
@@ -790,6 +787,9 @@ ${SIZEOF_TIME_T_CODE}
 
 /* to enable Windows SSL  */
 #cmakedefine USE_SCHANNEL 1
+
+/* if Watt-32 is in use */
+#cmakedefine USE_WATT32 1
 
 /* enable multiple SSL backends */
 #cmakedefine CURL_WITH_MULTI_SSL 1
