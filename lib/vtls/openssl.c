@@ -5337,7 +5337,6 @@ const struct Curl_ssl Curl_ssl_openssl = {
   ossl_init,                /* init */
   ossl_cleanup,             /* cleanup */
   ossl_version,             /* version */
-  Curl_none_check_cxn,      /* check_cxn */
   ossl_shutdown,            /* shutdown */
   ossl_data_pending,        /* data_pending */
   ossl_random,              /* random */
@@ -5351,14 +5350,12 @@ const struct Curl_ssl Curl_ssl_openssl = {
   ossl_set_engine,          /* set_engine */
   ossl_set_engine_default,  /* set_engine_default */
   ossl_engines_list,        /* engines_list */
-  Curl_none_false_start,    /* false_start */
+  NULL,                     /* false_start */
 #if (OPENSSL_VERSION_NUMBER >= 0x0090800fL) && !defined(OPENSSL_NO_SHA256)
   ossl_sha256sum,           /* sha256sum */
 #else
   NULL,                     /* sha256sum */
 #endif
-  NULL,                     /* use of data in this connection */
-  NULL,                     /* remote of data from this connection */
   ossl_recv,                /* recv decrypted data */
   ossl_send,                /* send data to encrypt */
   ossl_get_channel_binding  /* get_channel_binding */
