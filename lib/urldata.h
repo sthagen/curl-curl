@@ -180,13 +180,6 @@ typedef ssize_t (Curl_recv)(struct Curl_easy *data,   /* transfer */
                             size_t len,               /* max amount to read */
                             CURLcode *err);           /* error to return */
 
-#ifdef USE_HYPER
-typedef CURLcode (*Curl_datastream)(struct Curl_easy *data,
-                                    struct connectdata *conn,
-                                    int *didwhat,
-                                    int select_res);
-#endif
-
 #include "mime.h"
 #include "imap.h"
 #include "pop3.h"
@@ -200,7 +193,6 @@ typedef CURLcode (*Curl_datastream)(struct Curl_easy *data,
 #include "mqtt.h"
 #include "ftplistparser.h"
 #include "multihandle.h"
-#include "c-hyper.h"
 #include "cf-socket.h"
 
 #ifdef HAVE_GSSAPI
@@ -930,10 +922,7 @@ struct connectdata {
 #ifdef USE_UNIX_SOCKETS
   char *unix_domain_socket;
 #endif
-#ifdef USE_HYPER
-  /* if set, an alternative data transfer function */
-  Curl_datastream datastream;
-#endif
+
   /* When this connection is created, store the conditions for the local end
      bind. This is stored before the actual bind and before any connection is
      made and will serve the purpose of being used for comparison reasons so
@@ -1058,6 +1047,7 @@ struct Progress {
   struct curltime start;
   struct curltime t_startsingle;
   struct curltime t_startop;
+  struct curltime t_startqueue;
   struct curltime t_acceptdata;
 
 #define CURR_TIME (5 + 1) /* 6 entries for 5 seconds */
@@ -1275,10 +1265,6 @@ struct UrlState {
 #ifndef CURL_DISABLE_COOKIES
   struct curl_slist *cookielist; /* list of cookie files set by
                                     curl_easy_setopt(COOKIEFILE) calls */
-#endif
-#ifdef USE_HYPER
-  bool hconnect;  /* set if a CONNECT request */
-  CURLcode hresult; /* used to pass return codes back from hyper callbacks */
 #endif
 
 #ifndef CURL_DISABLE_VERBOSE_STRINGS
@@ -1923,9 +1909,6 @@ struct Curl_easy {
   struct PureInfo info;        /* stats, reports and info data */
   struct curl_tlssessioninfo tsi; /* Information about the TLS session, only
                                      valid after a client has asked for it */
-#ifdef USE_HYPER
-  struct hyptransfer hyp;
-#endif
 };
 
 #define LIBCURL_NAME "libcurl"

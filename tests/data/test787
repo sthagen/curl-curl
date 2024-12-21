@@ -2,19 +2,13 @@
 <info>
 <keywords>
 HTTP
-HTTP GET
+--variable
 </keywords>
 </info>
 
 #
 # Server-side
 <reply>
-<data>
-ICY 200 OK
-Content-Length: 7
-
-MooMoo
-</data>
 </reply>
 
 #
@@ -24,13 +18,10 @@ MooMoo
 http
 </server>
 <name>
-CURLOPT_HTTP200ALIASES
+--variable with a file byte range, bad range
 </name>
-<tool>
-lib%TESTNUMBER
-</tool>
 <command>
-http://%HOSTIP:%HTTPPORT/%TESTNUMBER
+http://%HOSTIP:%HTTPPORT/%TESTNUMBER --variable name"@&LOGDIR/fooo;[15-14]" --expand-data '{{name}}'
 </command>
 </client>
 
@@ -38,7 +29,7 @@ http://%HOSTIP:%HTTPPORT/%TESTNUMBER
 # Verify data after the test has been "shot"
 <verify>
 <errorcode>
-0
+2
 </errorcode>
 </verify>
 </testcase>

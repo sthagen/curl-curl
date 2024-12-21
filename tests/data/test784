@@ -2,14 +2,14 @@
 <info>
 <keywords>
 HTTP
-HTTP GET
+--variable
 </keywords>
 </info>
 
 #
 # Server-side
 <reply>
-<data nocheck="yes">
+<data crlf="yes">
 HTTP/1.1 200 OK
 Date: Tue, 09 Nov 2010 14:49:00 GMT
 Server: test-server/fake
@@ -19,7 +19,8 @@ Accept-Ranges: bytes
 Content-Length: 6
 Connection: close
 Content-Type: text/html
-%repeat[1750 x Repeat-this-Header-a-large-number-of-times: Dorothy lived in the midst of the great Kansas prairies, with Uncle Henry, who was a farmer, and Aunt Em, who was the farmer’s wife.%0a]%
+Funny-head: yesyes
+
 -foo-
 </data>
 </reply>
@@ -31,26 +32,28 @@ Content-Type: text/html
 http
 </server>
 <name>
-Reject too large accumulated HTTP response headers
+--variable with a file byte range
 </name>
 <command>
-http://%HOSTIP:%HTTPPORT/%TESTNUMBER
+http://%HOSTIP:%HTTPPORT/%TESTNUMBER --variable name"@%LOGDIR/in%TESTNUMBER;[5-15]" --expand-data '{{name}}'
 </command>
+<file name="%LOGDIR/in%TESTNUMBER">
+On the first Monday of the month of April, 1625, the market town of Meung
+</file>
 </client>
 
 #
 # Verify data after the test has been "shot"
 <verify>
-<protocol crlf="yes">
-GET /%TESTNUMBER HTTP/1.1
+<protocol crlf="yes" nonewline="yes">
+POST /%TESTNUMBER HTTP/1.1
 Host: %HOSTIP:%HTTPPORT
 User-Agent: curl/%VERSION
 Accept: */*
+Content-Length: 11
+Content-Type: application/x-www-form-urlencoded
 
+e first Mon
 </protocol>
-# curl: (56) Too large response headers: 307215 > 307200
-<errorcode>
-56
-</errorcode>
 </verify>
 </testcase>
