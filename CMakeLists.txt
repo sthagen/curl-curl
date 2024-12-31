@@ -35,7 +35,7 @@
 #   HAVE_SSL_SET0_WBIO: `SSL_set0_wbio` present in OpenSSL/wolfSSL
 #   HAVE_OPENSSL_SRP: `SSL_CTX_set_srp_username` present in OpenSSL/wolfSSL
 #   HAVE_GNUTLS_SRP: `gnutls_srp_verifier` present in GnuTLS
-#   HAVE_SSL_CTX_SET_QUIC_METHOD: `SSL_CTX_set_quic_method` present in OpenSSL/wolfSSL
+#   HAVE_SSL_SET_QUIC_USE_LEGACY_CODEPOINT: `SSL_set_quic_use_legacy_codepoint` present in OpenSSL/wolfSSL
 #   HAVE_QUICHE_CONN_SET_QLOG_FD: `quiche_conn_set_qlog_fd` present in quiche
 #   HAVE_ECH: ECH API checks for OpenSSL, BoringSSL or wolfSSL
 #
@@ -536,6 +536,9 @@ elseif(APPLE)
 elseif(AMIGA)
   set(HAVE_GETADDRINFO 0)  # Breaks the build when detected and used.
 endif()
+if(DOS OR AMIGA)
+  set(HAVE_TIME_T_UNSIGNED 1)
+endif()
 
 if(ENABLE_THREADED_RESOLVER)
   if(WIN32)
@@ -918,16 +921,16 @@ endmacro()
 
 # Ensure that the OpenSSL fork actually supports QUIC.
 macro(curl_openssl_check_quic)
-  if(NOT DEFINED HAVE_SSL_CTX_SET_QUIC_METHOD)
+  if(NOT DEFINED HAVE_SSL_SET_QUIC_USE_LEGACY_CODEPOINT)
     if(USE_OPENSSL)
-      curl_openssl_check_symbol_exists("SSL_CTX_set_quic_method" "openssl/ssl.h" HAVE_SSL_CTX_SET_QUIC_METHOD)
+      curl_openssl_check_symbol_exists("SSL_set_quic_use_legacy_codepoint" "openssl/ssl.h" HAVE_SSL_SET_QUIC_USE_LEGACY_CODEPOINT)
     endif()
     if(USE_WOLFSSL)
-      curl_openssl_check_symbol_exists("wolfSSL_set_quic_method" "wolfssl/options.h;wolfssl/openssl/ssl.h"
-        HAVE_SSL_CTX_SET_QUIC_METHOD)
+      curl_openssl_check_symbol_exists("wolfSSL_set_quic_use_legacy_codepoint" "wolfssl/options.h;wolfssl/openssl/ssl.h"
+        HAVE_SSL_SET_QUIC_USE_LEGACY_CODEPOINT)
     endif()
   endif()
-  if(NOT HAVE_SSL_CTX_SET_QUIC_METHOD)
+  if(NOT HAVE_SSL_SET_QUIC_USE_LEGACY_CODEPOINT)
     message(FATAL_ERROR "QUIC support is missing in OpenSSL fork. Try setting -DOPENSSL_ROOT_DIR")
   endif()
 endmacro()
@@ -1550,7 +1553,7 @@ check_include_file("io.h"             HAVE_IO_H)
 check_include_file_concat_curl("libgen.h"         HAVE_LIBGEN_H)
 check_include_file("linux/tcp.h"      HAVE_LINUX_TCP_H)
 check_include_file("locale.h"         HAVE_LOCALE_H)
-check_include_file("net/if.h"         HAVE_NET_IF_H)
+check_include_file_concat_curl("net/if.h"         HAVE_NET_IF_H)  # sys/select.h (e.g. MS-DOS/Watt-32)
 check_include_file_concat_curl("netdb.h"          HAVE_NETDB_H)
 check_include_file_concat_curl("netinet/in.h"     HAVE_NETINET_IN_H)
 check_include_file("netinet/in6.h"    HAVE_NETINET_IN6_H)
@@ -1785,6 +1788,16 @@ if(NOT WIN32 AND NOT CMAKE_CROSSCOMPILING)
       argv[0][0] = ' ';
       return (argv[0][0] == ' ')?0:1;
     }" HAVE_WRITABLE_ARGV)
+endif()
+
+if(NOT CMAKE_CROSSCOMPILING)
+  include(CheckCSourceRuns)
+  check_c_source_runs("
+    #include <time.h>
+    int main(void) {
+      time_t t = -1;
+      return t < 0;
+    }" HAVE_TIME_T_UNSIGNED)
 endif()
 
 curl_internal_test(HAVE_GLIBC_STRERROR_R)

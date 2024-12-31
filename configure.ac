@@ -3815,7 +3815,6 @@ AC_CHECK_HEADERS(
   sys/socket.h \
   sys/ioctl.h \
   unistd.h \
-  stdlib.h \
   arpa/inet.h \
   net/if.h \
   netinet/in.h \
@@ -3842,14 +3841,14 @@ AC_CHECK_HEADERS(
   locale.h \
   stdbool.h \
   sys/filio.h \
-  sys/eventfd.h \
-  setjmp.h,
+  sys/eventfd.h,
 dnl to do if not found
 [],
 dnl to do if found
 [],
 dnl default includes
 [
+#include <stdlib.h>
 #ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
 #endif
@@ -3966,24 +3965,30 @@ AC_CHECK_TYPE([suseconds_t],[
 #endif
 ])
 
-AC_MSG_CHECKING([if time_t is unsigned])
-CURL_RUN_IFELSE(
-  [
-  #include <time.h>
-  #include <limits.h>
-  int main(void) {
-    time_t t = -1;
-    return (t < 0);
-  }
-  ],[
-  AC_MSG_RESULT([yes])
-  AC_DEFINE(HAVE_TIME_T_UNSIGNED, 1, [Define this if time_t is unsigned])
-],[
-  AC_MSG_RESULT([no])
-],[
-  dnl cross-compiling, most systems are unsigned
-  AC_MSG_RESULT([no])
-])
+case $host_os in
+  amigaos*|msdos*)
+    AC_DEFINE(HAVE_TIME_T_UNSIGNED, 1, [Define this if time_t is unsigned])
+    ;;
+  *)
+    AC_MSG_CHECKING([if time_t is unsigned])
+    CURL_RUN_IFELSE(
+      [
+      #include <time.h>
+      int main(void) {
+        time_t t = -1;
+        return t < 0;
+      }
+      ],[
+      AC_MSG_RESULT([yes])
+      AC_DEFINE(HAVE_TIME_T_UNSIGNED, 1, [Define this if time_t is unsigned])
+    ],[
+      AC_MSG_RESULT([no])
+    ],[
+      dnl cross-compiling, most systems are signed
+      AC_MSG_RESULT([no])
+    ])
+    ;;
+esac
 
 TYPE_IN_ADDR_T
 

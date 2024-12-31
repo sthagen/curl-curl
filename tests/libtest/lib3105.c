@@ -21,42 +21,47 @@
  * SPDX-License-Identifier: curl
  *
  ***************************************************************************/
-
-/* Testing Retry-After header parser */
-
 #include "test.h"
 
+#include "testutil.h"
+#include "warnless.h"
 #include "memdebug.h"
+
+#define TEST_HANG_TIMEOUT 60 * 1000
 
 CURLcode test(char *URL)
 {
-  struct curl_slist *header = NULL;
-  curl_off_t retry;
-  CURL *curl = NULL;
+  CURL *curls = NULL;
+  CURLM *multi = NULL;
+  CURLcode i = CURLE_OK;
   CURLcode res = CURLE_OK;
+  CURLMcode mc;
 
   global_init(CURL_GLOBAL_ALL);
 
-  easy_init(curl);
+  multi_init(multi);
 
-  easy_setopt(curl, CURLOPT_URL, URL);
+  easy_init(curls);
 
-  res = curl_easy_perform(curl);
-  if(res)
-    goto test_cleanup;
+  easy_setopt(curls, CURLOPT_URL, URL);
 
-  res = curl_easy_getinfo(curl, CURLINFO_RETRY_AFTER, &retry);
-  if(res)
-    goto test_cleanup;
+  multi_add_handle(multi, curls);
 
-  printf("Retry-After %" CURL_FORMAT_CURL_OFF_T "\n", retry);
+  mc = curl_multi_remove_handle(multi, curls);
+  mc += curl_multi_remove_handle(multi, curls);
+
+  if(mc) {
+    fprintf(stderr, "%d was unexpected\n", (int)mc);
+    i = CURLE_FAILED_INIT;
+  }
 
 test_cleanup:
-
-  /* always cleanup */
-  curl_easy_cleanup(curl);
-  curl_slist_free_all(header);
+  curl_multi_cleanup(multi);
+  curl_easy_cleanup(curls);
   curl_global_cleanup();
 
-  return res;
+  if(res)
+    i = res;
+
+  return i; /* return the final return code */
 }
