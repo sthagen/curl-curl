@@ -783,7 +783,7 @@ out:
                   "quic_tp=%s], peer has %zu sessions now",
                   ssl_peer_key, s->ietf_tls_id, s->valid_until - now,
                   s->alpn, s->earlydata_max, s->quic_tp ? "yes" : "no",
-                  Curl_llist_count(&peer->sessions));
+                  peer ? Curl_llist_count(&peer->sessions) : 0);
   return result;
 }
 
@@ -795,8 +795,9 @@ CURLcode Curl_ssl_scache_put(struct Curl_cfilter *cf,
   struct Curl_ssl_scache *scache = data->state.ssl_scache;
   struct ssl_config_data *ssl_config = Curl_ssl_cf_get_config(cf, data);
   CURLcode result;
+  DEBUGASSERT(ssl_config);
 
-  if(!ssl_config || !scache || !ssl_config->primary.cache_session) {
+  if(!scache || !ssl_config->primary.cache_session) {
     Curl_ssl_session_destroy(s);
     return CURLE_OK;
   }
