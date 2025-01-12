@@ -293,12 +293,6 @@
 #define HAVE_LONGLONG 1
 #endif
 
-/* Define to avoid VS2005 complaining about portable C functions. */
-#if defined(_MSC_VER) && (_MSC_VER >= 1400)
-#define _CRT_SECURE_NO_DEPRECATE 1
-#define _CRT_NONSTDC_NO_DEPRECATE 1
-#endif
-
 /* mingw-w64 and visual studio >= 2005 (MSVCR80)
    all default to 64-bit time_t unless _USE_32BIT_TIME_T is defined */
 #if (defined(_MSC_VER) && (_MSC_VER >= 1400)) || defined(__MINGW32__)
@@ -393,22 +387,14 @@ Vista
 /*                        LARGE FILE SUPPORT                        */
 /* ---------------------------------------------------------------- */
 
-#if defined(_MSC_VER) && !defined(_WIN32_WCE)
+/* _fseeki64() requires VS2005 */
+#if (defined(_MSC_VER) && (_MSC_VER >= 1400)) || defined(__MINGW32__)
 #  define USE_WIN32_LARGE_FILES
-#endif
-
-#if defined(__MINGW32__) && !defined(USE_WIN32_LARGE_FILES)
-#  define USE_WIN32_LARGE_FILES
-#endif
-
-#if !defined(USE_WIN32_LARGE_FILES) && !defined(USE_WIN32_SMALL_FILES)
-#  define USE_WIN32_SMALL_FILES
-#endif
-
 /* Number of bits in a file offset, on hosts where this is settable. */
-#if defined(USE_WIN32_LARGE_FILES) && defined(__MINGW32__)
-#  ifndef _FILE_OFFSET_BITS
-#  define _FILE_OFFSET_BITS 64
+#  ifdef __MINGW32__
+#    ifndef _FILE_OFFSET_BITS
+#    define _FILE_OFFSET_BITS 64
+#    endif
 #  endif
 #endif
 

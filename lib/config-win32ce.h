@@ -218,12 +218,6 @@
 /* Undef keyword 'const' if it does not work. */
 /* #undef const */
 
-/* Define to avoid VS2005 complaining about portable C functions. */
-#if defined(_MSC_VER) && (_MSC_VER >= 1400)
-#define _CRT_SECURE_NO_DEPRECATE 1
-#define _CRT_NONSTDC_NO_DEPRECATE 1
-#endif
-
 /* VS2005 and later default size for time_t is 64-bit, unless */
 /* _USE_32BIT_TIME_T has been defined to get a 32-bit time_t. */
 #if defined(_MSC_VER) && (_MSC_VER >= 1400)
@@ -238,13 +232,7 @@
 /*                        LARGE FILE SUPPORT                        */
 /* ---------------------------------------------------------------- */
 
-#if defined(_MSC_VER) && !defined(_WIN32_WCE)
-#  define USE_WIN32_LARGE_FILES
-#endif
-
-#if !defined(USE_WIN32_LARGE_FILES) && !defined(USE_WIN32_SMALL_FILES)
-#  define USE_WIN32_SMALL_FILES
-#endif
+/* Windows CE does not support large files */
 
 /* ---------------------------------------------------------------- */
 /*                           LDAP SUPPORT                           */
@@ -270,11 +258,11 @@
 /* ---------------------------------------------------------------- */
 
 #ifndef UNICODE
-#  define UNICODE
+#define UNICODE
 #endif
 
 #ifndef _UNICODE
-#  define _UNICODE
+#define _UNICODE
 #endif
 
 #define CURL_DISABLE_FILE 1
