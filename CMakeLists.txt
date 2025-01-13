@@ -2056,7 +2056,7 @@ message(STATUS "Protocols: ${_support_protocols_lower}")
 # Clear list and try to detect available features
 set(_items "")
 curl_add_if("SSL"           _ssl_enabled)
-curl_add_if("IPv6"          ENABLE_IPV6)
+curl_add_if("IPv6"          USE_IPV6)
 curl_add_if("UnixSockets"   USE_UNIX_SOCKETS)
 curl_add_if("libz"          HAVE_LIBZ)
 curl_add_if("brotli"        HAVE_BROTLI)
@@ -2378,15 +2378,6 @@ if(NOT CURL_DISABLE_INSTALL)
 
   install(FILES ${_version_config} ${_project_config}
     DESTINATION ${_install_cmake_dir})
-
-  # Workaround for MSVS10 to avoid the Dialog Hell
-  # FIXME: This could be removed with future version of CMake.
-  if(MSVC_VERSION EQUAL 1600)
-    set(_curl_sln_filename "${CMAKE_CURRENT_BINARY_DIR}/CURL.sln")
-    if(EXISTS "${_curl_sln_filename}")
-      file(APPEND "${_curl_sln_filename}" "\n# This should be regenerated!\n")
-    endif()
-  endif()
 
   if(NOT TARGET curl_uninstall)
     configure_file(

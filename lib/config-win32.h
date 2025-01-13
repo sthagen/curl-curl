@@ -337,10 +337,10 @@
 /* VS2008 default target settings and minimum build target check. */
 #if defined(_MSC_VER) && (_MSC_VER >= 1500) && (_MSC_VER <= 1600)
 #  ifndef _WIN32_WINNT
-#    define _WIN32_WINNT VS2008_DEF_TARGET
+#  define _WIN32_WINNT VS2008_DEF_TARGET
 #  endif
 #  ifndef WINVER
-#    define WINVER VS2008_DEF_TARGET
+#  define WINVER VS2008_DEF_TARGET
 #  endif
 #  if (_WIN32_WINNT < VS2008_MIN_TARGET) || (WINVER < VS2008_MIN_TARGET)
 #    error VS2008 does not support Windows build targets prior to Windows 2000
@@ -350,10 +350,10 @@
 /* VS2012 default target settings and minimum build target check. */
 #if defined(_MSC_VER) && (_MSC_VER >= 1700)
 #  ifndef _WIN32_WINNT
-#    define _WIN32_WINNT VS2012_DEF_TARGET
+#  define _WIN32_WINNT VS2012_DEF_TARGET
 #  endif
 #  ifndef WINVER
-#    define WINVER VS2012_DEF_TARGET
+#  define WINVER VS2012_DEF_TARGET
 #  endif
 #  if (_WIN32_WINNT < VS2012_MIN_TARGET) || (WINVER < VS2012_MIN_TARGET)
 #    if defined(_USING_V110_SDK71_)
@@ -460,7 +460,7 @@ Vista
 #ifndef CURL_OS
 #if defined(_M_IX86) || defined(__i386__) /* x86 (MSVC or gcc) */
 #define CURL_OS "i386-pc-win32"
-#elif defined(_M_X64) || defined(__x86_64__) /* x86_64 (MSVC >=2005 or gcc) */
+#elif defined(_M_X64) || defined(__x86_64__) /* x86_64 (VS2005+ or gcc) */
 #define CURL_OS "x86_64-pc-win32"
 #elif defined(_M_IA64) || defined(__ia64__) /* Itanium */
 #define CURL_OS "ia64-pc-win32"
@@ -472,9 +472,6 @@ Vista
 #define CURL_OS "unknown-pc-win32"
 #endif
 #endif
-
-/* Name of package */
-#define PACKAGE "curl"
 
 /* If you want to build curl with the built-in manual */
 #define USE_MANUAL 1
