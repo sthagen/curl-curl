@@ -676,6 +676,12 @@ struct Curl_handler {
   /* attach() attaches this transfer to this connection */
   void (*attach)(struct Curl_easy *data, struct connectdata *conn);
 
+  /* return CURLE_OK if a redirect to `newurl` should be followed,
+     CURLE_TOO_MANY_REDIRECTS otherwise. May alter `data` to change
+     the way the follow request is performed. */
+  CURLcode (*follow)(struct Curl_easy *data, const char *newurl,
+                     followtype type);
+
   int defport;            /* Default port. */
   curl_prot_t protocol;  /* See CURLPROTO_* - this needs to be the single
                             specific protocol bit */
@@ -950,7 +956,9 @@ struct connectdata {
 #endif
   unsigned char transport; /* one of the TRNSPRT_* defines */
   unsigned char ip_version; /* copied from the Curl_easy at creation time */
-  unsigned char httpversion; /* the HTTP version*10 reported by the server */
+  /* HTTP version last responded with by the server.
+   * 0 at start, then one of 09, 10, 11, etc. */
+  unsigned char httpversion_seen;
   unsigned char connect_only;
   unsigned char gssapi_delegation; /* inherited from set.gssapi_delegation */
 };
