@@ -282,14 +282,6 @@ CURL_STDCALL getaddrinfo_thread(void *arg)
   struct thread_data *td = tsd->td;
   char service[12];
   int rc;
-#ifndef CURL_DISABLE_SOCKETPAIR
-#ifdef USE_EVENTFD
-  const void *buf;
-  const uint64_t val = 1;
-#else
-  char buf[1];
-#endif
-#endif
 
   msnprintf(service, sizeof(service), "%d", tsd->port);
 
@@ -315,9 +307,9 @@ CURL_STDCALL getaddrinfo_thread(void *arg)
 #ifndef CURL_DISABLE_SOCKETPAIR
     if(tsd->sock_pair[1] != CURL_SOCKET_BAD) {
 #ifdef USE_EVENTFD
-      buf = &val;
+      const uint64_t buf[1] = { 1 };
 #else
-      buf[0] = 1;
+      const char buf[1] = { 1 };
 #endif
       /* DNS has been resolved, signal client task */
       if(wakeup_write(tsd->sock_pair[1], buf, sizeof(buf)) < 0) {
@@ -668,9 +660,11 @@ int Curl_resolver_getsock(struct Curl_easy *data, curl_socket_t *socks)
   timediff_t milli;
   timediff_t ms;
   struct resdata *reslv = (struct resdata *)data->state.async.resolver;
-  int socketi = 0;
 #ifndef CURL_DISABLE_SOCKETPAIR
   struct thread_data *td = data->state.async.tdata;
+#endif
+#if !defined(CURL_DISABLE_SOCKETPAIR) || defined(USE_HTTPSRR_ARES)
+  int socketi = 0;
 #else
   (void)socks;
 #endif
@@ -688,7 +682,7 @@ int Curl_resolver_getsock(struct Curl_easy *data, curl_socket_t *socks)
   if(td) {
     /* return read fd to client for polling the DNS resolution status */
     socks[socketi] = td->tsd.sock_pair[0];
-    ret_val = GETSOCK_READSOCK(socketi);
+    ret_val |= GETSOCK_READSOCK(socketi);
   }
   else {
 #endif
