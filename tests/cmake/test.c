@@ -1,5 +1,3 @@
-#ifndef HEADER_CURL_TOOL_PARSECFG_H
-#define HEADER_CURL_TOOL_PARSECFG_H
 /***************************************************************************
  *                                  _   _ ____  _
  *  Project                     ___| | | |  _ \| |
@@ -23,10 +21,11 @@
  * SPDX-License-Identifier: curl
  *
  ***************************************************************************/
-#include "tool_setup.h"
+#include "curl/curl.h"
+#include <stdio.h>
 
-int parseconfig(const char *filename, struct GlobalConfig *config);
-
-bool my_get_line(FILE *fp, struct curlx_dynbuf *db, bool *error);
-
-#endif /* HEADER_CURL_TOOL_PARSECFG_H */
+int main(void)
+{
+  printf("curl_version(): |%s|\n", curl_version());
+  return 0;
+}
