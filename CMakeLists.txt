@@ -32,8 +32,8 @@
 # https://cmake.org/cmake/help/latest/module/FetchContent.html#integrating-with-find-package
 #
 # The following variables are available:
-#   HAVE_SSL_SET0_WBIO: `SSL_set0_wbio` present in OpenSSL/wolfSSL
-#   HAVE_OPENSSL_SRP: `SSL_CTX_set_srp_username` present in OpenSSL/wolfSSL
+#   HAVE_SSL_SET0_WBIO: `SSL_set0_wbio` present in OpenSSL
+#   HAVE_OPENSSL_SRP: `SSL_CTX_set_srp_username` present in OpenSSL
 #   HAVE_GNUTLS_SRP: `gnutls_srp_verifier` present in GnuTLS
 #   HAVE_SSL_SET_QUIC_USE_LEGACY_CODEPOINT: `SSL_set_quic_use_legacy_codepoint` present in OpenSSL/wolfSSL
 #   HAVE_QUICHE_CONN_SET_QLOG_FD: `quiche_conn_set_qlog_fd` present in quiche
@@ -546,6 +546,7 @@ if(_CURL_QUICK_DETECT)
   elseif(APPLE)
     set(HAVE_EVENTFD 0)
     set(HAVE_GETPASS_R 0)
+    set(HAVE_WRITABLE_ARGV 1)
     set(HAVE_SENDMMSG 0)
   endif()
 endif()
@@ -999,7 +1000,7 @@ if(USE_WOLFSSL)
   curl_openssl_check_symbol_exists("wolfSSL_BIO_set_shutdown" "wolfssl/options.h;wolfssl/ssl.h" HAVE_WOLFSSL_FULL_BIO)
 endif()
 
-if(USE_OPENSSL OR USE_WOLFSSL)
+if(USE_OPENSSL)
   if(NOT DEFINED HAVE_SSL_SET0_WBIO)
     curl_openssl_check_symbol_exists("SSL_set0_wbio" "openssl/ssl.h" HAVE_SSL_SET0_WBIO)
   endif()
