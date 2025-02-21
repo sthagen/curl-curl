@@ -53,6 +53,7 @@
 #include "x509asn1.h"
 #include "curl_printf.h"
 #include "multiif.h"
+#include "system_win32.h"
 #include "version_win32.h"
 #include "rand.h"
 #include "strparse.h"
@@ -70,16 +71,6 @@
 #define SCH_DEV(x) x
 #else
 #define SCH_DEV(x) do { } while(0)
-#endif
-
-/* ALPN requires version 8.1 of the Windows SDK, which was
-   shipped with Visual Studio 2013, aka _MSC_VER 1800:
-     https://technet.microsoft.com/en-us/library/hh831771%28v=ws.11%29.aspx
-   Or mingw-w64 9.0 or upper.
-*/
-#if (defined(__MINGW32__) && __MINGW64_VERSION_MAJOR >= 9) || \
-  (defined(_MSC_VER) && (_MSC_VER >= 1800) && !defined(_USING_V110_SDK71_))
-#  define HAS_ALPN_SCHANNEL
 #endif
 
 #ifndef BCRYPT_CHAIN_MODE_CCM
@@ -150,8 +141,25 @@
 #define CALG_SHA_256 0x0000800c
 #endif
 
+/* Work around typo in CeGCC (as of 0.59.1) w32api headers */
+#if defined(__MINGW32CE__) && \
+  !defined(ALG_CLASS_DHASH) && defined(ALG_CLASS_HASH)
+#define ALG_CLASS_DHASH ALG_CLASS_HASH
+#endif
+
 #ifndef PKCS12_NO_PERSIST_KEY
 #define PKCS12_NO_PERSIST_KEY 0x00008000
+#endif
+
+/* ALPN requires version 8.1 of the Windows SDK, which was
+   shipped with Visual Studio 2013, aka _MSC_VER 1800:
+     https://technet.microsoft.com/en-us/library/hh831771%28v=ws.11%29.aspx
+   Or mingw-w64 9.0 or upper.
+*/
+#if (defined(__MINGW64_VERSION_MAJOR) && __MINGW64_VERSION_MAJOR >= 9) || \
+  (defined(_MSC_VER) && (_MSC_VER >= 1800) && !defined(_USING_V110_SDK71_))
+#define HAS_ALPN_SCHANNEL
+static bool s_win_has_alpn;
 #endif
 
 static CURLcode schannel_pkp_pin_peer_pubkey(struct Curl_cfilter *cf,
@@ -651,8 +659,7 @@ schannel_acquire_credential_handle(struct Curl_cfilter *cf,
         else
           pszPassword[0] = 0;
 
-        if(curlx_verify_windows_version(6, 0, 0, PLATFORM_WINNT,
-                                        VERSION_GREATER_THAN_EQUAL))
+        if(Curl_isVistaOrGreater)
           cert_store = PFXImportCertStore(&datablob, pszPassword,
                                           PKCS12_NO_PERSIST_KEY);
         else
@@ -879,7 +886,9 @@ schannel_connect_step1(struct Curl_cfilter *cf, struct Curl_easy *data)
   struct ssl_connect_data *connssl = cf->ctx;
   struct schannel_ssl_backend_data *backend =
     (struct schannel_ssl_backend_data *)connssl->backend;
+#ifndef UNDER_CE
   struct ssl_primary_config *conn_config = Curl_ssl_cf_get_primary_config(cf);
+#endif
   struct ssl_config_data *ssl_config = Curl_ssl_cf_get_config(cf, data);
   SecBuffer outbuf;
   SecBufferDesc outbuf_desc;
@@ -905,30 +914,15 @@ schannel_connect_step1(struct Curl_cfilter *cf, struct Curl_easy *data)
           "connect to some servers due to lack of SNI, algorithms, etc.");
   }
 
-  {
 #ifdef HAS_ALPN_SCHANNEL
-    bool wine;
-#ifdef CURL_WINDOWS_UWP
-    /* GetModuleHandle() not available for UWP.
-       Assume no WINE because WINE has no UWP support. */
-    wine = FALSE;
+  backend->use_alpn = connssl->alpn && s_win_has_alpn;
 #else
-    wine = !!GetProcAddress(GetModuleHandle(TEXT("ntdll")),
-                            "wine_get_version");
+  backend->use_alpn = FALSE;
 #endif
-    /* ALPN is only supported on Windows 8.1 / Server 2012 R2 and above.
-       Also it does not seem to be supported for WINE, see curl bug #983. */
-    backend->use_alpn = connssl->alpn && !wine &&
-      curlx_verify_windows_version(6, 3, 0, PLATFORM_WINNT,
-                                   VERSION_GREATER_THAN_EQUAL);
-#else
-    backend->use_alpn = FALSE;
-#endif
-  }
 
-#ifdef _WIN32_WCE
+#ifdef UNDER_CE
 #ifdef HAS_MANUAL_VERIFY_API
-  /* certificate validation on CE does not seem to work right; we will
+  /* certificate validation on Windows CE does not seem to work right; we will
    * do it following a more manual process. */
   backend->use_manual_cred_validation = TRUE;
 #else
@@ -2387,6 +2381,34 @@ static void schannel_close(struct Curl_cfilter *cf, struct Curl_easy *data)
 
 static int schannel_init(void)
 {
+#if defined(HAS_ALPN_SCHANNEL) && !defined(UNDER_CE)
+  bool wine = FALSE;
+  bool wine_has_alpn = FALSE;
+
+#ifndef CURL_WINDOWS_UWP
+  typedef const char *(APIENTRY *WINE_GET_VERSION_FN)(void);
+  /* GetModuleHandle() not available for UWP.
+     Assume no WINE because WINE has no UWP support. */
+  WINE_GET_VERSION_FN p_wine_get_version =
+    CURLX_FUNCTION_CAST(WINE_GET_VERSION_FN,
+                        (GetProcAddress(GetModuleHandleA("ntdll"),
+                                        "wine_get_version")));
+  wine = !!p_wine_get_version;
+  if(wine) {
+    const char *wine_version = p_wine_get_version();  /* e.g. "6.0.2" */
+    /* Assume ALPN support with WINE 6.0 or upper */
+    wine_has_alpn = wine_version && atoi(wine_version) >= 6;
+  }
+#endif
+  if(wine)
+    s_win_has_alpn = wine_has_alpn;
+  else {
+    /* ALPN is supported on Windows 8.1 / Server 2012 R2 and above. */
+    s_win_has_alpn = curlx_verify_windows_version(6, 3, 0, PLATFORM_WINNT,
+                                                  VERSION_GREATER_THAN_EQUAL);
+  }
+#endif /* HAS_ALPN_SCHANNEL && !UNDER_CE */
+
   return Curl_sspi_global_init() == CURLE_OK ? 1 : 0;
 }
 
@@ -2510,7 +2532,12 @@ static void schannel_checksum(const unsigned char *input,
     if(!CryptCreateHash(hProv, algId, 0, 0, &hHash))
       break; /* failed */
 
+#ifdef __MINGW32CE__
+    /* workaround for CeGCC, should be (const BYTE*) */
+    if(!CryptHashData(hHash, (BYTE*)input, (DWORD)inputlen, 0))
+#else
     if(!CryptHashData(hHash, input, (DWORD)inputlen, 0))
+#endif
       break; /* failed */
 
     /* get hash size */
