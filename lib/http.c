@@ -193,31 +193,33 @@ void Curl_http_neg_init(struct Curl_easy *data, struct http_negotiation *neg)
   neg->accept_09 = data->set.http09_allowed;
   switch(data->set.httpwant) {
   case CURL_HTTP_VERSION_1_0:
-    neg->allowed = (CURL_HTTP_V1x);
+    neg->wanted = neg->allowed = (CURL_HTTP_V1x);
     neg->only_10 = TRUE;
     break;
   case CURL_HTTP_VERSION_1_1:
-    neg->allowed = (CURL_HTTP_V1x);
+    neg->wanted = neg->allowed = (CURL_HTTP_V1x);
     break;
   case CURL_HTTP_VERSION_2_0:
-    neg->allowed = (CURL_HTTP_V1x | CURL_HTTP_V2x);
+    neg->wanted = neg->allowed = (CURL_HTTP_V1x | CURL_HTTP_V2x);
     neg->h2_upgrade = TRUE;
     break;
   case CURL_HTTP_VERSION_2TLS:
-    neg->allowed = (CURL_HTTP_V1x | CURL_HTTP_V2x);
+    neg->wanted = neg->allowed = (CURL_HTTP_V1x | CURL_HTTP_V2x);
     break;
   case CURL_HTTP_VERSION_2_PRIOR_KNOWLEDGE:
-    neg->allowed = (CURL_HTTP_V2x);
+    neg->wanted = neg->allowed = (CURL_HTTP_V2x);
     data->state.http_neg.h2_prior_knowledge = TRUE;
     break;
   case CURL_HTTP_VERSION_3:
-    neg->allowed = (CURL_HTTP_V1x | CURL_HTTP_V2x | CURL_HTTP_V3x);
+    neg->wanted = (CURL_HTTP_V1x | CURL_HTTP_V2x | CURL_HTTP_V3x);
+    neg->allowed = neg->wanted;
     break;
   case CURL_HTTP_VERSION_3ONLY:
-    neg->allowed = (CURL_HTTP_V3x);
+    neg->wanted = neg->allowed = (CURL_HTTP_V3x);
     break;
   case CURL_HTTP_VERSION_NONE:
   default:
+    neg->wanted = (CURL_HTTP_V1x | CURL_HTTP_V2x);
     neg->allowed = (CURL_HTTP_V1x | CURL_HTTP_V2x | CURL_HTTP_V3x);
     break;
   }
@@ -229,7 +231,7 @@ CURLcode Curl_http_setup_conn(struct Curl_easy *data,
   /* allocate the HTTP-specific struct for the Curl_easy, only to survive
      during this request */
   connkeep(conn, "HTTP default");
-  if(data->state.http_neg.allowed == CURL_HTTP_V3x) {
+  if(data->state.http_neg.wanted == CURL_HTTP_V3x) {
     /* only HTTP/3, needs to work */
     CURLcode result = Curl_conn_may_http3(data, conn);
     if(result)
@@ -573,6 +575,7 @@ CURLcode Curl_http_auth_act(struct Curl_easy *data)
        (data->req.httpversion_sent > 11)) {
       infof(data, "Forcing HTTP/1.1 for NTLM");
       connclose(conn, "Force HTTP/1.1 connection");
+      data->state.http_neg.wanted = CURL_HTTP_V1x;
       data->state.http_neg.allowed = CURL_HTTP_V1x;
     }
   }
@@ -873,9 +876,11 @@ Curl_http_output_auth(struct Curl_easy *data,
   !defined(CURL_DISABLE_DIGEST_AUTH) || \
   !defined(CURL_DISABLE_BASIC_AUTH) || \
   !defined(CURL_DISABLE_BEARER_AUTH)
-static int is_valid_auth_separator(char ch)
+static bool authcmp(const char *auth, const char *line)
 {
-  return ch == '\0' || ch == ',' || ISSPACE(ch);
+  /* the auth string must not have an alnum following */
+  size_t n = strlen(auth);
+  return strncasecompare(auth, line, n) && !ISALNUM(auth[n]);
 }
 #endif
 
@@ -936,7 +941,7 @@ CURLcode Curl_http_input_auth(struct Curl_easy *data, bool proxy,
 
   while(*auth) {
 #ifdef USE_SPNEGO
-    if(checkprefix("Negotiate", auth) && is_valid_auth_separator(auth[9])) {
+    if(authcmp("Negotiate", auth)) {
       if((authp->avail & CURLAUTH_NEGOTIATE) ||
          Curl_auth_is_spnego_supported()) {
         *availp |= CURLAUTH_NEGOTIATE;
@@ -962,7 +967,7 @@ CURLcode Curl_http_input_auth(struct Curl_easy *data, bool proxy,
 #endif
 #ifdef USE_NTLM
       /* NTLM support requires the SSL crypto libs */
-      if(checkprefix("NTLM", auth) && is_valid_auth_separator(auth[4])) {
+      if(authcmp("NTLM", auth)) {
         if((authp->avail & CURLAUTH_NTLM) ||
            Curl_auth_is_ntlm_supported()) {
           *availp |= CURLAUTH_NTLM;
@@ -984,7 +989,7 @@ CURLcode Curl_http_input_auth(struct Curl_easy *data, bool proxy,
       else
 #endif
 #ifndef CURL_DISABLE_DIGEST_AUTH
-        if(checkprefix("Digest", auth) && is_valid_auth_separator(auth[6])) {
+        if(authcmp("Digest", auth)) {
           if((authp->avail & CURLAUTH_DIGEST) != 0)
             infof(data, "Ignoring duplicate digest auth header.");
           else if(Curl_auth_is_digest_supported()) {
@@ -1007,8 +1012,7 @@ CURLcode Curl_http_input_auth(struct Curl_easy *data, bool proxy,
         else
 #endif
 #ifndef CURL_DISABLE_BASIC_AUTH
-          if(checkprefix("Basic", auth) &&
-             is_valid_auth_separator(auth[5])) {
+          if(authcmp("Basic", auth)) {
             *availp |= CURLAUTH_BASIC;
             authp->avail |= CURLAUTH_BASIC;
             if(authp->picked == CURLAUTH_BASIC) {
@@ -1023,8 +1027,7 @@ CURLcode Curl_http_input_auth(struct Curl_easy *data, bool proxy,
           else
 #endif
 #ifndef CURL_DISABLE_BEARER_AUTH
-            if(checkprefix("Bearer", auth) &&
-               is_valid_auth_separator(auth[6])) {
+            if(authcmp("Bearer", auth)) {
               *availp |= CURLAUTH_BEARER;
               authp->avail |= CURLAUTH_BEARER;
               if(authp->picked == CURLAUTH_BEARER) {
@@ -2849,7 +2852,7 @@ CURLcode Curl_http(struct Curl_easy *data, bool *done)
   }
 
   if(!Curl_conn_is_ssl(conn, FIRSTSOCKET) && (httpversion < 20) &&
-     (data->state.http_neg.allowed & CURL_HTTP_V2x) &&
+     (data->state.http_neg.wanted & CURL_HTTP_V2x) &&
      data->state.http_neg.h2_upgrade) {
     /* append HTTP2 upgrade magic stuff to the HTTP request if it is not done
        over SSL */
