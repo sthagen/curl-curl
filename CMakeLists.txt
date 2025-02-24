@@ -217,13 +217,6 @@ option(ENABLE_ARES "Enable c-ares support" OFF)
 option(CURL_DISABLE_INSTALL "Disable installation targets" OFF)
 
 if(WIN32)
-  option(CURL_STATIC_CRT "Build libcurl with static CRT with MSVC (/MT)" OFF)
-  if(CURL_STATIC_CRT AND MSVC)
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-    string(APPEND CMAKE_C_FLAGS_RELEASE " -MT")
-    string(APPEND CMAKE_C_FLAGS_DEBUG " -MTd")
-  endif()
-
   option(ENABLE_UNICODE "Use the Unicode version of the Windows API functions" OFF)
   if(WINDOWS_STORE OR WINCE)
     set(ENABLE_UNICODE ON)
@@ -264,7 +257,9 @@ if(WIN32)
     if(MINGW64_VERSION)
       string(REGEX MATCH "MINGW64_VERSION=[0-9]+\.[0-9]+" CURL_TEST_OUTPUT "${CURL_TEST_OUTPUT}")
       string(REGEX REPLACE "MINGW64_VERSION=" "" MINGW64_VERSION "${CURL_TEST_OUTPUT}")
-      message(STATUS "Found MINGW64_VERSION=${MINGW64_VERSION}")
+      if(MINGW64_VERSION)
+        message(STATUS "Found MINGW64_VERSION=${MINGW64_VERSION}")
+      endif()
     endif()
     unset(MINGW64_VERSION CACHE)  # Avoid storing in CMake cache
   endif()
@@ -352,6 +347,20 @@ if(BUILD_SHARED_LIBS)
   set(LIB_SELECTED ${LIB_SHARED})
 else()
   set(LIB_SELECTED ${LIB_STATIC})
+endif()
+
+if(WIN32)
+  option(CURL_STATIC_CRT "Build libcurl with static CRT with MSVC (/MT)" OFF)
+  if(CURL_STATIC_CRT AND MSVC)
+    if(BUILD_STATIC_CURL)
+      set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+      string(APPEND CMAKE_C_FLAGS_RELEASE " -MT")
+      string(APPEND CMAKE_C_FLAGS_DEBUG " -MTd")
+    else()
+      message(WARNING "Static CRT requires curl executable built with static libcurl "
+        "(BUILD_STATIC_LIBS=ON and BUILD_STATIC_CURL=ON).")
+    endif()
+  endif()
 endif()
 
 # Override to force-disable or force-enable the use of pkg-config.
@@ -1983,9 +1992,6 @@ if(WIN32)
     set(USE_WIN32_LARGE_FILES ON)
   endif()
 
-  # Use the manifest embedded in the Windows Resource
-  string(APPEND CMAKE_RC_FLAGS " -DCURL_EMBED_MANIFEST")
-
   # We use crypto functions that are not available for UWP apps
   if(NOT WINDOWS_STORE)
     set(USE_WIN32_CRYPTO ON)
@@ -2001,9 +2007,6 @@ if(WIN32)
 endif()
 
 if(MSVC)
-  # Disable default manifest added by CMake
-  string(APPEND CMAKE_EXE_LINKER_FLAGS " -MANIFEST:NO")
-
   string(APPEND CMAKE_C_FLAGS " -MP")  # Parallel compilation
 endif()
 

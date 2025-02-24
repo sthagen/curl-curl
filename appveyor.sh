@@ -55,11 +55,10 @@ if [ "${BUILD_SYSTEM}" = 'CMake' ]; then
     # shellcheck disable=SC2086
     cmake -B "_bld${_chkprefill}" -G "${PRJ_GEN}" ${TARGET} \
       -DCMAKE_VS_GLOBALS=TrackFileAccess=false \
-      -DCMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG= \
-      -DCMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE= \
       -DCMAKE_UNITY_BUILD="${UNITY}" -DCURL_TEST_BUNDLES=ON \
       -DCURL_WERROR=ON \
       -DBUILD_SHARED_LIBS="${SHARED}" \
+      -DCURL_STATIC_CRT=ON \
       -DENABLE_DEBUG="${DEBUG}" \
       -DENABLE_UNICODE="${ENABLE_UNICODE}" \
       -DHTTP_ONLY="${HTTP_ONLY}" \
@@ -78,9 +77,9 @@ if [ "${BUILD_SYSTEM}" = 'CMake' ]; then
   echo 'curl_config.h'; grep -F '#define' _bld/lib/curl_config.h | sort || true
   # shellcheck disable=SC2086
   cmake --build _bld --config "${PRJ_CFG}" --parallel 2 -- ${BUILD_OPT:-}
-  [ "${SHARED}" = 'ON' ] && PATH="$PWD/_bld/lib:$PATH"
+  [ "${SHARED}" = 'ON' ] && PATH="$PWD/_bld/lib/${PRJ_CFG}:$PATH"
   [ "${OPENSSL}" = 'ON' ] && PATH="${openssl_root}:$PATH"
-  curl='_bld/src/curl.exe'
+  curl="_bld/src/${PRJ_CFG}/curl.exe"
 elif [ "${BUILD_SYSTEM}" = 'VisualStudioSolution' ]; then
   (
     cd projects
@@ -131,6 +130,7 @@ fi
 
 if [ "${TFLAGS}" != 'skipall' ] && \
    [ "${TFLAGS}" != 'skiprun' ]; then
+  export CURL_DIRSUFFIX="${PRJ_CFG}/"
   if [ -x "$(cygpath "${SYSTEMROOT}/System32/curl.exe")" ]; then
     TFLAGS+=" -ac $(cygpath "${SYSTEMROOT}/System32/curl.exe")"
   elif [ -x "$(cygpath 'C:/msys64/usr/bin/curl.exe')" ]; then
