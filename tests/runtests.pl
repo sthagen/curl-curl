@@ -88,7 +88,6 @@ use serverhelp qw(
     server_exe
     );
 use pathhelp qw(
-    exe_ext
     sys_native_current_path
     );
 use processhelp qw(
@@ -544,7 +543,7 @@ sub checksystemfeatures {
                 $pwd = sys_native_current_path();
                 $feature{"win32"} = 1;
             }
-            if ($libcurl =~ /\s(winssl|schannel)\b/i) {
+            if ($libcurl =~ /\sschannel\b/i) {
                 $feature{"Schannel"} = 1;
                 $feature{"SSLpinning"} = 1;
             }
@@ -570,7 +569,7 @@ sub checksystemfeatures {
                 $feature{"sectransp"} = 1;
                 $feature{"SSLpinning"} = 1;
             }
-            elsif ($libcurl =~ /\sBoringSSL\b/i) {
+            elsif ($libcurl =~ /\s(BoringSSL|AWS-LC)\b/i) {
                 # OpenSSL compatible API
                 $feature{"OpenSSL"} = 1;
                 $feature{"SSLpinning"} = 1;

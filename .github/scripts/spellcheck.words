@@ -251,6 +251,7 @@ Feltzing
 ffi
 filesize
 filesystem
+FindCURL
 FLOSS
 fnmatch
 footguns
@@ -950,7 +951,6 @@ winbuild
 WinIDN
 WinLDAP
 winsock
-winssl
 Wireshark
 wolfSSH
 wolfSSL
