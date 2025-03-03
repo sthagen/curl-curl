@@ -1073,8 +1073,7 @@ CURLcode Curl_http_input_auth(struct Curl_easy *data, bool proxy,
       auth++;
     else
       break;
-    while(ISBLANK(*auth))
-      auth++;
+    Curl_str_passblanks(&auth);
   }
 #else
   (void) proxy;
@@ -1153,6 +1152,21 @@ static bool http_should_fail(struct Curl_easy *data, int httpcode)
 #endif
 
   return data->state.authproblem;
+}
+
+static void http_switch_to_get(struct Curl_easy *data, int code)
+{
+  const char *req = data->set.str[STRING_CUSTOMREQUEST];
+  if((req || data->state.httpreq != HTTPREQ_GET) &&
+     (data->set.http_follow_mode == CURLFOLLOW_OBEYCODE)) {
+    infof(data, "Switch to GET because of %d response", code);
+    data->state.http_ignorecustom = TRUE;
+  }
+  else if(req && (data->set.http_follow_mode != CURLFOLLOW_FIRSTONLY))
+    infof(data, "Stick to %s instead of GET", req);
+
+  data->state.httpreq = HTTPREQ_GET;
+  Curl_creader_set_rewind(data, FALSE);
 }
 
 CURLcode Curl_http_follow(struct Curl_easy *data, const char *newurl,
@@ -1321,6 +1335,12 @@ CURLcode Curl_http_follow(struct Curl_easy *data, const char *newurl,
   data->state.url_alloc = TRUE;
   Curl_req_soft_reset(&data->req, data);
   infof(data, "Issue another request to this URL: '%s'", data->state.url);
+  if((data->set.http_follow_mode == CURLFOLLOW_FIRSTONLY) &&
+     data->set.str[STRING_CUSTOMREQUEST] &&
+     !data->state.http_ignorecustom) {
+    data->state.http_ignorecustom = TRUE;
+    infof(data, "Drop custom request method for next request");
+  }
 
   /*
    * We get here when the HTTP code is 300-399 (and 401). We need to perform
@@ -1362,11 +1382,8 @@ CURLcode Curl_http_follow(struct Curl_easy *data, const char *newurl,
     if((data->state.httpreq == HTTPREQ_POST
         || data->state.httpreq == HTTPREQ_POST_FORM
         || data->state.httpreq == HTTPREQ_POST_MIME)
-       && !(data->set.keep_post & CURL_REDIR_POST_301)) {
-      infof(data, "Switch from POST to GET");
-      data->state.httpreq = HTTPREQ_GET;
-      Curl_creader_set_rewind(data, FALSE);
-    }
+       && !(data->set.keep_post & CURL_REDIR_POST_301))
+      http_switch_to_get(data, 301);
     break;
   case 302: /* Found */
     /* (quote from RFC7231, section 6.4.3)
@@ -1388,11 +1405,8 @@ CURLcode Curl_http_follow(struct Curl_easy *data, const char *newurl,
     if((data->state.httpreq == HTTPREQ_POST
         || data->state.httpreq == HTTPREQ_POST_FORM
         || data->state.httpreq == HTTPREQ_POST_MIME)
-       && !(data->set.keep_post & CURL_REDIR_POST_302)) {
-      infof(data, "Switch from POST to GET");
-      data->state.httpreq = HTTPREQ_GET;
-      Curl_creader_set_rewind(data, FALSE);
-    }
+       && !(data->set.keep_post & CURL_REDIR_POST_302))
+      http_switch_to_get(data, 302);
     break;
 
   case 303: /* See Other */
@@ -1405,11 +1419,8 @@ CURLcode Curl_http_follow(struct Curl_easy *data, const char *newurl,
        ((data->state.httpreq != HTTPREQ_POST &&
          data->state.httpreq != HTTPREQ_POST_FORM &&
          data->state.httpreq != HTTPREQ_POST_MIME) ||
-        !(data->set.keep_post & CURL_REDIR_POST_303))) {
-      data->state.httpreq = HTTPREQ_GET;
-      infof(data, "Switch to %s",
-            data->req.no_body ? "HEAD" : "GET");
-    }
+        !(data->set.keep_post & CURL_REDIR_POST_303)))
+      http_switch_to_get(data, 303);
     break;
   case 304: /* Not Modified */
     /* 304 means we did a conditional request and it was "Not modified".
@@ -1803,8 +1814,10 @@ void Curl_http_method(struct Curl_easy *data, struct connectdata *conn,
     httpreq = HTTPREQ_PUT;
 
   /* Now set the 'request' pointer to the proper request string */
-  if(data->set.str[STRING_CUSTOMREQUEST])
+  if(data->set.str[STRING_CUSTOMREQUEST] &&
+     !data->state.http_ignorecustom) {
     request = data->set.str[STRING_CUSTOMREQUEST];
+  }
   else {
     if(data->req.no_body)
       request = "HEAD";
@@ -3138,7 +3151,7 @@ static CURLcode http_header(struct Curl_easy *data,
       else {
         data->req.location = location;
 
-        if(data->set.http_follow_location) {
+        if(data->set.http_follow_mode) {
           DEBUGASSERT(!data->req.newurl);
           data->req.newurl = strdup(data->req.location); /* clone */
           if(!data->req.newurl)
@@ -3880,8 +3893,7 @@ static CURLcode http_rw_hd(struct Curl_easy *data,
        */
       const char *p = hd;
 
-      while(ISBLANK(*p))
-        p++;
+      Curl_str_passblanks(&p);
       if(!strncmp(p, "HTTP/", 5)) {
         p += 5;
         switch(*p) {
@@ -3895,7 +3907,7 @@ static CURLcode http_rw_hd(struct Curl_easy *data,
                 k->httpcode = (p[0] - '0') * 100 + (p[1] - '0') * 10 +
                   (p[2] - '0');
                 p += 3;
-                if(ISSPACE(*p))
+                if(ISBLANK(*p))
                   fine_statusline = TRUE;
               }
             }
@@ -3915,7 +3927,7 @@ static CURLcode http_rw_hd(struct Curl_easy *data,
             k->httpcode = (p[0] - '0') * 100 + (p[1] - '0') * 10 +
               (p[2] - '0');
             p += 3;
-            if(!ISSPACE(*p))
+            if(!ISBLANK(*p))
               break;
             fine_statusline = TRUE;
           }
@@ -4473,8 +4485,7 @@ CURLcode Curl_http_req_to_h2(struct dynhds *h2_headers,
     scheme = Curl_checkheaders(data, STRCONST(HTTP_PSEUDO_SCHEME));
     if(scheme) {
       scheme += sizeof(HTTP_PSEUDO_SCHEME);
-      while(ISBLANK(*scheme))
-        scheme++;
+      Curl_str_passblanks(&scheme);
       infof(data, "set pseudo header %s to %s", HTTP_PSEUDO_SCHEME, scheme);
     }
     else {
