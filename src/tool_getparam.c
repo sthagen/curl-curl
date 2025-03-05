@@ -339,6 +339,7 @@ static const struct LongShort aliases[]= {
   {"trace-time",                 ARG_BOOL, ' ', C_TRACE_TIME},
   {"unix-socket",                ARG_FILE, ' ', C_UNIX_SOCKET},
   {"upload-file",                ARG_FILE, 'T', C_UPLOAD_FILE},
+  {"upload-flags",               ARG_STRG, ' ', C_UPLOAD_FLAGS},
   {"url",                        ARG_STRG, ' ', C_URL},
   {"url-query",                  ARG_STRG, ' ', C_URL_QUERY},
   {"use-ascii",                  ARG_BOOL, 'B', C_USE_ASCII},
@@ -1619,6 +1620,66 @@ static ParameterError parse_time_cond(struct GlobalConfig *global,
             "See curl_getdate(3) for valid date syntax.");
     }
   }
+  return err;
+}
+
+struct flagmap {
+  const char *name;
+  size_t len;
+  unsigned char flag;
+};
+
+static const struct flagmap flag_table[] = {
+  {"answered", 8, CURLULFLAG_ANSWERED},
+  {"deleted",  7, CURLULFLAG_DELETED},
+  {"draft",    5, CURLULFLAG_DRAFT},
+  {"flagged",  7, CURLULFLAG_FLAGGED},
+  {"seen",     4, CURLULFLAG_SEEN},
+  {NULL,       0, 0}
+};
+
+static ParameterError parse_upload_flags(struct OperationConfig *config,
+                                         const char *flag)
+{
+  ParameterError err = PARAM_OK;
+
+  while(flag) {
+    bool negate;
+    const struct flagmap *map;
+    size_t len;
+    char *next = strchr(flag, ','); /* Find next comma or end */
+    if(next)
+      len = next - flag;
+    else
+      len = strlen(flag);
+
+    negate = (*flag == '-');
+    if(negate) {
+      flag++;
+      len--;
+    }
+
+    for(map = flag_table; map->name; map++) {
+      if((len == map->len) && !strncmp(flag, map->name, map->len)) {
+        if(negate)
+          config->upload_flags &= (unsigned char)~map->flag;
+        else
+          config->upload_flags |= map->flag;
+        break;
+      }
+    }
+
+   if(!map->name) {
+     err = PARAM_OPTION_UNKNOWN;
+     break;
+   }
+
+   if(next)
+     /* move over the comma */
+     next++;
+   flag = next;
+  }
+
   return err;
 }
 
@@ -2908,6 +2969,9 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
       break;
     case C_MPTCP: /* --mptcp */
       config->mptcp = TRUE;
+      break;
+    case C_UPLOAD_FLAGS: /* --upload-flags */
+      err = parse_upload_flags(config, nextarg);
       break;
     default: /* unknown flag */
       err = PARAM_OPTION_UNKNOWN;
