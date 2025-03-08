@@ -111,7 +111,7 @@ int parseconfig(const char *filename, struct GlobalConfig *global)
       /* the option starts with a dash? */
       dashed_option = (option[0] == '-');
 
-      while(*line && !ISSPACE(*line) && !ISSEP(*line, dashed_option))
+      while(*line && !ISBLANK(*line) && !ISSEP(*line, dashed_option))
         line++;
       /* ... and has ended here */
 
@@ -123,7 +123,7 @@ int parseconfig(const char *filename, struct GlobalConfig *global)
 #endif
 
       /* pass spaces and separator(s) */
-      while(*line && (ISSPACE(*line) || ISSEP(*line, dashed_option)))
+      while(ISBLANK(*line) || ISSEP(*line, dashed_option))
         line++;
 
       /* the parameter starts here (unless quoted) */
@@ -141,7 +141,7 @@ int parseconfig(const char *filename, struct GlobalConfig *global)
       }
       else {
         param = line; /* parameter starts here */
-        while(*line && !ISSPACE(*line))
+        while(*line && !ISSPACE(*line)) /* stop also on CRLF */
           line++;
 
         if(*line) {
@@ -150,7 +150,7 @@ int parseconfig(const char *filename, struct GlobalConfig *global)
           /* to detect mistakes better, see if there is data following */
           line++;
           /* pass all spaces */
-          while(*line && ISSPACE(*line))
+          while(ISBLANK(*line))
             line++;
 
           switch(*line) {
@@ -304,7 +304,8 @@ static bool get_line(FILE *input, struct dynbuf *buf, bool *error)
       else if(b[rlen-1] == '\n') {
         /* end of the line, drop the newline */
         size_t len = curlx_dyn_len(buf);
-        curlx_dyn_setlen(buf, len - 1);
+        if(len)
+          curlx_dyn_setlen(buf, len - 1);
         return TRUE; /* all good */
       }
 
@@ -327,15 +328,18 @@ bool my_get_line(FILE *input, struct dynbuf *buf, bool *error)
   do {
     retcode = get_line(input, buf, error);
     if(!*error && retcode) {
-      const char *line = curlx_dyn_ptr(buf);
-      if(line) {
+      size_t len = curlx_dyn_len(buf);
+      if(len) {
+        const char *line = curlx_dyn_ptr(buf);
         while(ISBLANK(*line))
           line++;
 
         /* a line with # in the first non-blank column is a comment! */
-        if((*line == '#') || (*line == '\n'))
+        if((*line == '#') || !*line)
           continue;
       }
+      else
+        continue; /* avoid returning an empty line */
     }
     break;
   } while(retcode);
