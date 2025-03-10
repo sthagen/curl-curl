@@ -747,7 +747,7 @@ enum resolve_t Curl_resolv(struct Curl_easy *data,
       int st;
       Curl_set_in_callback(data, TRUE);
       st = data->set.resolver_start(
-#ifdef USE_CURL_ASYNC
+#ifdef CURLRES_ASYNCH
         data->state.async.resolver,
 #else
         NULL,
@@ -932,8 +932,9 @@ enum resolve_t Curl_resolv_timeout(struct Curl_easy *data,
   else
     timeout = (timeoutms > LONG_MAX) ? LONG_MAX : (long)timeoutms;
 
-  if(!timeout)
-    /* USE_ALARM_TIMEOUT defined, but no timeout actually requested */
+  if(!timeout || data->set.doh)
+    /* USE_ALARM_TIMEOUT defined, but no timeout actually requested or resolve
+       done using DoH */
     return Curl_resolv(data, hostname, port, TRUE, entry);
 
   if(timeout < 1000) {

@@ -344,7 +344,7 @@ static CURLproxycode do_SOCKS4(struct Curl_cfilter *cf,
     dns = Curl_fetch_addr(data, sx->hostname, conn->primary.remote_port);
 
     if(dns) {
-#ifdef CURLRES_ASYNCH
+#ifdef USE_CURL_ASYNC
       data->state.async.dns = dns;
       data->state.async.done = TRUE;
 #endif
@@ -590,7 +590,6 @@ static CURLproxycode do_SOCKS5(struct Curl_cfilter *cf,
   bool allow_gssapi = FALSE;
   struct Curl_dns_entry *dns = NULL;
 
-  DEBUGASSERT(auth & (CURLAUTH_BASIC | CURLAUTH_GSSAPI));
   switch(sx->state) {
   case CONNECT_SOCKS_INIT:
     if(conn->bits.httpproxy)
@@ -815,7 +814,7 @@ CONNECT_REQ_INIT:
     dns = Curl_fetch_addr(data, sx->hostname, sx->remote_port);
 
     if(dns) {
-#ifdef CURLRES_ASYNCH
+#ifdef USE_CURL_ASYNC
       data->state.async.dns = dns;
       data->state.async.done = TRUE;
 #endif

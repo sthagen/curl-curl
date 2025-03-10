@@ -72,7 +72,6 @@
 #include "headers.h"
 #include "select.h"
 #include "parsedate.h" /* for the week day and month names */
-#include "strtoofft.h"
 #include "multiif.h"
 #include "strcase.h"
 #include "content_encoding.h"
@@ -583,7 +582,7 @@ CURLcode Curl_http_auth_act(struct Curl_easy *data)
     /* In case this is GSS auth, the newurl field is already allocated so
        we must make sure to free it before allocating a new one. As figured
        out in bug #2284386 */
-    Curl_safefree(data->req.newurl);
+    free(data->req.newurl);
     data->req.newurl = strdup(data->state.url); /* clone URL */
     if(!data->req.newurl)
       return CURLE_OUT_OF_MEMORY;
@@ -1911,7 +1910,7 @@ static CURLcode http_host(struct Curl_easy *data, struct connectdata *conn)
         if(colon)
           *colon = 0; /* The host must not include an embedded port number */
       }
-      Curl_safefree(aptr->cookiehost);
+      free(aptr->cookiehost);
       aptr->cookiehost = cookiehost;
     }
 #endif
@@ -2736,7 +2735,7 @@ CURLcode Curl_http(struct Curl_easy *data, bool *done)
 
   if(!Curl_checkheaders(data, STRCONST("Accept-Encoding")) &&
      data->set.str[STRING_ENCODING]) {
-    Curl_safefree(data->state.aptr.accept_encoding);
+    free(data->state.aptr.accept_encoding);
     data->state.aptr.accept_encoding =
       aprintf("Accept-Encoding: %s\r\n", data->set.str[STRING_ENCODING]);
     if(!data->state.aptr.accept_encoding)
@@ -3027,13 +3026,13 @@ static CURLcode http_header(struct Curl_easy *data,
       HD_VAL(hd, hdlen, "Content-Length:") : NULL;
     if(v) {
       curl_off_t contentlength;
-      CURLofft offt = curlx_strtoofft(v, NULL, 10, &contentlength);
+      int offt = Curl_str_numblanks(&v, &contentlength);
 
-      if(offt == CURL_OFFT_OK) {
+      if(offt == STRE_OK) {
         k->size = contentlength;
         k->maxdownload = k->size;
       }
-      else if(offt == CURL_OFFT_FLOW) {
+      else if(offt == STRE_OVERFLOW) {
         /* out of range */
         if(data->set.max_filesize) {
           failf(data, "Maximum file size exceeded");
@@ -3071,7 +3070,7 @@ static CURLcode http_header(struct Curl_easy *data,
         /* ignore empty data */
         free(contenttype);
       else {
-        Curl_safefree(data->info.contenttype);
+        free(data->info.contenttype);
         data->info.contenttype = contenttype;
       }
       return CURLE_OK;

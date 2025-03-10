@@ -930,9 +930,10 @@ static CURLcode config2setopts(struct GlobalConfig *global,
 #ifdef DEBUGBUILD
     char *env = getenv("CURL_BUFFERSIZE");
     if(env) {
-      long size = strtol(env, NULL, 10);
-      if(size)
-        my_setopt(curl, CURLOPT_BUFFERSIZE, size);
+      curl_off_t num;
+      const char *p = env;
+      if(!Curl_str_number(&p, &num, LONG_MAX))
+        my_setopt(curl, CURLOPT_BUFFERSIZE, (long)num);
     }
     else
 #endif
@@ -1782,7 +1783,7 @@ static CURLcode append2query(struct GlobalConfig *global,
       if(uerr)
         result = urlerr_cvt(uerr);
       else {
-        Curl_safefree(per->url); /* free previous URL */
+        free(per->url); /* free previous URL */
         per->url = updated; /* use our new URL instead! */
       }
     }
