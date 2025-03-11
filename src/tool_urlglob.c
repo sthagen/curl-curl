@@ -449,7 +449,7 @@ CURLcode glob_url(struct URLGlob **glob, char *url, curl_off_t *urlnum,
 
   glob_expand = calloc(1, sizeof(struct URLGlob));
   if(!glob_expand) {
-    Curl_safefree(glob_buffer);
+    curlx_safefree(glob_buffer);
     return CURLE_OUT_OF_MEMORY;
   }
   glob_expand->urllen = strlen(url);
@@ -499,13 +499,13 @@ void glob_cleanup(struct URLGlob **globp)
       for(elem = glob->pattern[i].content.Set.size - 1;
           elem >= 0;
           --elem) {
-        Curl_safefree(glob->pattern[i].content.Set.elements[elem]);
+        curlx_safefree(glob->pattern[i].content.Set.elements[elem]);
       }
-      Curl_safefree(glob->pattern[i].content.Set.elements);
+      curlx_safefree(glob->pattern[i].content.Set.elements);
     }
   }
-  Curl_safefree(glob->glob_buffer);
-  Curl_safefree(glob);
+  curlx_safefree(glob->glob_buffer);
+  curlx_safefree(glob);
   *globp = NULL;
 }
 
@@ -609,7 +609,7 @@ CURLcode glob_match_url(char **result, const char *filename,
                         struct URLGlob *glob)
 {
   char numbuf[18];
-  const char *appendthis = (char *)"";
+  const char *appendthis = "";
   size_t appendlen = 0;
   struct curlx_dynbuf dyn;
 
