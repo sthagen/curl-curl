@@ -342,6 +342,9 @@ static CURLcode pre_transfer(struct GlobalConfig *global,
   curl_off_t uploadfilesize = -1;
   struct_stat fileinfo;
   CURLcode result = CURLE_OK;
+#ifdef CURL_DISABLE_LIBCURL_OPTION
+  (void)global; /* otherwise used in the my_setopt macros */
+#endif
 
   if(per->uploadfile && !stdin_upload(per->uploadfile)) {
     /* VMS Note:
@@ -408,7 +411,7 @@ static CURLcode pre_transfer(struct GlobalConfig *global,
       my_setopt_offt(per->curl, CURLOPT_INFILESIZE_LARGE, uploadfilesize);
   }
   per->uploadfilesize = uploadfilesize;
-  per->start = tvnow();
+  per->start = curlx_now();
   return result;
 }
 
@@ -522,7 +525,7 @@ static CURLcode post_per_transfer(struct GlobalConfig *global,
      time */
   if(per->retry_remaining &&
      (!config->retry_maxtime ||
-      (tvdiff(tvnow(), per->retrystart) <
+      (curlx_timediff(curlx_now(), per->retrystart) <
        config->retry_maxtime*1000L)) ) {
     enum {
       RETRY_NO,
@@ -627,7 +630,8 @@ static CURLcode post_per_transfer(struct GlobalConfig *global,
              maximum time allowed for retrying, then exit the retries right
              away */
           if(config->retry_maxtime) {
-            curl_off_t seconds = tvdiff(tvnow(), per->retrystart)/1000;
+            curl_off_t seconds = curlx_timediff(curlx_now(),
+                                                per->retrystart)/1000;
 
             if((CURL_OFF_T_MAX - retry_after < seconds) ||
                (seconds + retry_after > config->retry_maxtime)) {
@@ -904,11 +908,10 @@ static CURLcode config2setopts(struct GlobalConfig *global,
   my_setopt(curl, CURLOPT_WRITEFUNCTION, tool_write_cb);
 
   /* Note that if CURLOPT_READFUNCTION is fread (the default), then
-   * lib/telnet.c will Curl_poll() on the input file descriptor
-   * rather than calling the READFUNCTION at regular intervals.
-   * The circumstances in which it is preferable to enable this
-   * behavior, by omitting to set the READFUNCTION & READDATA options,
-   * have not been determined.
+   * lib/telnet.c will poll on the input file descriptor rather than calling
+   * the READFUNCTION at regular intervals. The circumstances in which it is
+   * preferable to enable this behavior, by omitting to set the READFUNCTION &
+   * READDATA options, have not been determined.
    */
   my_setopt(curl, CURLOPT_READDATA, per);
   /* what call to read */
@@ -2305,7 +2308,7 @@ static CURLcode single_transfer(struct GlobalConfig *global,
         config->retry_delay*1000L : RETRY_SLEEP_DEFAULT; /* ms */
       per->retry_remaining = config->req_retry;
       per->retry_sleep = per->retry_sleep_default; /* ms */
-      per->retrystart = tvnow();
+      per->retrystart = curlx_now();
 
       state->li++;
       /* Here's looping around each globbed URL */
@@ -2440,7 +2443,7 @@ struct parastate {
   CURLMcode mcode;
   CURLcode result;
   int still_running;
-  struct timeval start;
+  struct curltime start;
   bool more_transfers;
   bool added_transfers;
   /* wrapitup is set TRUE after a critical error occurs to end all transfers */
@@ -2771,7 +2774,7 @@ static CURLcode parallel_transfers(struct GlobalConfig *global,
   s->mcode = CURLM_OK;
   s->result = CURLE_OK;
   s->still_running = 1;
-  s->start = tvnow();
+  s->start = curlx_now();
   s->wrapitup = FALSE;
   s->wrapitup_processed = FALSE;
   s->tick = time(NULL);
@@ -2858,9 +2861,9 @@ static CURLcode serial_transfers(struct GlobalConfig *global,
     bool retry;
     long delay_ms;
     bool bailout = FALSE;
-    struct timeval start;
+    struct curltime start;
 
-    start = tvnow();
+    start = curlx_now();
     if(!per->skip) {
       result = pre_transfer(global, per);
       if(result)
@@ -2923,12 +2926,13 @@ static CURLcode serial_transfers(struct GlobalConfig *global,
     if(per && global->ms_per_transfer) {
       /* how long time did the most recent transfer take in number of
          milliseconds */
-      long milli = tvdiff(tvnow(), start);
+      timediff_t milli = curlx_timediff(curlx_now(), start);
       if(milli < global->ms_per_transfer) {
-        notef(global, "Transfer took %ld ms, waits %ldms as set by --rate",
-              milli, global->ms_per_transfer - milli);
+        notef(global, "Transfer took %" CURL_FORMAT_CURL_OFF_T " ms, "
+                      "waits %ldms as set by --rate",
+              milli, (long)(global->ms_per_transfer - milli));
         /* The transfer took less time than wanted. Wait a little. */
-        tool_go_sleep(global->ms_per_transfer - milli);
+        tool_go_sleep((long)(global->ms_per_transfer - milli));
       }
     }
   }
