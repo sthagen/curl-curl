@@ -46,7 +46,6 @@
 #endif
 
 #include "curlx.h" /* from the private lib dir */
-#include "getpart.h"
 #include "util.h"
 
 /* need init from main() */
@@ -128,6 +127,7 @@ void logmsg(const char *msg, ...)
 
   do {
     logfp = fopen(serverlogfile, "ab");
+    /* !checksrc! disable ERRNOVAR 1 */
   } while(!logfp && (errno == EINTR));
   if(logfp) {
     fprintf(logfp, "%s %s\n", timebuf, buffer);
@@ -173,7 +173,7 @@ static void win32_perror(const char *msg)
 {
   char buf[512];
   int err = SOCKERRNO;
-  Curl_winapi_strerror(err, buf, sizeof(buf));
+  curlx_winapi_strerror(err, buf, sizeof(buf));
   if(msg)
     fprintf(stderr, "%s: ", msg);
   fprintf(stderr, "%s\n", buf);
@@ -224,7 +224,7 @@ int win32_init(void)
 const char *sstrerror(int err)
 {
   static char buf[512];
-  return Curl_winapi_strerror(err, buf, sizeof(buf));
+  return curlx_winapi_strerror(err, buf, sizeof(buf));
 }
 #endif  /* _WIN32 */
 
@@ -299,7 +299,7 @@ curl_off_t our_getpid(void)
 {
   curl_off_t pid;
 
-  pid = (curl_off_t)Curl_getpid();
+  pid = (curl_off_t)curlx_getpid();
 #ifdef _WIN32
   /* store pid + MAX_PID to avoid conflict with Cygwin/msys PIDs, see also:
    * - 2019-01-31: https://cygwin.com/git/?p=newlib-cygwin.git;a=commit; ↵
@@ -353,6 +353,7 @@ void set_advisor_read_lock(const char *filename)
 
   do {
     lockfile = fopen(filename, "wb");
+    /* !checksrc! disable ERRNOVAR 1 */
   } while(!lockfile && ((error = errno) == EINTR));
   if(!lockfile) {
     logmsg("Error creating lock file %s error (%d) %s",
@@ -379,6 +380,7 @@ void clear_advisor_read_lock(const char *filename)
 
   do {
     res = unlink(filename);
+    /* !checksrc! disable ERRNOVAR 1 */
   } while(res && ((error = errno) == EINTR));
   if(res)
     logmsg("Error removing lock file %s error (%d) %s",

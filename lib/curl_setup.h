@@ -469,9 +469,9 @@
 #endif
 
 #ifdef _WIN32
-#define Curl_getpid() GetCurrentProcessId()
+#define curlx_getpid() GetCurrentProcessId()
 #else
-#define Curl_getpid() getpid()
+#define curlx_getpid() getpid()
 #endif
 
 /*
@@ -853,11 +853,13 @@
 /* Terrible workarounds to make Windows CE compile */
 #define errno 0
 #define CURL_SETERRNO(x) ((void)(x))
+#define EINTR  4
 #define EAGAIN 11
 #define ENOMEM 12
 #define EACCES 13
 #define EEXIST 17
 #define EISDIR 21
+#define EINVAL 22
 #define ENOSPC 28
 #define strerror(x) "?"
 #else

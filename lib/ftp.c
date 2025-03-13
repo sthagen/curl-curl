@@ -913,7 +913,7 @@ static CURLcode ftp_state_use_port(struct Curl_easy *data,
           /* either ipv6 or (ipv4|domain|interface):port(-range) */
           addrlen = ip_end - string_ftpport;
 #ifdef USE_IPV6
-          if(Curl_inet_pton(AF_INET6, string_ftpport, &sa6->sin6_addr) == 1) {
+          if(curlx_inet_pton(AF_INET6, string_ftpport, &sa6->sin6_addr) == 1) {
             /* ipv6 */
             port_min = port_max = 0;
             ip_end = NULL; /* this got no port ! */
@@ -999,11 +999,11 @@ static CURLcode ftp_state_use_port(struct Curl_easy *data,
     switch(sa->sa_family) {
 #ifdef USE_IPV6
     case AF_INET6:
-      r = Curl_inet_ntop(sa->sa_family, &sa6->sin6_addr, hbuf, sizeof(hbuf));
+      r = curlx_inet_ntop(sa->sa_family, &sa6->sin6_addr, hbuf, sizeof(hbuf));
       break;
 #endif
     default:
-      r = Curl_inet_ntop(sa->sa_family, &sa4->sin_addr, hbuf, sizeof(hbuf));
+      r = curlx_inet_ntop(sa->sa_family, &sa4->sin_addr, hbuf, sizeof(hbuf));
       break;
     }
     if(!r) {
@@ -1063,7 +1063,7 @@ static CURLcode ftp_state_use_port(struct Curl_easy *data,
     if(bind(portsock, sa, sslen) ) {
       /* It failed. */
       error = SOCKERRNO;
-      if(possibly_non_local && (error == EADDRNOTAVAIL)) {
+      if(possibly_non_local && (error == SOCKEADDRNOTAVAIL)) {
         /* The requested bind address is not local. Use the address used for
          * the control connection instead and restart the port loop
          */
@@ -1080,7 +1080,7 @@ static CURLcode ftp_state_use_port(struct Curl_easy *data,
         possibly_non_local = FALSE; /* do not try this again */
         continue;
       }
-      if(error != EADDRINUSE && error != EACCES) {
+      if(error != SOCKEADDRINUSE && error != SOCKEACCES) {
         failf(data, "bind(port=%hu) failed: %s", port,
               Curl_strerror(error, buffer, sizeof(buffer)));
         goto out;
