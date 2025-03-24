@@ -770,7 +770,6 @@ struct connectdata {
   curl_off_t connection_id; /* Contains a unique number to make it easier to
                                track the connections in the log output */
   char *destination; /* string carrying normalized hostname+port+scope */
-  size_t destination_len; /* strlen(destination) + 1 */
 
   /* 'dns_entry' is the particular host we use. This points to an entry in the
      DNS cache and it will not get pruned while locked. It gets unlocked in
@@ -804,7 +803,6 @@ struct connectdata {
   char *options; /* options string, allocated */
   char *sasl_authzid;     /* authorization identity string, allocated */
   char *oauth_bearer; /* OAUTH2 bearer, allocated */
-  struct curltime now;     /* "current" time */
   struct curltime created; /* creation time */
   struct curltime lastused; /* when returned to the connection poolas idle */
   curl_socket_t sock[2]; /* two sockets, the second is used for the data
