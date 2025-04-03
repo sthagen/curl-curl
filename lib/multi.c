@@ -242,8 +242,7 @@ struct Curl_multi *Curl_multi_handle(size_t ev_hashsize,  /* event hash */
   if(Curl_cshutdn_init(&multi->cshutdn, multi))
     goto error;
 
-  if(Curl_cpool_init(&multi->cpool, multi->admin, NULL, chashsize))
-    goto error;
+  Curl_cpool_init(&multi->cpool, multi->admin, NULL, chashsize);
 
   if(Curl_ssl_scache_create(sesssize, 2, &multi->ssl_scache))
     goto error;
@@ -1408,7 +1407,7 @@ CURLMcode curl_multi_wakeup(CURLM *m)
      and before cleanup */
   if(multi->wakeup_pair[1] != CURL_SOCKET_BAD) {
     while(1) {
-#ifdef HAVE_EVENTFD
+#ifdef USE_EVENTFD
       /* eventfd has a stringent rule of requiring the 8-byte buffer when
          calling write(2) on it */
       const uint64_t buf[1] = { 1 };
@@ -2748,7 +2747,7 @@ CURLMcode curl_multi_cleanup(CURLM *m)
 #else
 #ifdef ENABLE_WAKEUP
     wakeup_close(multi->wakeup_pair[0]);
-#ifndef HAVE_EVENTFD
+#ifndef USE_EVENTFD
     wakeup_close(multi->wakeup_pair[1]);
 #endif
 #endif
