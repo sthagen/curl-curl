@@ -366,6 +366,10 @@ CURLcode Curl_init_userdefined(struct Curl_easy *data)
   set->postfieldsize = -1;   /* unknown size */
   set->maxredirs = 30;       /* sensible default */
 
+#ifndef CURL_DISABLE_DOH
+  set->dohfor_mid  = -1;
+#endif
+
   set->method = HTTPREQ_GET; /* Default HTTP request */
 #ifndef CURL_DISABLE_RTSP
   set->rtspreq = RTSPREQ_OPTIONS; /* Default RTSP request */
@@ -3045,10 +3049,14 @@ static CURLcode parse_connect_to_slist(struct Curl_easy *data,
 
     DEBUGF(infof(data, "Alt-svc check wanted=%x, allowed=%x",
                  neg->wanted, neg->allowed));
+#ifdef USE_HTTP3
     if(neg->allowed & CURL_HTTP_V3x)
       allowed_alpns |= ALPN_h3;
+#endif
+#ifdef USE_HTTP2
     if(neg->allowed & CURL_HTTP_V2x)
       allowed_alpns |= ALPN_h2;
+#endif
     if(neg->allowed & CURL_HTTP_V1x)
       allowed_alpns |= ALPN_h1;
     allowed_alpns &= (int)data->asi->flags;
