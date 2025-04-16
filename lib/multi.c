@@ -538,8 +538,8 @@ static CURLcode multi_done(struct Curl_easy *data,
     /* Stop if multi_done() has already been called */
     return CURLE_OK;
 
-  /* Stop the resolver and free its own resources (but not dns_entry yet). */
-  Curl_resolver_kill(data);
+  /* Shut down any ongoing async resolver operation. */
+  Curl_async_shutdown(data);
 
   /* Cleanup possible redirect junk */
   Curl_safefree(data->req.newurl);
@@ -727,6 +727,7 @@ CURLMcode curl_multi_remove_handle(CURLM *m, CURL *d)
 
   data->multi = NULL; /* clear the association to this multi handle */
   data->mid = -1;
+  data->master_mid = -1;
 
   /* NOTE NOTE NOTE
      We do not touch the easy handle here! */
@@ -2050,35 +2051,12 @@ static CURLMcode state_resolving(struct Curl_multi *multi,
                                  CURLcode *resultp)
 {
   struct Curl_dns_entry *dns = NULL;
-  struct connectdata *conn = data->conn;
-  const char *hostname;
-  CURLcode result = CURLE_OK;
+  CURLcode result;
   CURLMcode rc = CURLM_OK;
 
-  DEBUGASSERT(conn);
-#ifndef CURL_DISABLE_PROXY
-  if(conn->bits.httpproxy)
-    hostname = conn->http_proxy.host.name;
-  else
-#endif
-    if(conn->bits.conn_to_host)
-      hostname = conn->conn_to_host.name;
-    else
-      hostname = conn->host.name;
-
-  /* check if we have the name resolved by now */
-  dns = Curl_fetch_addr(data, hostname, conn->primary.remote_port);
-
-  if(dns) {
-    /* Tell a possibly async resolver we no longer need the results. */
-    Curl_resolver_set_result(data, dns);
-    result = CURLE_OK;
-    infof(data, "Hostname '%s' was found in DNS cache", hostname);
-  }
-
-  if(!dns)
-    result = Curl_resolv_check(data, &dns);
-
+  result = Curl_resolv_check(data, &dns);
+  CURL_TRC_DNS(data, "Curl_resolv_check() -> %d, %s",
+               result, dns ? "found" : "missing");
   /* Update sockets here, because the socket(s) may have been closed and the
      application thus needs to be told, even if it is likely that the same
      socket(s) will again be used further down. If the name has not yet been
@@ -2530,9 +2508,24 @@ statemachine_end:
     }
 
     if(MSTATE_COMPLETED == data->mstate) {
-      if(data->set.fmultidone) {
-        /* signal via callback instead */
-        data->set.fmultidone(data, result);
+      if(data->master_mid >= 0) {
+        /* A sub transfer, not for msgsent to application */
+        struct Curl_easy *mdata;
+
+        CURL_TRC_M(data, "sub xfer done for master %" FMT_OFF_T,
+                   data->master_mid);
+        mdata = Curl_multi_get_handle(multi, data->master_mid);
+        if(mdata) {
+          if(mdata->sub_xfer_done)
+            mdata->sub_xfer_done(mdata, data, result);
+          else
+            CURL_TRC_M(data, "master easy %" FMT_OFF_T
+                       " without sub_xfer_done.", data->master_mid);
+        }
+        else {
+          CURL_TRC_M(data, "master easy %" FMT_OFF_T " already gone.",
+                     data->master_mid);
+        }
       }
       else {
         /* now fill in the Curl_message with this info */

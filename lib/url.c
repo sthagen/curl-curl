@@ -290,9 +290,7 @@ CURLcode Curl_close(struct Curl_easy **datap)
   Curl_safefree(data->info.contenttype);
   Curl_safefree(data->info.wouldredirect);
 
-  /* this destroys the channel and we cannot use it anymore after this */
-  Curl_resolver_cancel(data);
-  Curl_resolver_cleanup(data->state.async.resolver);
+  Curl_async_destroy(data);
 
   data_priority_cleanup(data);
 
@@ -303,6 +301,7 @@ CURLcode Curl_close(struct Curl_easy **datap)
     Curl_share_unlock(data, CURL_LOCK_DATA_SHARE);
   }
 
+  Curl_hash_destroy(&data->meta_hash);
 #ifndef CURL_DISABLE_PROXY
   Curl_safefree(data->state.aptr.proxyuserpwd);
 #endif
@@ -365,10 +364,6 @@ CURLcode Curl_init_userdefined(struct Curl_easy *data)
   set->filesize = -1;        /* we do not know the size */
   set->postfieldsize = -1;   /* unknown size */
   set->maxredirs = 30;       /* sensible default */
-
-#ifndef CURL_DISABLE_DOH
-  set->dohfor_mid  = -1;
-#endif
 
   set->method = HTTPREQ_GET; /* Default HTTP request */
 #ifndef CURL_DISABLE_RTSP
@@ -488,6 +483,17 @@ CURLcode Curl_init_userdefined(struct Curl_easy *data)
   return result;
 }
 
+/* easy->meta_hash destructor. Should never be called as elements
+ * MUST be added with their own destructor */
+static void easy_meta_freeentry(void *p)
+{
+  (void)p;
+  /* Will always be FALSE. Cannot use a 0 assert here since compilers
+   * are not in agreement if they then want a NORETURN attribute or
+   * not. *sigh* */
+  DEBUGASSERT(p == NULL);
+}
+
 /**
  * Curl_open()
  *
@@ -511,6 +517,8 @@ CURLcode Curl_open(struct Curl_easy **curl)
 
   data->magic = CURLEASY_MAGIC_NUMBER;
 
+  Curl_hash_init(&data->meta_hash, 23,
+                 Curl_hash_str, Curl_str_key_compare, easy_meta_freeentry);
   Curl_dyn_init(&data->state.headerb, CURL_MAX_HTTP_HEADER);
   Curl_req_init(&data->req);
   Curl_initinfo(data);
@@ -518,12 +526,6 @@ CURLcode Curl_open(struct Curl_easy **curl)
   Curl_llist_init(&data->state.httphdrs, NULL);
 #endif
   Curl_netrc_init(&data->state.netrc);
-
-  result = Curl_resolver_init(data, &data->state.async.resolver);
-  if(result) {
-    DEBUGF(fprintf(stderr, "Error: resolver_init failed\n"));
-    goto out;
-  }
 
   result = Curl_init_userdefined(data);
   if(result)
@@ -535,19 +537,17 @@ CURLcode Curl_open(struct Curl_easy **curl)
   /* and not assigned an id yet */
   data->id = -1;
   data->mid = -1;
-#ifndef CURL_DISABLE_DOH
-  data->set.dohfor_mid = -1;
-#endif
+  data->master_mid = -1;
 
   data->progress.flags |= PGRS_HIDE;
   data->state.current_speed = -1; /* init to negative == impossible */
 
 out:
   if(result) {
-    Curl_resolver_cleanup(data->state.async.resolver);
     Curl_dyn_free(&data->state.headerb);
     Curl_freeset(data);
     Curl_req_free(&data->req, data);
+    Curl_hash_destroy(&data->meta_hash);
     free(data);
     data = NULL;
   }
@@ -3173,7 +3173,7 @@ static CURLcode resolve_server(struct Curl_easy *data,
   struct hostname *ehost;
   timediff_t timeout_ms = Curl_timeleft(data, NULL, TRUE);
   const char *peertype = "host";
-  int rc;
+  CURLcode result;
 #ifdef USE_UNIX_SOCKETS
   char *unix_path = conn->unix_domain_socket;
 
@@ -3214,22 +3214,25 @@ static CURLcode resolve_server(struct Curl_easy *data,
   if(!conn->hostname_resolve)
     return CURLE_OUT_OF_MEMORY;
 
-  rc = Curl_resolv_timeout(data, conn->hostname_resolve,
-                           conn->primary.remote_port,
-                           &conn->dns_entry, timeout_ms);
-  if(rc == CURLRESOLV_PENDING)
+  result = Curl_resolv_timeout(data, conn->hostname_resolve,
+                               conn->primary.remote_port, conn->ip_version,
+                               &conn->dns_entry, timeout_ms);
+  if(result == CURLE_AGAIN) {
+    DEBUGASSERT(!conn->dns_entry);
     *async = TRUE;
-  else if(rc == CURLRESOLV_TIMEDOUT) {
+    return CURLE_OK;
+  }
+  else if(result == CURLE_OPERATION_TIMEDOUT) {
     failf(data, "Failed to resolve %s '%s' with timeout after %"
           FMT_TIMEDIFF_T " ms", peertype, ehost->dispname,
           Curl_timediff(Curl_now(), data->progress.t_startsingle));
     return CURLE_OPERATION_TIMEDOUT;
   }
-  else if(!conn->dns_entry) {
+  else if(result) {
     failf(data, "Could not resolve %s: %s", peertype, ehost->dispname);
-    return CURLE_COULDNT_RESOLVE_HOST;
+    return result;
   }
-
+  DEBUGASSERT(conn->dns_entry);
   return CURLE_OK;
 }
 
@@ -3618,12 +3621,10 @@ static CURLcode create_conn(struct Curl_easy *data,
         connections_available = FALSE;
         break;
       case CPOOL_LIMIT_TOTAL:
-#ifndef CURL_DISABLE_DOH
-        if(data->set.dohfor_mid >= 0)
-          infof(data, "Allowing DoH to override max connection limit");
-        else
-#endif
-        {
+        if(data->master_mid >= 0)
+          CURL_TRC_M(data, "Allowing sub-requests (like DoH) to override "
+                     "max connection limit");
+        else {
           infof(data, "No connections available, total of %ld reached.",
                 data->multi->max_total_connections);
           connections_available = FALSE;
