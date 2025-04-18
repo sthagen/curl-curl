@@ -254,7 +254,7 @@ test2064 test2065 test2066 test2067 test2068 test2069 test2070 test2071 \
 test2072 test2073 test2074 test2075 test2076 test2077 test2078 test2079 \
 test2080 test2081 test2082 test2083 test2084 test2085 test2086 test2087 \
 test2088 \
-test2100 test2101 \
+test2100 test2101 test2102 \
 \
 test2200 test2201 test2202 test2203 test2204 test2205 \
 \
@@ -276,6 +276,6 @@ test3032 \
 test3100 test3101 test3102 test3103 test3104 test3105 \
 \
 test3200 test3201 test3202 test3203 test3204 test3205 test3207 test3208 \
-test3209 test3210
+test3209 test3210 test3211 test3212 test3213
 
 EXTRA_DIST = $(TESTCASES) DISABLED
