@@ -115,7 +115,7 @@ UNITTEST DOHcode doh_req_encode(const char *host,
   if(host[hostlen-1]!='.')
     expected_len++;
 
-  if(expected_len > (256 + 16)) /* RFCs 1034, 1035 */
+  if(expected_len > DOH_MAX_DNSREQ_SIZE)
     return DOH_DNS_NAME_TOO_LONG;
 
   if(len < expected_len)
@@ -1295,7 +1295,7 @@ CURLcode Curl_doh_is_resolved(struct Curl_easy *data,
       if(dns) {
         /* Now add and HTTPSRR information if we have */
 #ifdef USE_HTTPSRR
-        if(de.numhttps_rrs > 0 && result == CURLE_OK && *dnsp) {
+        if(de.numhttps_rrs > 0 && result == CURLE_OK) {
           struct Curl_https_rrinfo *hrr = NULL;
           result = doh_resp_decode_httpsrr(data, de.https_rrs->val,
                                            de.https_rrs->len, &hrr);
