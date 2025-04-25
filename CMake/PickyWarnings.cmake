@@ -27,10 +27,14 @@ set(_picky "")
 set(_picky_nocheck "")  # not to pass to feature checks
 
 if(CURL_WERROR)
-  if(MSVC)
-    list(APPEND _picky_nocheck "-WX")
-  else()  # llvm/clang and gcc style options
-    list(APPEND _picky_nocheck "-Werror")
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.24)
+    set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
+  else()
+    if(MSVC)
+      list(APPEND _picky_nocheck "-WX")
+    else()  # llvm/clang and gcc style options
+      list(APPEND _picky_nocheck "-Werror")
+    endif()
   endif()
 
   if((CMAKE_C_COMPILER_ID STREQUAL "GNU" AND
@@ -52,9 +56,7 @@ if(CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID MATCHES "Clang")
 endif()
 
 if(MSVC)
-  # Use the highest warning level for Visual Studio.
-  string(REGEX REPLACE "[/-]W[0-4]" "" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
-  list(APPEND _picky "-W4")
+  list(APPEND _picky "-W4")  # Use the highest warning level for Visual Studio.
 elseif(BORLAND)
   list(APPEND _picky "-w-")  # Disable warnings on Borland to avoid changing 3rd party code.
 endif()
