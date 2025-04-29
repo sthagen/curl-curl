@@ -895,9 +895,6 @@ struct connectdata {
 #ifdef USE_OPENLDAP
     struct ldapconninfo *ldapc;
 #endif
-#ifndef CURL_DISABLE_MQTT
-    struct mqtt_conn mqtt;
-#endif
     unsigned int unused:1; /* avoids empty union */
   } proto;
 
@@ -1196,10 +1193,13 @@ struct UrlState {
 #if defined(USE_OPENSSL)
   /* void instead of ENGINE to avoid bleeding OpenSSL into this header */
   void *engine;
-  /* this is just a flag -- we do not need to reference the provider in any
-   * way as OpenSSL takes care of that */
-  BIT(provider);
-  BIT(provider_failed);
+  /* void instead of OSSL_PROVIDER */
+  void *provider;
+  void *baseprov;
+  void *libctx;
+  char *propq; /* for a provider */
+
+  BIT(provider_loaded);
 #endif /* USE_OPENSSL */
   struct curltime expiretime; /* set this with Curl_expire() only */
   struct Curl_tree timenode; /* for the splay stuff */
