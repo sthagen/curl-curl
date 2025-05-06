@@ -175,7 +175,6 @@ typedef ssize_t (Curl_recv)(struct Curl_easy *data,   /* transfer */
 
 #include "mime.h"
 #include "imap.h"
-#include "pop3.h"
 #include "smtp.h"
 #include "ftp.h"
 #include "file.h"
@@ -720,8 +719,6 @@ struct proxy_info {
   char *passwd;  /* proxy password string, allocated */
 };
 
-struct ldapconninfo;
-
 #define TRNSPRT_TCP 3
 #define TRNSPRT_UDP 4
 #define TRNSPRT_QUIC 5
@@ -866,20 +863,11 @@ struct connectdata {
 #endif
 
   union {
-#ifndef CURL_DISABLE_FTP
-    struct ftp_conn ftpc;
-#endif
 #ifdef USE_SSH
     struct ssh_conn sshc;
 #endif
-#ifndef CURL_DISABLE_TFTP
-    struct tftp_state_data *tftpc;
-#endif
 #ifndef CURL_DISABLE_IMAP
     struct imap_conn imapc;
-#endif
-#ifndef CURL_DISABLE_POP3
-    struct pop3_conn pop3c;
 #endif
 #ifndef CURL_DISABLE_SMTP
     struct smtp_conn smtpc;
@@ -887,14 +875,8 @@ struct connectdata {
 #ifndef CURL_DISABLE_RTSP
     struct rtsp_conn rtspc;
 #endif
-#ifndef CURL_DISABLE_SMB
-    struct smb_conn smbc;
-#endif
 #ifdef USE_LIBRTMP
     void *rtmp;
-#endif
-#ifdef USE_OPENLDAP
-    struct ldapconninfo *ldapc;
 #endif
     unsigned int unused:1; /* avoids empty union */
   } proto;
