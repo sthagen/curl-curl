@@ -31,7 +31,7 @@
  * be.
  */
 
-#include "../nonblock.h"
+#include "nonblock.h"
 /* "nonblock.h" provides curlx_nonblock() */
 
 #include "warnless.h"
@@ -42,8 +42,8 @@
   curlx_uztosi()
 */
 
-#include "../curl_multibyte.h"
-/* "curl_multibyte.h" provides these functions and macros:
+#include "multibyte.h"
+/* "multibyte.h" provides these functions and macros:
 
   curlx_convert_UTF8_to_wchar()
   curlx_convert_wchar_to_UTF8()
@@ -52,8 +52,8 @@
   curlx_unicodefree()
 */
 
-#include "../version_win32.h"
-/* "version_win32.h" provides curlx_verify_windows_version() */
+#include "version_win32.h"
+/* provides curlx_verify_windows_version() */
 
 #include "strparse.h"
 /* The curlx_str_* parsing functions */
@@ -64,9 +64,5 @@
 #include "base64.h"
 #include "timeval.h"
 #include "timediff.h"
-
-#include "../curl_get_line.h"
-
-#define curlx_safefree(x) Curl_safefree(x)
 
 #endif /* HEADER_CURL_CURLX_H */

@@ -33,27 +33,24 @@
 # the official API, but we reuse the code here to avoid duplication.
 CURLX_CFILES = \
   ../lib/curlx/base64.c \
-  ../lib/curl_multibyte.c \
+  ../lib/curlx/multibyte.c \
   ../lib/curlx/dynbuf.c \
-  ../lib/nonblock.c \
+  ../lib/curlx/nonblock.c \
   ../lib/curlx/strparse.c \
-  ../lib/strcase.c \
   ../lib/curlx/timediff.c \
   ../lib/curlx/timeval.c \
-  ../lib/version_win32.c \
+  ../lib/curlx/version_win32.c \
   ../lib/curlx/warnless.c
 
 CURLX_HFILES = \
-  ../lib/curl_ctype.h \
-  ../lib/curl_multibyte.h \
+  ../lib/curlx/multibyte.h \
   ../lib/curl_setup.h \
   ../lib/curlx/dynbuf.h \
-  ../lib/nonblock.h \
+  ../lib/curlx/nonblock.h \
   ../lib/curlx/strparse.h \
-  ../lib/strcase.h \
   ../lib/curlx/timediff.h \
   ../lib/curlx/timeval.h \
-  ../lib/version_win32.h \
+  ../lib/curlx/version_win32.h \
   ../lib/curlx/warnless.h
 
 CURL_CFILES = \

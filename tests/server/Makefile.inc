@@ -30,7 +30,7 @@ MEMDEBUG = \
 
 CURLX_SRCS = \
   ../../lib/mprintf.c \
-  ../../lib/nonblock.c \
+  ../../lib/curlx/nonblock.c \
   ../../lib/curlx/strparse.c \
   ../../lib/strequal.c \
   ../../lib/curlx/warnless.c \
@@ -39,14 +39,13 @@ CURLX_SRCS = \
   ../../lib/curlx/dynbuf.c \
   ../../lib/strcase.c \
   ../../lib/strdup.c \
-  ../../lib/curl_get_line.c \
-  ../../lib/curl_multibyte.c \
-  ../../lib/version_win32.c
+  ../../lib/curlx/multibyte.c \
+  ../../lib/curlx/version_win32.c
 
 CURLX_HDRS = \
   ../../lib/curlx/curlx.h \
   ../../lib/curl_ctype.h \
-  ../../lib/nonblock.h \
+  ../../lib/curlx/nonblock.h \
   ../../lib/strcase.h \
   ../../lib/curlx/warnless.h \
   ../../lib/curlx/timediff.h \
@@ -54,9 +53,8 @@ CURLX_HDRS = \
   ../../lib/curlx/dynbuf.h \
   ../../lib/strcase.h \
   ../../lib/strdup.h \
-  ../../lib/curl_get_line.h \
-  ../../lib/curl_multibyte.h \
-  ../../lib/version_win32.h
+  ../../lib/curlx/multibyte.h \
+  ../../lib/curlx/version_win32.h
 
 UTIL = \
   getpart.c \
