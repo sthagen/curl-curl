@@ -31,10 +31,6 @@
 /* The last #include file should be: */
 #include "memdebug.h"
 
-/*
- * If SIZEOF_SIZE_T has not been defined, default to the size of long.
- */
-
 #ifdef HAVE_LONGLONG
 #  define LONG_LONG_TYPE long long
 #  define HAVE_LONG_LONG_TYPE
@@ -68,10 +64,10 @@
 #endif
 
 /* Lower-case digits.  */
-static const char lower_digits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
+const unsigned char Curl_ldigits[] = "0123456789abcdef";
 
 /* Upper-case digits.  */
-static const char upper_digits[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const unsigned char Curl_udigits[] = "0123456789ABCDEF";
 
 #define OUTCHAR(x)                                      \
   do {                                                  \
@@ -649,7 +645,7 @@ static int formatf(
   va_list ap_save) /* list of parameters */
 {
   static const char nilstr[] = "(nil)";
-  const char *digits = lower_digits;   /* Base-36 digits for numbers.  */
+  const unsigned char *digits = Curl_ldigits;
   int done = 0;   /* number of characters written  */
   int i;
   int ocount = 0; /* number of output segments */
@@ -752,7 +748,7 @@ static int formatf(
       }
       else if(flags & FLAGS_HEX) {
         /* Hexadecimal unsigned integer */
-        digits = (flags & FLAGS_UPPER) ? upper_digits : lower_digits;
+        digits = (flags & FLAGS_UPPER) ? Curl_udigits : Curl_ldigits;
         base = 16;
         is_neg = FALSE;
       }
@@ -781,6 +777,7 @@ number:
 
       /* Put the number in WORK.  */
       w = workend;
+      DEBUGASSERT(base <= 16);
       switch(base) {
       case 10:
         while(num > 0) {
@@ -898,7 +895,7 @@ number:
       if(iptr->val.ptr) {
         /* If the pointer is not NULL, write it as a %#x spec.  */
         base = 16;
-        digits = (flags & FLAGS_UPPER) ? upper_digits : lower_digits;
+        digits = (flags & FLAGS_UPPER) ? Curl_udigits : Curl_ldigits;
         is_alt = TRUE;
         num = (size_t) iptr->val.ptr;
         is_neg = FALSE;

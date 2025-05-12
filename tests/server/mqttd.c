@@ -60,7 +60,7 @@
 #include "tool_binmode.h"
 
 /* include memdebug.h last */
-#include "memdebug.h"
+#include <memdebug.h>
 
 #define MQTT_MSG_CONNECT    0x10
 #define MQTT_MSG_CONNACK    0x20
@@ -583,6 +583,12 @@ static curl_socket_t mqttit(curl_socket_t fd)
 
       logmsg("SUBSCRIBE to '%s' [%d]", topic, packet_id);
       stream = test2fopen(testno, logdir);
+      if(!stream) {
+        error = errno;
+        logmsg("fopen() failed with error (%d) %s", error, strerror(error));
+        logmsg("Couldn't open test file %ld", testno);
+        goto end;
+      }
       error = getpart(&data, &datalen, "reply", "data", stream);
       if(!error) {
         if(!m_config.publish_before_suback) {
