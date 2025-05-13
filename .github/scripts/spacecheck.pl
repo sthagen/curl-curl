@@ -68,8 +68,6 @@ my @non_ascii = (
     "docs/CIPHERS.md",
     "docs/THANKS",
     "docs/THANKS-filter",
-    "tests/libtest/lib1560.c",
-    "^tests/data/test",
 );
 
 sub fn_match {
@@ -159,11 +157,19 @@ while(my $filename = <$git_ls_files>) {
         push @err, "content: has binary contents";
     }
 
-    $content =~ s/[$non_ascii_allowed]//g;
+    if($filename !~ /tests\/data/) {
+        # the tests have no allowed UTF bytes
+        $content =~ s/[$non_ascii_allowed]//g;
+    }
 
     if(!fn_match($filename, @non_ascii) &&
-       $content =~ /([\x80-\xff]+)/) {
-        push @err, "content: has non-ASCII: '$1'";
+       ($content =~ /([\x80-\xff]+)/)) {
+        my $non = $1;
+        my $hex;
+        for my $e (split(//, $non)) {
+            $hex .= sprintf("%s%02x", $hex ? " ": "", ord($e));
+        }
+        push @err, "content: has non-ASCII: '$non' ($hex)";
     }
 
     if(@err) {

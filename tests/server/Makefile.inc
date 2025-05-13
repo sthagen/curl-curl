@@ -29,41 +29,33 @@ MEMDEBUG = \
   ../../lib/memdebug.h
 
 CURLX_SRCS = \
-  ../../lib/mprintf.c \
+  ../../lib/curlx/base64.c \
+  ../../lib/curlx/multibyte.c \
   ../../lib/curlx/nonblock.c \
   ../../lib/curlx/strparse.c \
-  ../../lib/strequal.c \
-  ../../lib/curlx/warnless.c \
   ../../lib/curlx/timediff.c \
   ../../lib/curlx/timeval.c \
-  ../../lib/curlx/dynbuf.c \
-  ../../lib/strcase.c \
-  ../../lib/curlx/multibyte.c \
-  ../../lib/curlx/version_win32.c
+  ../../lib/curlx/version_win32.c \
+  ../../lib/curlx/warnless.c \
+  ../../lib/curlx/winapi.c
 
 CURLX_HDRS = \
+  ../../lib/curlx/base64.h \
   ../../lib/curlx/curlx.h \
-  ../../lib/curl_ctype.h \
+  ../../lib/curlx/multibyte.h \
   ../../lib/curlx/nonblock.h \
-  ../../lib/strcase.h \
-  ../../lib/curlx/warnless.h \
   ../../lib/curlx/timediff.h \
   ../../lib/curlx/timeval.h \
-  ../../lib/curlx/dynbuf.h \
-  ../../lib/strcase.h \
-  ../../lib/curlx/multibyte.h \
-  ../../lib/curlx/version_win32.h
+  ../../lib/curlx/version_win32.h \
+  ../../lib/curlx/warnless.h \
+  ../../lib/curlx/winapi.h
 
 UTIL = \
   getpart.c \
   getpart.h \
   util.c \
   util.h \
-  server_setup.h \
-  ../../lib/curlx/base64.c \
-  ../../lib/curlx/base64.h \
-  ../../lib/curlx/winapi.c \
-  ../../lib/curlx/winapi.h
+  server_setup.h
 
 FIRSTFILES = \
   first.c \
