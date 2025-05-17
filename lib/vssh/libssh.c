@@ -877,8 +877,6 @@ static int myssh_state_upload_init(struct Curl_easy *data,
           return rc;
         }
       } while(passed < data->state.resume_from);
-      if(rc)
-        return rc;
     }
 
     /* now, decrease the size of the read */
@@ -2460,7 +2458,7 @@ static CURLcode myssh_done(struct Curl_easy *data,
   CURLcode result = CURLE_OK;
   struct SSHPROTO *sshp = Curl_meta_get(data, CURL_META_SSH_EASY);
 
-  if(!status) {
+  if(!status && sshp) {
     /* run the state-machine */
     result = myssh_block_statemach(data, sshc, sshp, FALSE);
   }
