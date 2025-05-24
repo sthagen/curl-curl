@@ -978,9 +978,6 @@ struct Progress {
   curl_off_t current_speed; /* uses the currently fastest transfer */
   curl_off_t earlydata_sent;
 
-  int width; /* screen width at download start */
-  int flags; /* see progress.h */
-
   timediff_t timespent;
 
   timediff_t t_postqueue;
@@ -1002,7 +999,11 @@ struct Progress {
 
   curl_off_t speeder[ CURR_TIME ];
   struct curltime speeder_time[ CURR_TIME ];
-  int speeder_c;
+  unsigned char speeder_c;
+  BIT(hide);
+  BIT(ul_size_known);
+  BIT(dl_size_known);
+  BIT(headers_out); /* when the headers have been written */
   BIT(callback);  /* set when progress callback is used */
   BIT(is_t_startransfer_set);
 };
@@ -1717,7 +1718,6 @@ struct UserDefined {
                             us */
   BIT(wildcard_enabled); /* enable wildcard matching */
 #endif
-  BIT(hide_progress);    /* do not use the progress meter */
   BIT(http_fail_on_error);  /* fail on HTTP error codes >= 400 */
   BIT(http_keep_sending_on_error); /* for HTTP status codes >= 300 */
   BIT(http_transfer_encoding); /* request compressed HTTP transfer-encoding */

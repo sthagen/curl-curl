@@ -395,9 +395,6 @@ CURLcode Curl_init_userdefined(struct Curl_easy *data)
   set->socks5auth = CURLAUTH_BASIC | CURLAUTH_GSSAPI;
 #endif
 
-  /* make libcurl quiet by default: */
-  set->hide_progress = TRUE;  /* CURLOPT_NOPROGRESS changes these */
-
   Curl_mime_initpart(&set->mimepost);
 
   Curl_ssl_easy_config_init(data);
@@ -532,7 +529,7 @@ CURLcode Curl_open(struct Curl_easy **curl)
   data->id = -1;
   data->mid = UINT_MAX;
   data->master_mid = UINT_MAX;
-  data->progress.flags |= PGRS_HIDE;
+  data->progress.hide = TRUE;
   data->state.current_speed = -1; /* init to negative == impossible */
 
   Curl_hash_init(&data->meta_hash, 23,
