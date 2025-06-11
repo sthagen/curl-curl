@@ -168,6 +168,8 @@ CURLcode Curl_output_ntlm(struct Curl_easy *data, bool proxy)
     authp = &data->state.authhost;
   }
   ntlm = Curl_auth_ntlm_get(conn, proxy);
+  if(!ntlm)
+    return CURLE_OUT_OF_MEMORY;
   authp->done = FALSE;
 
   /* not set means empty */
@@ -178,10 +180,10 @@ CURLcode Curl_output_ntlm(struct Curl_easy *data, bool proxy)
     passwdp = "";
 
 #ifdef USE_WINDOWS_SSPI
-  if(!Curl_hSecDll) {
+  if(!Curl_pSecFn) {
     /* not thread safe and leaks - use curl_global_init() to avoid */
     CURLcode err = Curl_sspi_global_init();
-    if(!Curl_hSecDll)
+    if(!Curl_pSecFn)
       return err;
   }
 #ifdef SECPKG_ATTR_ENDPOINT_BINDINGS
