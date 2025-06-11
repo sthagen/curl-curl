@@ -122,6 +122,12 @@
 static void ossl_provider_cleanup(struct Curl_easy *data);
 #endif
 
+#if (OPENSSL_VERSION_NUMBER >= 0x10100000L && \
+     !defined(LIBRESSL_VERSION_NUMBER) && \
+     !defined(OPENSSL_IS_BORINGSSL))
+  #define HAVE_SSL_CTX_SET_DEFAULT_READ_BUFFER_LEN 1
+#endif
+
 #include "../curlx/warnless.h"
 
 /* The last #include files should be: */
@@ -717,22 +723,23 @@ static int ossl_bio_cf_out_write(BIO *bio, const char *buf, int blen)
   struct ssl_connect_data *connssl = cf->ctx;
   struct ossl_ctx *octx = (struct ossl_ctx *)connssl->backend;
   struct Curl_easy *data = CF_DATA_CURRENT(cf);
-  ssize_t nwritten;
-  CURLcode result = CURLE_SEND_ERROR;
+  size_t nwritten;
+  CURLcode result;
 
   DEBUGASSERT(data);
   if(blen < 0)
     return 0;
 
-  nwritten = Curl_conn_cf_send(cf->next, data, buf, (size_t)blen, FALSE,
-                               &result);
-  CURL_TRC_CF(data, cf, "ossl_bio_cf_out_write(len=%d) -> %d, err=%d",
-              blen, (int)nwritten, result);
+  result = Curl_conn_cf_send(cf->next, data, buf, (size_t)blen, FALSE,
+                             &nwritten);
+  CURL_TRC_CF(data, cf, "ossl_bio_cf_out_write(len=%d) -> %d, %zu",
+              blen, result, nwritten);
   BIO_clear_retry_flags(bio);
   octx->io_result = result;
-  if(nwritten < 0) {
+  if(result) {
     if(CURLE_AGAIN == result)
       BIO_set_retry_write(bio);
+    return -1;
   }
   return (int)nwritten;
 }
@@ -743,8 +750,8 @@ static int ossl_bio_cf_in_read(BIO *bio, char *buf, int blen)
   struct ssl_connect_data *connssl = cf->ctx;
   struct ossl_ctx *octx = (struct ossl_ctx *)connssl->backend;
   struct Curl_easy *data = CF_DATA_CURRENT(cf);
-  ssize_t nread;
-  CURLcode result = CURLE_RECV_ERROR;
+  size_t nread;
+  CURLcode result, r2;
 
   DEBUGASSERT(data);
   /* OpenSSL catches this case, so should we. */
@@ -753,12 +760,12 @@ static int ossl_bio_cf_in_read(BIO *bio, char *buf, int blen)
   if(blen < 0)
     return 0;
 
-  nread = Curl_conn_cf_recv(cf->next, data, buf, (size_t)blen, &result);
-  CURL_TRC_CF(data, cf, "ossl_bio_cf_in_read(len=%d) -> %d, err=%d",
-              blen, (int)nread, result);
+  result = Curl_conn_cf_recv(cf->next, data, buf, (size_t)blen, &nread);
+  CURL_TRC_CF(data, cf, "ossl_bio_cf_in_read(len=%d) -> %d, %zu",
+              blen, result, nread);
   BIO_clear_retry_flags(bio);
   octx->io_result = result;
-  if(nread < 0) {
+  if(result) {
     if(CURLE_AGAIN == result)
       BIO_set_retry_read(bio);
   }
@@ -769,15 +776,14 @@ static int ossl_bio_cf_in_read(BIO *bio, char *buf, int blen)
   /* Before returning server replies to the SSL instance, we need
    * to have setup the x509 store or verification will fail. */
   if(!octx->x509_store_setup) {
-    result = Curl_ssl_setup_x509_store(cf, data, octx->ssl_ctx);
-    if(result) {
-      octx->io_result = result;
+    r2 = Curl_ssl_setup_x509_store(cf, data, octx->ssl_ctx);
+    if(r2) {
+      octx->io_result = r2;
       return -1;
     }
     octx->x509_store_setup = TRUE;
   }
-
-  return (int)nread;
+  return result ? -1 : (int)nread;
 }
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
@@ -4112,6 +4118,21 @@ CURLcode Curl_ossl_ctx_init(struct ossl_ctx *octx,
   }
 
   SSL_CTX_set_options(octx->ssl_ctx, ctx_options);
+  SSL_CTX_set_read_ahead(octx->ssl_ctx, 1);
+
+  /* Max TLS1.2 record size 0x4000 + 0x800.
+     OpenSSL supports processing "jumbo TLS record" (8 TLS records) in one go
+     for some algorithms, so match that here.
+     Experimentation shows that a slightly larger buffer is needed
+      to avoid short reads.
+
+     However using a large buffer (8 packets) actually decreases performance.
+     4 packets is better.
+   */
+
+#ifdef HAVE_SSL_CTX_SET_DEFAULT_READ_BUFFER_LEN
+  SSL_CTX_set_default_read_buffer_len(octx->ssl_ctx, 0x401e * 4);
+#endif
 
 #ifdef SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER
   /* We do retry writes sometimes from another buffer address */
