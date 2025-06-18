@@ -31,16 +31,14 @@ if(LIB_SELECTED STREQUAL LIB_SHARED)
   list(APPEND _bundle_extra ${CURLX_SRCS})  # Not exported from the libcurl shared build. Build a copy.
 endif()
 
-add_custom_command(
-  OUTPUT "lib1521.c"
+add_custom_command(OUTPUT "lib1521.c"
   COMMAND ${PERL_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/mk-lib1521.pl" < "${PROJECT_SOURCE_DIR}/include/curl/curl.h" "lib1521.c"
   DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/mk-lib1521.pl"
     "${PROJECT_SOURCE_DIR}/include/curl/curl.h"
   VERBATIM)
 
-add_custom_command(
-  OUTPUT "${BUNDLE_SRC}"
+add_custom_command(OUTPUT "${BUNDLE_SRC}"
   COMMAND ${PERL_EXECUTABLE} "${PROJECT_SOURCE_DIR}/scripts/mk-unity.pl"
     --include ${UTILS} ${_bundle_extra} --test ${TESTFILES} "lib1521.c"
     ${CURL_MK_UNITY_OPTION} --srcdir "${CMAKE_CURRENT_SOURCE_DIR}" > "${BUNDLE_SRC}"
@@ -51,7 +49,6 @@ add_custom_command(
 
 add_executable(libtests EXCLUDE_FROM_ALL "${BUNDLE_SRC}")
 add_dependencies(testdeps libtests)
-target_link_libraries(libtests ${LIB_SELECTED} ${CURL_LIBS})
 target_include_directories(libtests PRIVATE
   "${PROJECT_BINARY_DIR}/lib"            # for "curl_config.h"
   "${PROJECT_SOURCE_DIR}/lib"            # for "curl_setup.h"
@@ -60,5 +57,6 @@ target_include_directories(libtests PRIVATE
   "${PROJECT_SOURCE_DIR}/tests/libtest"  # to be able to build generated tests
   "${PROJECT_SOURCE_DIR}/tests/unit"     # for curlcheck.h
 )
+target_link_libraries(libtests ${LIB_SELECTED} ${CURL_LIBS})
 set_property(TARGET libtests APPEND PROPERTY COMPILE_DEFINITIONS "${CURL_DEBUG_MACROS}" "CURL_NO_OLDIES" "CURL_DISABLE_DEPRECATION")
 set_target_properties(libtests PROPERTIES OUTPUT_NAME "${BUNDLE}" PROJECT_LABEL "Test ${BUNDLE}" UNITY_BUILD OFF)
