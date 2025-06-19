@@ -50,7 +50,6 @@
 
 #include <curlx.h> /* from the private lib dir */
 #include "getpart.h"
-#include "util.h"
 
 /* include memdebug.h last */
 #include <memdebug.h>
@@ -965,13 +964,13 @@ static int rtspd_send_doc(curl_socket_t sock, struct rtspd_httprequest *req)
           quarters = num * 4;
           while(quarters > 0) {
             quarters--;
-            res = wait_ms(250);
+            res = curlx_wait_ms(250);
             if(got_exit_signal)
               break;
             if(res) {
               /* should not happen */
               error = SOCKERRNO;
-              logmsg("wait_ms() failed with error (%d) %s",
+              logmsg("curlx_wait_ms() failed with error (%d) %s",
                      error, sstrerror(error));
               break;
             }

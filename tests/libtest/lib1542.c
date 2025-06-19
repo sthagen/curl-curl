@@ -31,9 +31,9 @@
  */
 
 #include "test.h"
+
 #include "testutil.h"
 #include "testtrace.h"
-#include "warnless.h"
 #include "memdebug.h"
 
 static CURLcode test_lib1542(char *URL)
@@ -63,7 +63,7 @@ static CURLcode test_lib1542(char *URL)
 
   /* CURLOPT_MAXLIFETIME_CONN is inclusive - the connection needs to be 2
    * seconds old */
-  sleep(2);
+  curlx_wait_ms(2000);
 
   res = curl_easy_perform(easy);
   if(res)

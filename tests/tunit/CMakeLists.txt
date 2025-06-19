@@ -33,17 +33,18 @@ add_custom_command(OUTPUT "${BUNDLE_SRC}"
     "${PROJECT_SOURCE_DIR}/scripts/mk-unity.pl" "${CMAKE_CURRENT_SOURCE_DIR}/Makefile.inc" ${FIRSTFILES} ${TESTFILES}
   VERBATIM)
 
-add_executable(tunits EXCLUDE_FROM_ALL ${UTILS} "${BUNDLE_SRC}")
-add_dependencies(testdeps tunits)
-target_link_libraries(tunits curltool curlu)
-target_include_directories(tunits PRIVATE
+add_executable(${BUNDLE} EXCLUDE_FROM_ALL ${UTILS} "${BUNDLE_SRC}")
+add_dependencies(testdeps ${BUNDLE})
+target_link_libraries(${BUNDLE} curltool curlu)
+target_include_directories(${BUNDLE} PRIVATE
   "${PROJECT_BINARY_DIR}/lib"            # for "curl_config.h"
   "${PROJECT_SOURCE_DIR}/lib"            # for "curl_setup.h"
   "${PROJECT_SOURCE_DIR}/lib/curlx"      # for curlx
-  "${PROJECT_SOURCE_DIR}/src"
-  "${PROJECT_SOURCE_DIR}/tests/libtest"
-  "${PROJECT_SOURCE_DIR}/tests/unit"     # for curlcheck.h
-  "${PROJECT_SOURCE_DIR}/tests/tunit"
+  "${PROJECT_SOURCE_DIR}/src"            # for tool headers
+  "${PROJECT_SOURCE_DIR}/tests/libtest"  # for "first.h"
+  "${PROJECT_SOURCE_DIR}/tests/unit"     # for "curlcheck.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}"          # for the generated bundle source to find included test sources
 )
-set_property(TARGET tunits APPEND PROPERTY COMPILE_DEFINITIONS "${CURL_DEBUG_MACROS}" "CURL_NO_OLDIES" "CURL_DISABLE_DEPRECATION")
-set_target_properties(tunits PROPERTIES OUTPUT_NAME "${BUNDLE}" PROJECT_LABEL "Test ${BUNDLE}" UNITY_BUILD OFF)
+set_property(TARGET ${BUNDLE} APPEND PROPERTY COMPILE_DEFINITIONS "${CURL_DEBUG_MACROS}")
+set_property(TARGET ${BUNDLE} APPEND PROPERTY COMPILE_DEFINITIONS "CURL_NO_OLDIES" "CURL_DISABLE_DEPRECATION")
+set_target_properties(${BUNDLE} PROPERTIES OUTPUT_NAME "${BUNDLE}" PROJECT_LABEL "Test ${BUNDLE}" UNITY_BUILD OFF)

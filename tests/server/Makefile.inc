@@ -30,9 +30,9 @@ BUNDLE_SRC = servers.c
 FIRSTFILES = first.c first.h
 
 # Common files used by test programs
-UTILS = getpart.c getpart.h util.c util.h
+UTILS = getpart.c getpart.h util.c
 
-CURLX_SRCS = \
+CURLX_CFILES = \
   ../../lib/curlx/base64.c \
   ../../lib/curlx/inet_pton.c \
   ../../lib/curlx/multibyte.c \
@@ -41,6 +41,7 @@ CURLX_SRCS = \
   ../../lib/curlx/timediff.c \
   ../../lib/curlx/timeval.c \
   ../../lib/curlx/version_win32.c \
+  ../../lib/curlx/wait.c \
   ../../lib/curlx/warnless.c \
   ../../lib/curlx/winapi.c
 

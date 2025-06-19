@@ -71,8 +71,7 @@
 #include <netdb.h>
 #endif
 #ifdef HAVE_SYS_FILIO_H
-/* FIONREAD on Solaris 7 */
-#include <sys/filio.h>
+#include <sys/filio.h>  /* FIONREAD on Solaris 7 */
 #endif
 
 #include <setjmp.h>
@@ -85,7 +84,6 @@
 
 #include <curlx.h> /* from the private lib dir */
 #include "getpart.h"
-#include "util.h"
 
 /*****************************************************************************
 *  This is a rewrite/clone of the arpa/tftp.h file for systems without it.   *
@@ -180,9 +178,6 @@ struct bf {
 #define opcode_ERROR 5
 
 #define TIMEOUT      5
-
-#undef MIN
-#define MIN(x,y) ((x)<(y)?(x):(y))
 
 #define REQUEST_DUMP  "server.input"
 
@@ -394,7 +389,7 @@ static void read_ahead(struct testcase *test,
   if(convert == 0) {
     /* The former file reading code did this:
        b->counter = read(fileno(file), dp->th_data, SEGSIZE); */
-    size_t copy_n = MIN(SEGSIZE, test->rcount);
+    size_t copy_n = CURLMIN(SEGSIZE, test->rcount);
     memcpy(dp->th_data, test->rptr, copy_n);
 
     /* decrease amount, advance pointer */
@@ -1209,7 +1204,7 @@ static void sendtftp(struct testcase *test, const struct formats *pf)
     if(test->writedelay) {
       logmsg("Pausing %d seconds before %d bytes", test->writedelay,
              size);
-      wait_ms(1000*test->writedelay);
+      curlx_wait_ms(1000*test->writedelay);
     }
 
 send_data:

@@ -31,16 +31,16 @@ AUTOMAKE_OPTIONS = foreign nostdinc
 # $(top_srcdir)/include is for libcurl's external include files
 # $(top_builddir)/lib is for libcurl's generated lib/curl_config.h file
 # $(top_srcdir)/lib for libcurl's lib/curl_setup.h and other "borrowed" files
+# $(srcdir) for the generated bundle source to find included test sources
 
 AM_CPPFLAGS = -I$(top_srcdir)/include        \
               -I$(top_builddir)/lib          \
               -I$(top_srcdir)/lib            \
               -I$(top_srcdir)/lib/curlx      \
-              -I$(top_srcdir)/src            \
-              -I$(top_srcdir)/tests/libtest  \
+              -I$(srcdir)                    \
               -I$(top_srcdir)/tests/unit
 
-# Get BUNDLE, BUNDLE_SRC, FIRSTFILES, UTILS, CURLX_SRCS, TESTFILES variables
+# Get BUNDLE, BUNDLE_SRC, FIRSTFILES, UTILS, CURLX_CFILES, TESTFILES, STUB_GSS variables
 include Makefile.inc
 
 EXTRA_DIST = CMakeLists.txt .checksrc $(FIRSTFILES) $(UTILS) $(TESTFILES) \
@@ -53,9 +53,6 @@ CFLAGS += @CURL_CFLAG_EXTRAS@
 # Prevent LIBS from being used for all link targets
 LIBS = $(BLANK_AT_MAKETIME)
 
-# Dependencies (may need to be overridden)
-LDADD = $(top_builddir)/lib/libcurl.la @LIBCURL_PC_LIBS_PRIVATE@
-
 noinst_LTLIBRARIES =
 
 if USE_CPPFLAG_CURL_STATICLIB
@@ -67,7 +64,6 @@ endif
 if CURLDEBUG
 AM_CPPFLAGS += -DCURLDEBUG
 endif
-
 AM_CPPFLAGS += -DCURL_NO_OLDIES -DCURL_DISABLE_DEPRECATION
 
 AM_LDFLAGS =
@@ -83,22 +79,23 @@ if CURL_LT_SHLIB_USE_NO_UNDEFINED
 libstubgss_la_LDFLAGS += -no-undefined
 endif
 libstubgss_la_CFLAGS = $(AM_CFLAGS) -g
-libstubgss_la_SOURCES = stub_gssapi.c stub_gssapi.h
+libstubgss_la_SOURCES = $(STUB_GSS)
 libstubgss_la_LIBADD =
 libstubgss_la_DEPENDENCIES =
 endif
 
-bundle_extra =
 if USE_CPPFLAG_CURL_STATICLIB
+curlx_src =
 else
 # These are part of the libcurl static lib. Add them here when linking shared.
-bundle_extra += $(CURLX_SRCS)
+curlx_src = $(CURLX_CFILES)
 endif
-$(BUNDLE_SRC): $(top_srcdir)/scripts/mk-unity.pl Makefile.inc $(FIRSTFILES) $(UTILS) $(bundle_extra) $(TESTFILES) lib1521.c
-	@PERL@ $(top_srcdir)/scripts/mk-unity.pl --include $(UTILS) $(bundle_extra) --test $(TESTFILES) lib1521.c > $(BUNDLE_SRC)
+$(BUNDLE_SRC): $(top_srcdir)/scripts/mk-unity.pl Makefile.inc $(FIRSTFILES) $(UTILS) $(curlx_src) $(TESTFILES) lib1521.c
+	@PERL@ $(top_srcdir)/scripts/mk-unity.pl --include $(UTILS) $(curlx_src) --test $(TESTFILES) lib1521.c > $(BUNDLE_SRC)
 
 noinst_PROGRAMS = $(BUNDLE)
-nodist_libtests_SOURCES = $(BUNDLE_SRC)
+nodist_SOURCES = $(BUNDLE_SRC)
+LDADD = $(top_builddir)/lib/libcurl.la
 CLEANFILES = $(BUNDLE_SRC) lib1521.c
 
 lib1521.c: $(top_srcdir)/tests/libtest/mk-lib1521.pl $(top_srcdir)/include/curl/curl.h

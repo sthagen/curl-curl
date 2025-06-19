@@ -31,6 +31,7 @@ AUTOMAKE_OPTIONS = foreign nostdinc
 # $(top_srcdir)/include is for libcurl's external include files
 # $(top_builddir)/lib is for libcurl's generated lib/curl_config.h file
 # $(top_srcdir)/lib for libcurl's lib/curl_setup.h and other "borrowed" files
+# $(srcdir) for the generated bundle source to find included test sources
 
 AM_CPPFLAGS = -I$(top_srcdir)/include        \
               -I$(top_builddir)/lib          \
@@ -38,7 +39,7 @@ AM_CPPFLAGS = -I$(top_srcdir)/include        \
               -I$(top_srcdir)/lib/curlx      \
               -I$(srcdir)
 
-# Get BUNDLE, BUNDLE_SRC, FIRSTFILES, CURLX_SRCS, TESTFILES variables
+# Get BUNDLE, BUNDLE_SRC, FIRSTFILES, CURLX_CFILES, TESTFILES variables
 include Makefile.inc
 
 EXTRA_DIST = CMakeLists.txt $(FIRSTFILES) $(TESTFILES)
@@ -48,31 +49,23 @@ CFLAGS += @CURL_CFLAG_EXTRAS@
 # Prevent LIBS from being used for all link targets
 LIBS = $(BLANK_AT_MAKETIME)
 
-LIBDIR = $(top_builddir)/lib
-
 if USE_CPPFLAG_CURL_STATICLIB
 AM_CPPFLAGS += -DCURL_STATICLIB
 endif
-if DOING_NATIVE_WINDOWS
-AM_CPPFLAGS += -DWIN32_LEAN_AND_MEAN
-endif
-
 AM_CPPFLAGS += -DCURL_NO_OLDIES
 
-bundle_extra =
 if USE_CPPFLAG_CURL_STATICLIB
+curlx_src =
 else
 # These are part of the libcurl static lib. Add them here when linking shared.
-bundle_extra += $(CURLX_SRCS)
+curlx_src = $(CURLX_CFILES)
 endif
-$(BUNDLE_SRC): $(top_srcdir)/scripts/mk-unity.pl Makefile.inc $(FIRSTFILES) $(bundle_extra) $(TESTFILES)
-	@PERL@ $(top_srcdir)/scripts/mk-unity.pl --include $(bundle_extra) --test $(TESTFILES) > $(BUNDLE_SRC)
+$(BUNDLE_SRC): $(top_srcdir)/scripts/mk-unity.pl Makefile.inc $(FIRSTFILES) $(curlx_src) $(TESTFILES)
+	@PERL@ $(top_srcdir)/scripts/mk-unity.pl --include $(curlx_src) --test $(TESTFILES) > $(BUNDLE_SRC)
 
 noinst_PROGRAMS = $(BUNDLE)
-nodist_clients_SOURCES = $(BUNDLE_SRC)
-clients_SOURCES =
-clients_LDADD = $(LIBDIR)/libcurl.la @LIBCURL_PC_LIBS_PRIVATE@
-clients_CFLAGS = $(AM_CFLAGS)
+nodist_SOURCES = $(BUNDLE_SRC)
+LDADD = $(top_builddir)/lib/libcurl.la
 CLEANFILES = $(BUNDLE_SRC)
 
 CHECKSRC = $(CS_$(V))

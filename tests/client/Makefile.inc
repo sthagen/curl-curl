@@ -29,8 +29,10 @@ BUNDLE_SRC = clients.c
 # Files referenced from the bundle source
 FIRSTFILES = first.c first.h
 
-CURLX_SRCS = \
-  ../../lib/curlx/multibyte.c
+CURLX_CFILES = \
+  ../../lib/curlx/multibyte.c \
+  ../../lib/curlx/timediff.c \
+  ../../lib/curlx/wait.c
 
 # All test clients
 TESTFILES = \

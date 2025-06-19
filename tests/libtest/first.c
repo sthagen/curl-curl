@@ -27,7 +27,7 @@
 
 #include "memdebug.h"
 #include "curlx/timediff.h"
-#include "tool_binmode.h"
+#include "curlx/binmode.h"
 
 int select_wrapper(int nfds, fd_set *rd, fd_set *wr, fd_set *exc,
                    struct timeval *tv)
@@ -48,21 +48,6 @@ int select_wrapper(int nfds, fd_set *rd, fd_set *wr, fd_set *exc,
   }
 #endif
   return select(nfds, rd, wr, exc, tv);
-}
-
-void wait_ms(int ms)
-{
-  if(ms < 0)
-    return;
-#ifdef USE_WINSOCK
-  Sleep((DWORD)ms);
-#else
-  {
-    struct timeval t;
-    curlx_mstotv(&t, ms);
-    select_wrapper(0, NULL, NULL, NULL, &t);
-  }
-#endif
 }
 
 char *libtest_arg2 = NULL;
@@ -122,7 +107,7 @@ int main(int argc, char **argv)
   char *env;
   size_t tmp;
 
-  CURL_SET_BINMODE(stdout);
+  CURLX_SET_BINMODE(stdout);
 
   memory_tracking_init();
 

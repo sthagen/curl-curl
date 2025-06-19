@@ -41,9 +41,11 @@ CURLX_CFILES = \
   ../lib/curlx/timediff.c \
   ../lib/curlx/timeval.c \
   ../lib/curlx/version_win32.c \
+  ../lib/curlx/wait.c \
   ../lib/curlx/warnless.c
 
 CURLX_HFILES = \
+  ../lib/curlx/binmode.h \
   ../lib/curlx/multibyte.h \
   ../lib/curl_setup.h \
   ../lib/curlx/dynbuf.h \
@@ -52,6 +54,7 @@ CURLX_HFILES = \
   ../lib/curlx/timediff.h \
   ../lib/curlx/timeval.h \
   ../lib/curlx/version_win32.h \
+  ../lib/curlx/wait.h \
   ../lib/curlx/warnless.h
 
 CURL_CFILES = \
@@ -88,7 +91,6 @@ CURL_CFILES = \
   tool_parsecfg.c \
   tool_progress.c \
   tool_setopt.c \
-  tool_sleep.c \
   tool_ssls.c \
   tool_stderr.c \
   tool_strdup.c \
@@ -104,7 +106,6 @@ CURL_HFILES = \
   config2setopts.h \
   slist_wc.h \
   terminal.h \
-  tool_binmode.h \
   tool_bname.h \
   tool_cb_dbg.h \
   tool_cb_hdr.h \
@@ -136,7 +137,6 @@ CURL_HFILES = \
   tool_sdecls.h \
   tool_setopt.h \
   tool_setup.h \
-  tool_sleep.h \
   tool_ssls.h \
   tool_stderr.h \
   tool_strdup.h \

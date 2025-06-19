@@ -42,18 +42,11 @@
 #ifdef HAVE_NETDB_H
 #include <netdb.h>
 #endif
-#ifdef HAVE_SYS_FILIO_H
-/* FIONREAD on Solaris 7 */
-#include <sys/filio.h>
-#endif
-
-#include <setjmp.h>
 
 #include <ctype.h>
 
 #include <curlx.h> /* from the private lib dir */
 #include "getpart.h"
-#include "util.h"
 
 /* include memdebug.h last */
 #include <memdebug.h>

@@ -31,14 +31,14 @@ AUTOMAKE_OPTIONS = foreign nostdinc
 # $(top_srcdir)/include is for libcurl's external include files
 # $(top_builddir)/lib is for libcurl's generated lib/curl_config.h file
 # $(top_srcdir)/lib for libcurl's lib/curl_setup.h and other "borrowed" files
+# $(srcdir) for the generated bundle source to find included test sources
 
 AM_CPPFLAGS = -I$(top_srcdir)/include        \
               -I$(top_builddir)/lib          \
               -I$(top_srcdir)/lib            \
               -I$(top_srcdir)/lib/curlx      \
-              -I$(top_srcdir)/src            \
               -I$(top_srcdir)/tests/libtest  \
-              -I$(top_srcdir)/tests/unit
+              -I$(srcdir)
 
 # Get BUNDLE, BUNDLE_SRC, FIRSTFILES, UTILS, TESTFILES variables
 include Makefile.inc
@@ -50,18 +50,15 @@ CFLAGS += @CURL_CFLAG_EXTRAS@
 # Prevent LIBS from being used for all link targets
 LIBS = $(BLANK_AT_MAKETIME)
 
-LDADD = $(top_builddir)/lib/libcurlu.la      \
-        @LIBCURL_PC_LDFLAGS_PRIVATE@ @LIBCURL_PC_LIBS_PRIVATE@
-
-AM_CPPFLAGS += -DCURL_STATICLIB -DUNITTESTS -DBUILDING_LIBCURL
+AM_CPPFLAGS += -DCURL_STATICLIB -DUNITTESTS
 if DEBUGBUILD
 AM_CPPFLAGS += -DDEBUGBUILD
 endif
 if CURLDEBUG
 AM_CPPFLAGS += -DCURLDEBUG
 endif
-
 AM_CPPFLAGS += -DCURL_NO_OLDIES -DCURL_DISABLE_DEPRECATION
+AM_CPPFLAGS += -DBUILDING_LIBCURL
 
 if BUILD_UNITTESTS
 $(BUNDLE_SRC): $(top_srcdir)/scripts/mk-unity.pl Makefile.inc $(FIRSTFILES) $(UTILS) $(TESTFILES)
@@ -69,6 +66,7 @@ $(BUNDLE_SRC): $(top_srcdir)/scripts/mk-unity.pl Makefile.inc $(FIRSTFILES) $(UT
 
 noinst_PROGRAMS = $(BUNDLE)
 nodist_units_SOURCES = $(BUNDLE_SRC)
+LDADD = $(top_builddir)/lib/libcurlu.la
 CLEANFILES = $(BUNDLE_SRC)
 else
 noinst_PROGRAMS =

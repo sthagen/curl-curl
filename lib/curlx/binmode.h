@@ -1,5 +1,5 @@
-#ifndef HEADER_CURL_TOOL_SLEEP_H
-#define HEADER_CURL_TOOL_SLEEP_H
+#ifndef HEADER_CURL_TOOL_BINMODE_H
+#define HEADER_CURL_TOOL_BINMODE_H
 /***************************************************************************
  *                                  _   _ ____  _
  *  Project                     ___| | | |  _ \| |
@@ -23,8 +23,17 @@
  * SPDX-License-Identifier: curl
  *
  ***************************************************************************/
-#include "tool_setup.h"
+#include "../curl_setup.h"
 
-void tool_go_sleep(long ms);
+#if (defined(HAVE_SETMODE) || defined(HAVE__SETMODE)) && defined(O_BINARY)
+/* Requires io.h and/or fcntl.h when available */
+#ifdef HAVE__SETMODE
+#  define CURLX_SET_BINMODE(stream)  (void)_setmode(fileno(stream), O_BINARY)
+#else
+#  define CURLX_SET_BINMODE(stream)  (void)setmode(fileno(stream), O_BINARY)
+#endif
+#else
+#  define CURLX_SET_BINMODE(stream)  (void)stream; Curl_nop_stmt
+#endif
 
-#endif /* HEADER_CURL_TOOL_SLEEP_H */
+#endif /* HEADER_CURL_TOOL_BINMODE_H */

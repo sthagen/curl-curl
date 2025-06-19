@@ -22,32 +22,31 @@
 #
 ###########################################################################
 
-# Get BUNDLE, BUNDLE_SRC, FIRSTFILES, CURLX_SRCS, TESTFILES variables
+# Get BUNDLE, BUNDLE_SRC, FIRSTFILES, CURLX_CFILES, TESTFILES variables
 curl_transform_makefile_inc("Makefile.inc" "${CMAKE_CURRENT_BINARY_DIR}/Makefile.inc.cmake")
 include("${CMAKE_CURRENT_BINARY_DIR}/Makefile.inc.cmake")
 
-set(_bundle_extra "")
-if(LIB_SELECTED STREQUAL LIB_SHARED)
-  list(APPEND _bundle_extra ${CURLX_SRCS})  # Not exported from the libcurl shared build. Build a copy.
+if(LIB_SELECTED STREQUAL LIB_STATIC)
+  set(CURLX_CFILES "")  # Already exported from the libcurl static build. Skip them.
 endif()
 
 add_custom_command(OUTPUT "${BUNDLE_SRC}"
   COMMAND ${PERL_EXECUTABLE} "${PROJECT_SOURCE_DIR}/scripts/mk-unity.pl"
-    --include ${_bundle_extra} --test ${TESTFILES}
+    --include ${CURLX_CFILES} --test ${TESTFILES}
     ${CURL_MK_UNITY_OPTION} --srcdir "${CMAKE_CURRENT_SOURCE_DIR}" > "${BUNDLE_SRC}"
   DEPENDS
     "${PROJECT_SOURCE_DIR}/scripts/mk-unity.pl" "${CMAKE_CURRENT_SOURCE_DIR}/Makefile.inc"
-    ${FIRSTFILES} ${_bundle_extra} ${TESTFILES}
+    ${FIRSTFILES} ${CURLX_CFILES} ${TESTFILES}
   VERBATIM)
 
-add_executable(clients EXCLUDE_FROM_ALL "${BUNDLE_SRC}")
-add_dependencies(testdeps clients)
-target_include_directories(clients PRIVATE
+add_executable(${BUNDLE} EXCLUDE_FROM_ALL "${BUNDLE_SRC}")
+add_dependencies(testdeps ${BUNDLE})
+target_link_libraries(${BUNDLE} ${LIB_SELECTED} ${CURL_LIBS})
+target_include_directories(${BUNDLE} PRIVATE
   "${PROJECT_BINARY_DIR}/lib"            # for "curl_config.h"
   "${PROJECT_SOURCE_DIR}/lib"            # for "curl_setup.h"
   "${PROJECT_SOURCE_DIR}/lib/curlx"      # for curlx
-  "${CMAKE_CURRENT_SOURCE_DIR}"          # for "first.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}"          # for the generated bundle source to find included test sources
 )
-target_link_libraries(clients ${LIB_SELECTED} ${CURL_LIBS})
-set_property(TARGET clients APPEND PROPERTY COMPILE_DEFINITIONS "CURL_NO_OLDIES")
-set_target_properties(clients PROPERTIES OUTPUT_NAME "${BUNDLE}" PROJECT_LABEL "Test ${BUNDLE}" UNITY_BUILD OFF)
+set_property(TARGET ${BUNDLE} APPEND PROPERTY COMPILE_DEFINITIONS "CURL_NO_OLDIES")
+set_target_properties(${BUNDLE} PROPERTIES OUTPUT_NAME "${BUNDLE}" PROJECT_LABEL "Test ${BUNDLE}" UNITY_BUILD OFF)
