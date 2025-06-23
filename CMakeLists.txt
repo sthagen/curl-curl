@@ -288,11 +288,9 @@ endif()
 
 option(CURL_CLANG_TIDY "Run the build through clang-tidy" OFF)
 if(CURL_CLANG_TIDY)
-  # clang-tidy is not looking into #included sources, thus not compatible with
-  # unity builds. Make test bundles compatible by embedding the source code.
-  set(CMAKE_UNITY_BUILD OFF)
-  set(CURL_MK_UNITY_OPTION "--embed")
+  set(CMAKE_UNITY_BUILD OFF)  # clang-tidy is not looking into #included sources, thus not compatible with unity builds.
   set(_tidy_checks "")
+  list(APPEND _tidy_checks "-clang-analyzer-security.insecureAPI.bzero")  # for FD_ZERO() (seen on macOS)
   list(APPEND _tidy_checks "-clang-analyzer-security.insecureAPI.strcpy")
   list(APPEND _tidy_checks "-clang-analyzer-optin.performance.Padding")
   list(APPEND _tidy_checks "-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling")
@@ -373,6 +371,7 @@ if(ENABLE_ARES)
   list(APPEND CURL_LIBS ${CARES_LIBRARIES})
   list(APPEND CURL_LIBDIRS ${CARES_LIBRARY_DIRS})
   list(APPEND LIBCURL_PC_REQUIRES_PRIVATE ${CARES_PC_REQUIRES})
+  include_directories(SYSTEM ${CARES_INCLUDE_DIRS})
   link_directories(${CARES_LIBRARY_DIRS})
   if(CARES_CFLAGS)
     string(APPEND CMAKE_C_FLAGS " ${CARES_CFLAGS}")
