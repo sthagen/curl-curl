@@ -24,12 +24,10 @@
 #include "first.h"
 
 #ifdef HAVE_LOCALE_H
-#  include <locale.h> /* for setlocale() */
+#include <locale.h> /* for setlocale() */
 #endif
 
 #include "memdebug.h"
-#include "curlx/timediff.h"
-#include "curlx/binmode.h"
 
 int select_wrapper(int nfds, fd_set *rd, fd_set *wr, fd_set *exc,
                    struct timeval *tv)
@@ -59,7 +57,7 @@ int test_argc;
 char **test_argv;
 int testnum;
 
-struct timeval tv_test_start; /* for test timing */
+struct curltime tv_test_start; /* for test timing */
 
 int unitfail; /* for unittests */
 
@@ -112,6 +110,9 @@ int main(int argc, char **argv)
   CURLX_SET_BINMODE(stdout);
 
   memory_tracking_init();
+#ifdef _WIN32
+  curlx_now_init();
+#endif
 
   /*
    * Setup proper locale from environment. This is needed to enable locale-

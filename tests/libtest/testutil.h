@@ -25,31 +25,12 @@
  ***************************************************************************/
 #include "test.h"
 
-struct timeval tutil_tvnow(void);
-
-/*
- * Make sure that the first argument (t1) is the more recent time and t2 is
- * the older time, as otherwise you get a weird negative time-diff back...
- *
- * Returns: the time difference in number of milliseconds.
- */
-long tutil_tvdiff(struct timeval t1, struct timeval t2);
-
-/*
- * Same as tutil_tvdiff but with full usec resolution.
- *
- * Returns: the time difference in seconds with subsecond resolution.
- */
-double tutil_tvdiff_secs(struct timeval t1, struct timeval t2);
-
 /* build request url */
 char *tutil_suburl(const char *base, int i);
 
 #ifdef HAVE_SYS_RESOURCE_H
-#include <sys/resource.h>
+#include <sys/resource.h>  /* for getrlimit() */
 #endif
-
-#include <limits.h>
 
 #if defined(HAVE_GETRLIMIT) && defined(HAVE_SETRLIMIT)
 void tutil_rlim2str(char *buf, size_t len, rlim_t val);

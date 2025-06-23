@@ -36,10 +36,7 @@ extern const struct entry_s s_entries[];
 
 #include <curl/curl.h>
 
-#include "curlx.h"
-
-#include <stdlib.h>  /* for calloc(), free(), strtol() */
-#include <string.h>  /* for strchr(), strcmp() */
+#include <curlx/curlx.h>
 
 #define ERR()                                                                 \
   do {                                                                        \
