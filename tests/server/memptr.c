@@ -21,32 +21,30 @@
  * SPDX-License-Identifier: curl
  *
  ***************************************************************************/
-#include "curlcheck.h"
+#include "first.h"
 
-#include "curl_md5.h"
+#include "curl_memory.h"
 
-static CURLcode test_unit1601(char *arg)
-{
-  UNITTEST_BEGIN_SIMPLE
-
-#if (defined(USE_CURL_NTLM_CORE) && !defined(USE_WINDOWS_SSPI)) \
-    || !defined(CURL_DISABLE_DIGEST_AUTH)
-
-  static const char string1[] = "1";
-  static const char string2[] = "hello-you-fool";
-  unsigned char output[MD5_DIGEST_LEN];
-  unsigned char *testp = output;
-
-  Curl_md5it(output, (const unsigned char *) string1, strlen(string1));
-
-  verify_memory(testp, "\xc4\xca\x42\x38\xa0\xb9\x23\x82\x0d\xcc\x50\x9a\x6f"
-                "\x75\x84\x9b", MD5_DIGEST_LEN);
-
-  Curl_md5it(output, (const unsigned char *) string2, strlen(string2));
-
-  verify_memory(testp, "\x88\x67\x0b\x6d\x5d\x74\x2f\xad\xa5\xcd\xf9\xb6\x82"
-                "\x87\x5f\x22", MD5_DIGEST_LEN);
+#ifdef UNDER_CE
+#define system_strdup _strdup
+#else
+#define system_strdup strdup
 #endif
 
-  UNITTEST_END_SIMPLE
-}
+#if defined(_MSC_VER) && defined(_DLL)
+#  pragma warning(push)
+#  pragma warning(disable:4232) /* MSVC extension, dllimport identity */
+#endif
+
+curl_malloc_callback Curl_cmalloc = (curl_malloc_callback)malloc;
+curl_free_callback Curl_cfree = (curl_free_callback)free;
+curl_realloc_callback Curl_crealloc = (curl_realloc_callback)realloc;
+curl_strdup_callback Curl_cstrdup = (curl_strdup_callback)system_strdup;
+curl_calloc_callback Curl_ccalloc = (curl_calloc_callback)calloc;
+#if defined(_WIN32) && defined(UNICODE)
+curl_wcsdup_callback Curl_cwcsdup = NULL; /* not used in test code */
+#endif
+
+#if defined(_MSC_VER) && defined(_DLL)
+#  pragma warning(pop)
+#endif
