@@ -456,6 +456,7 @@ Features testable here are:
 - `cookies`
 - `crypto`
 - `Debug`
+- `digest`
 - `DoH`
 - `getrlimit`
 - `GnuTLS`
@@ -474,7 +475,6 @@ Features testable here are:
 - `Largefile`
 - `large-time` (time_t is larger than 32-bit)
 - `large-size` (size_t is larger than 32-bit)
-- `ld_preload`
 - `libssh2`
 - `libssh`
 - `oldlibssh` (versions before 0.9.4)
