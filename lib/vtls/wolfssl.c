@@ -246,6 +246,9 @@ static const struct group_name_map gnm[] = {
   { WOLFSSL_P256_ML_KEM_512, "P256_ML_KEM_512" },
   { WOLFSSL_P384_ML_KEM_768, "P384_ML_KEM_768" },
   { WOLFSSL_P521_ML_KEM_1024, "P521_ML_KEM_1024" },
+  { WOLFSSL_P256_ML_KEM_768, "P256_ML_KEM_768" },
+  { WOLFSSL_P384_ML_KEM_1024, "P384_ML_KEM_1024" },
+  { WOLFSSL_X25519_ML_KEM_768, "X25519_ML_KEM_768" },
   { 0, NULL }
 };
 #endif
@@ -517,7 +520,7 @@ static CURLcode wssl_on_session_reuse(struct Curl_cfilter *cf,
 #endif
 
   if(!connssl->earlydata_max) {
-    /* Seems to be GnuTLS way to signal no EarlyData in session */
+    /* Seems to be no WolfSSL way to signal no EarlyData in session */
     CURL_TRC_CF(data, cf, "SSL session does not allow earlydata");
   }
   else if(!Curl_alpn_contains_proto(alpns, scs->alpn)) {

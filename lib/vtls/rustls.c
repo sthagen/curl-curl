@@ -1190,17 +1190,23 @@ cr_connect(struct Curl_cfilter *cf,
       {
         const uint16_t proto =
           rustls_connection_get_protocol_version(rconn);
-        const uint16_t cipher =
-          rustls_connection_get_negotiated_ciphersuite(rconn);
-        char buf[64] = "";
+        const rustls_str ciphersuite_name =
+          rustls_connection_get_negotiated_ciphersuite_name(rconn);
+        const rustls_str kex_group_name =
+          rustls_connection_get_negotiated_key_exchange_group_name(rconn);
         const char *ver = "TLS version unknown";
         if(proto == RUSTLS_TLS_VERSION_TLSV1_3)
           ver = "TLSv1.3";
         if(proto == RUSTLS_TLS_VERSION_TLSV1_2)
           ver = "TLSv1.2";
-        Curl_cipher_suite_get_str(cipher, buf, sizeof(buf), TRUE);
-        infof(data, "rustls: handshake complete, %s, cipher: %s",
-              ver, buf);
+        infof(data,
+              "rustls: handshake complete, %s, ciphersuite: %.*s, "
+              "key exchange group: %.*s",
+              ver,
+              (int) ciphersuite_name.len,
+              ciphersuite_name.data,
+              (int) kex_group_name.len,
+              kex_group_name.data);
       }
       if(data->set.ssl.certinfo) {
         size_t num_certs = 0;
