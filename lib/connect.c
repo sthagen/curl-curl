@@ -831,7 +831,7 @@ static CURLcode start_connect(struct Curl_cfilter *cf,
     addr1 = addr_first_match(dns->addr, ai_family1);
     /* no ip address families, probably AF_UNIX or something, use the
      * address family given to us */
-    if(!addr1  && !addr0 && dns->addr) {
+    if(!addr1 && !addr0 && dns->addr) {
       ai_family0 = dns->addr->ai_family;
       addr0 = addr_first_match(dns->addr, ai_family0);
     }
@@ -1515,7 +1515,8 @@ CURLcode Curl_conn_setup(struct Curl_easy *data,
 
   /* Still no cfilter set, apply default. */
   if(!conn->cfilter[sockindex]) {
-    result = cf_setup_add(data, conn, sockindex, conn->transport, ssl_mode);
+    result = cf_setup_add(data, conn, sockindex,
+                          conn->transport_wanted, ssl_mode);
     if(result)
       goto out;
   }
