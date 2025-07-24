@@ -74,7 +74,6 @@
 #include "conncache.h"
 #include "multihandle.h"
 #include "share.h"
-#include "curlx/version_win32.h"
 #include "vquic/vquic.h" /* for quic cfilters */
 #include "http_proxy.h"
 #include "socks.h"
@@ -1195,7 +1194,7 @@ const
 #endif
 struct transport_provider transport_providers[] = {
   { TRNSPRT_TCP, Curl_cf_tcp_create },
-#ifdef USE_HTTP3
+#if !defined(CURL_DISABLE_HTTP) && defined(USE_HTTP3)
   { TRNSPRT_QUIC, Curl_cf_quic_create },
 #endif
 #ifndef CURL_DISABLE_TFTP
