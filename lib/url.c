@@ -60,6 +60,9 @@
 #endif
 
 #if defined(HAVE_IF_NAMETOINDEX) && defined(_WIN32)
+#if defined(__MINGW32__) && (__MINGW64_VERSION_MAJOR <= 5)
+#include <wincrypt.h>  /* workaround for old mingw-w64 missing to include it */
+#endif
 #include <iphlpapi.h>
 #endif
 
@@ -2952,7 +2955,7 @@ static CURLcode parse_connect_to_host_port(struct Curl_easy *data,
   CURLcode result = CURLE_OK;
 
 #ifdef CURL_DISABLE_VERBOSE_STRINGS
-  (void) data;
+  (void)data;
 #endif
 
   *hostname_result = NULL;
