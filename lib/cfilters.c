@@ -564,7 +564,7 @@ bool Curl_conn_is_ip_connected(struct Curl_easy *data, int sockindex)
   return FALSE;
 }
 
-bool Curl_conn_cf_is_ssl(struct Curl_cfilter *cf)
+static bool cf_is_ssl(struct Curl_cfilter *cf)
 {
   for(; cf; cf = cf->next) {
     if(cf->cft->flags & CF_TYPE_SSL)
@@ -577,7 +577,7 @@ bool Curl_conn_cf_is_ssl(struct Curl_cfilter *cf)
 
 bool Curl_conn_is_ssl(struct connectdata *conn, int sockindex)
 {
-  return conn ? Curl_conn_cf_is_ssl(conn->cfilter[sockindex]) : FALSE;
+  return conn ? cf_is_ssl(conn->cfilter[sockindex]) : FALSE;
 }
 
 bool Curl_conn_get_ssl_info(struct Curl_easy *data,
@@ -611,6 +611,13 @@ unsigned char Curl_conn_get_transport(struct Curl_easy *data,
 {
   struct Curl_cfilter *cf = conn->cfilter[FIRSTSOCKET];
   return Curl_conn_cf_get_transport(cf, data);
+}
+
+const char *Curl_conn_get_alpn_negotiated(struct Curl_easy *data,
+                                          struct connectdata *conn)
+{
+  struct Curl_cfilter *cf = conn->cfilter[FIRSTSOCKET];
+  return Curl_conn_cf_get_alpn_negotiated(cf, data);
 }
 
 unsigned char Curl_conn_http_version(struct Curl_easy *data,
@@ -810,6 +817,17 @@ unsigned char Curl_conn_cf_get_transport(struct Curl_cfilter *cf,
   return (unsigned char)(data->conn ? data->conn->transport_wanted : 0);
 }
 
+const char *Curl_conn_cf_get_alpn_negotiated(struct Curl_cfilter *cf,
+                                             struct Curl_easy *data)
+{
+  const char *alpn = NULL;
+  CURL_TRC_CF(data, cf, "query ALPN");
+  if(cf && !cf->cft->query(cf, data, CF_QUERY_ALPN_NEGOTIATED, NULL,
+                           CURL_UNCONST(&alpn)))
+    return alpn;
+  return NULL;
+}
+
 static const struct Curl_sockaddr_ex *
 cf_get_remote_addr(struct Curl_cfilter *cf, struct Curl_easy *data)
 {
@@ -972,12 +990,15 @@ size_t Curl_conn_get_max_concurrent(struct Curl_easy *data,
                                     int sockindex)
 {
   CURLcode result;
-  int n = 0;
+  int n = -1;
 
   struct Curl_cfilter *cf = conn->cfilter[sockindex];
   result = cf ? cf->cft->query(cf, data, CF_QUERY_MAX_CONCURRENT,
                                &n, NULL) : CURLE_UNKNOWN_OPTION;
-  return (result || n <= 0) ? 1 : (size_t)n;
+  /* If no filter answered the query, the default is a non-multiplexed
+   * connection with limit 1. Otherwise, the the query may return 0
+   * for connections that are in shutdown, e.g. server HTTP/2 GOAWAY. */
+  return (result || n < 0) ? 1 : (size_t)n;
 }
 
 int Curl_conn_get_stream_error(struct Curl_easy *data,

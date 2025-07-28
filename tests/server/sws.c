@@ -183,7 +183,7 @@ static int parse_cmdfile(struct sws_httprequest *req)
     int testnum = DOCNUMBER_NOTHING;
     char buf[256];
     while(fgets(buf, sizeof(buf), f)) {
-      if(1 == sscanf(buf, "Testnum %d", &testnum)) {
+      if(sscanf(buf, "Testnum %d", &testnum) == 1) {
         logmsg("[%s] cmdfile says testnum %d", cmdfile, testnum);
         req->testno = testnum;
       }
@@ -255,7 +255,7 @@ static int sws_parse_servercmd(struct sws_httprequest *req)
         logmsg("swsclose: close this connection after response");
         req->close = TRUE;
       }
-      else if(1 == sscanf(cmd, "skip: %d", &num)) {
+      else if(sscanf(cmd, "skip: %d", &num) == 1) {
         logmsg("instructed to skip this number of bytes %d", num);
         req->skip = num;
       }
@@ -263,11 +263,11 @@ static int sws_parse_servercmd(struct sws_httprequest *req)
         logmsg("instructed to reject Expect: 100-continue");
         req->noexpect = TRUE;
       }
-      else if(1 == sscanf(cmd, "delay: %d", &num)) {
+      else if(sscanf(cmd, "delay: %d", &num) == 1) {
         logmsg("instructed to delay %d msecs after connect", num);
         req->delay = num;
       }
-      else if(1 == sscanf(cmd, "writedelay: %d", &num)) {
+      else if(sscanf(cmd, "writedelay: %d", &num) == 1) {
         logmsg("instructed to delay %d msecs between packets", num);
         req->writedelay = num;
       }
@@ -830,12 +830,12 @@ static int sws_get_request(curl_socket_t sock, struct sws_httprequest *req)
           FD_ZERO(&input);
           FD_ZERO(&output);
           got = 0;
-#if defined(__DJGPP__)
+#ifdef __DJGPP__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Warith-conversion"
 #endif
           FD_SET(sock, &input);
-#if defined(__DJGPP__)
+#ifdef __DJGPP__
 #pragma GCC diagnostic pop
 #endif
           do {
@@ -1171,7 +1171,7 @@ retry:
     int num;
     ptr = cmd;
     do {
-      if(2 == sscanf(ptr, "%31s %d", command, &num)) {
+      if(sscanf(ptr, "%31s %d", command, &num) == 2) {
         if(!strcmp("wait", command)) {
           logmsg("Told to sleep for %d seconds", num);
           quarters = num * 4;
@@ -1243,8 +1243,8 @@ static curl_socket_t connect_to(const char *ipaddr, unsigned short port)
   if(socket_domain_is_ip()) {
     /* Disable the Nagle algorithm */
     curl_socklen_t flag = 1;
-    if(0 != setsockopt(serverfd, IPPROTO_TCP, TCP_NODELAY,
-                       (void *)&flag, sizeof(flag)))
+    if(setsockopt(serverfd, IPPROTO_TCP, TCP_NODELAY,
+                  (void *)&flag, sizeof(flag)))
       logmsg("====> TCP_NODELAY for server connection failed");
   }
 #endif
@@ -1252,7 +1252,7 @@ static curl_socket_t connect_to(const char *ipaddr, unsigned short port)
   /* We want to do the connect() in a non-blocking mode, since
    * Windows has an internal retry logic that may lead to long
    * timeouts if the peer is not listening. */
-  if(0 != curlx_nonblock(serverfd, TRUE)) {
+  if(curlx_nonblock(serverfd, TRUE)) {
     error = SOCKERRNO;
     logmsg("curlx_nonblock(TRUE) failed with error (%d) %s",
            error, sstrerror(error));
@@ -1307,12 +1307,12 @@ static curl_socket_t connect_to(const char *ipaddr, unsigned short port)
       timeout.tv_sec = 1; /* 1000 ms */
 
       FD_ZERO(&output);
-#if defined(__DJGPP__)
+#ifdef __DJGPP__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Warith-conversion"
 #endif
       FD_SET(serverfd, &output);
-#if defined(__DJGPP__)
+#ifdef __DJGPP__
 #pragma GCC diagnostic pop
 #endif
       while(1) {
@@ -1321,10 +1321,10 @@ static curl_socket_t connect_to(const char *ipaddr, unsigned short port)
           goto error;
         else if(rc > 0) {
           curl_socklen_t errSize = sizeof(error);
-          if(0 != getsockopt(serverfd, SOL_SOCKET, SO_ERROR,
-                             (void *)&error, &errSize))
+          if(getsockopt(serverfd, SOL_SOCKET, SO_ERROR,
+                        (void *)&error, &errSize))
             error = SOCKERRNO;
-          if((0 == error) || (SOCKEISCONN == error))
+          if((error == 0) || (SOCKEISCONN == error))
             goto success;
           else if((error != SOCKEINPROGRESS) && (error != SOCKEWOULDBLOCK))
             goto error;
@@ -1346,7 +1346,7 @@ success:
   logmsg("connected fine to %s%s%s:%hu, now tunnel",
          op_br, ipaddr, cl_br, port);
 
-  if(0 != curlx_nonblock(serverfd, FALSE)) {
+  if(curlx_nonblock(serverfd, FALSE)) {
     error = SOCKERRNO;
     logmsg("curlx_nonblock(FALSE) failed with error (%d) %s",
            error, sstrerror(error));
@@ -1439,12 +1439,12 @@ static void http_connect(curl_socket_t *infdp,
       /* listener socket is monitored to allow client to establish
          secondary tunnel only when this tunnel is not established
          and primary one is fully operational */
-#if defined(__DJGPP__)
+#ifdef __DJGPP__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Warith-conversion"
 #endif
       FD_SET(rootfd, &input);
-#if defined(__DJGPP__)
+#ifdef __DJGPP__
 #pragma GCC diagnostic pop
 #endif
       maxfd = rootfd;
@@ -1456,12 +1456,12 @@ static void http_connect(curl_socket_t *infdp,
       if(clientfd[i] != CURL_SOCKET_BAD) {
         if(poll_client_rd[i]) {
           /* unless told not to do so, monitor readability */
-#if defined(__DJGPP__)
+#ifdef __DJGPP__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Warith-conversion"
 #endif
           FD_SET(clientfd[i], &input);
-#if defined(__DJGPP__)
+#ifdef __DJGPP__
 #pragma GCC diagnostic pop
 #endif
           if(clientfd[i] > maxfd)
@@ -1470,12 +1470,12 @@ static void http_connect(curl_socket_t *infdp,
         if(poll_client_wr[i] && toc[i]) {
           /* unless told not to do so, monitor writability
              if there is data ready to be sent to client */
-#if defined(__DJGPP__)
+#ifdef __DJGPP__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Warith-conversion"
 #endif
           FD_SET(clientfd[i], &output);
-#if defined(__DJGPP__)
+#ifdef __DJGPP__
 #pragma GCC diagnostic pop
 #endif
           if(clientfd[i] > maxfd)
@@ -1486,12 +1486,12 @@ static void http_connect(curl_socket_t *infdp,
       if(serverfd[i] != CURL_SOCKET_BAD) {
         if(poll_server_rd[i]) {
           /* unless told not to do so, monitor readability */
-#if defined(__DJGPP__)
+#ifdef __DJGPP__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Warith-conversion"
 #endif
           FD_SET(serverfd[i], &input);
-#if defined(__DJGPP__)
+#ifdef __DJGPP__
 #pragma GCC diagnostic pop
 #endif
           if(serverfd[i] > maxfd)
@@ -1500,12 +1500,12 @@ static void http_connect(curl_socket_t *infdp,
         if(poll_server_wr[i] && tos[i]) {
           /* unless told not to do so, monitor writability
              if there is data ready to be sent to server */
-#if defined(__DJGPP__)
+#ifdef __DJGPP__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Warith-conversion"
 #endif
           FD_SET(serverfd[i], &output);
-#if defined(__DJGPP__)
+#ifdef __DJGPP__
 #pragma GCC diagnostic pop
 #endif
           if(serverfd[i] > maxfd)
@@ -1549,8 +1549,8 @@ static void http_connect(curl_socket_t *infdp,
           if(socket_domain_is_ip()) {
             /* Disable the Nagle algorithm */
             curl_socklen_t flag = 1;
-            if(0 != setsockopt(datafd, IPPROTO_TCP, TCP_NODELAY,
-                               (void *)&flag, sizeof(flag)))
+            if(setsockopt(datafd, IPPROTO_TCP, TCP_NODELAY,
+                          (void *)&flag, sizeof(flag)))
               logmsg("====> TCP_NODELAY for client DATA connection failed");
           }
 #endif
@@ -1839,7 +1839,7 @@ static curl_socket_t accept_connection(curl_socket_t sock)
     return CURL_SOCKET_BAD;
   }
 
-  if(0 != curlx_nonblock(msgsock, TRUE)) {
+  if(curlx_nonblock(msgsock, TRUE)) {
     error = SOCKERRNO;
     logmsg("curlx_nonblock failed with error (%d) %s",
            error, sstrerror(error));
@@ -1847,8 +1847,8 @@ static curl_socket_t accept_connection(curl_socket_t sock)
     return CURL_SOCKET_BAD;
   }
 
-  if(0 != setsockopt(msgsock, SOL_SOCKET, SO_KEEPALIVE,
-                     (void *)&flag, sizeof(flag))) {
+  if(setsockopt(msgsock, SOL_SOCKET, SO_KEEPALIVE,
+                (void *)&flag, sizeof(flag))) {
     error = SOCKERRNO;
     logmsg("setsockopt(SO_KEEPALIVE) failed with error (%d) %s",
            error, sstrerror(error));
@@ -1877,8 +1877,8 @@ static curl_socket_t accept_connection(curl_socket_t sock)
      * Disable the Nagle algorithm to make it easier to send out a large
      * response in many small segments to torture the clients more.
      */
-    if(0 != setsockopt(msgsock, IPPROTO_TCP, TCP_NODELAY,
-                       (void *)&flag, sizeof(flag)))
+    if(setsockopt(msgsock, IPPROTO_TCP, TCP_NODELAY,
+                  (void *)&flag, sizeof(flag)))
       logmsg("====> TCP_NODELAY failed");
   }
 #endif
@@ -2162,14 +2162,14 @@ static int test_sws(int argc, char *argv[])
   }
 
   flag = 1;
-  if(0 != setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
-                     (void *)&flag, sizeof(flag))) {
+  if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
+                (void *)&flag, sizeof(flag))) {
     error = SOCKERRNO;
     logmsg("setsockopt(SO_REUSEADDR) failed with error (%d) %s",
            error, sstrerror(error));
     goto sws_cleanup;
   }
-  if(0 != curlx_nonblock(sock, TRUE)) {
+  if(curlx_nonblock(sock, TRUE)) {
     error = SOCKERRNO;
     logmsg("curlx_nonblock failed with error (%d) %s",
            error, sstrerror(error));
@@ -2322,12 +2322,12 @@ static int test_sws(int argc, char *argv[])
 
     for(socket_idx = 0; socket_idx < num_sockets; ++socket_idx) {
       /* Listen on all sockets */
-#if defined(__DJGPP__)
+#ifdef __DJGPP__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Warith-conversion"
 #endif
       FD_SET(all_sockets[socket_idx], &input);
-#if defined(__DJGPP__)
+#ifdef __DJGPP__
 #pragma GCC diagnostic pop
 #endif
       if(all_sockets[socket_idx] > maxfd)

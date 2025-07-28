@@ -229,6 +229,53 @@ extern const unsigned char curl_ca_embed[];
 #endif
 #endif
 
+static long tlsversion(unsigned char mintls,
+                       unsigned char maxtls)
+{
+  long tlsver = 0;
+  if(!mintls) { /* minimum is at default */
+    /* minimum is set to default, which we want to be 1.2 */
+    if(maxtls && (maxtls < 3))
+      /* max is set lower than 1.2 and minimum is default, change minimum to
+         the same as max */
+      mintls = maxtls;
+  }
+  switch(mintls) {
+  case 1:
+    tlsver = CURL_SSLVERSION_TLSv1_0;
+    break;
+  case 2:
+    tlsver = CURL_SSLVERSION_TLSv1_1;
+    break;
+  case 0: /* let default minimum be 1.2 */
+  case 3:
+    tlsver = CURL_SSLVERSION_TLSv1_2;
+    break;
+  case 4:
+  default: /* just in case */
+    tlsver = CURL_SSLVERSION_TLSv1_3;
+    break;
+  }
+  switch(maxtls) {
+  case 0: /* not set, leave it */
+    break;
+  case 1:
+    tlsver |= CURL_SSLVERSION_MAX_TLSv1_0;
+    break;
+  case 2:
+    tlsver |= CURL_SSLVERSION_MAX_TLSv1_1;
+    break;
+  case 3:
+    tlsver |= CURL_SSLVERSION_MAX_TLSv1_2;
+    break;
+  case 4:
+  default: /* just in case */
+    tlsver |= CURL_SSLVERSION_MAX_TLSv1_3;
+    break;
+  }
+  return tlsver;
+}
+
 /* only called if libcurl supports TLS */
 static CURLcode ssl_setopts(struct OperationConfig *config, CURL *curl)
 {
@@ -360,7 +407,8 @@ static CURLcode ssl_setopts(struct OperationConfig *config, CURL *curl)
     my_setopt_long(curl, CURLOPT_DOH_SSL_VERIFYSTATUS, 1);
 
   my_setopt_SSLVERSION(curl, CURLOPT_SSLVERSION,
-                       config->ssl_version | config->ssl_version_max);
+                       tlsversion(config->ssl_version,
+                                  config->ssl_version_max));
   if(config->proxy)
     my_setopt_SSLVERSION(curl, CURLOPT_PROXY_SSLVERSION,
                          config->proxy_ssl_version);
@@ -605,7 +653,7 @@ static CURLcode ftp_setopts(struct OperationConfig *config, CURL *curl)
 
   /* new in curl 7.16.1 */
   if(config->ftp_ssl_ccc)
-    my_setopt_enum(curl, CURLOPT_FTP_SSL_CCC, (long)config->ftp_ssl_ccc_mode);
+    my_setopt_enum(curl, CURLOPT_FTP_SSL_CCC, config->ftp_ssl_ccc_mode);
 
   my_setopt_str(curl, CURLOPT_FTP_ACCOUNT, config->ftp_account);
 
@@ -703,7 +751,7 @@ static CURLcode proxy_setopts(struct OperationConfig *config, CURL *curl)
 
   /* new in libcurl 7.10.6 */
   if(config->proxyanyauth)
-    my_setopt_bitmask(curl, CURLOPT_PROXYAUTH, (long)CURLAUTH_ANY);
+    my_setopt_bitmask(curl, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
   else if(config->proxynegotiate)
     my_setopt_bitmask(curl, CURLOPT_PROXYAUTH, CURLAUTH_GSSNEGOTIATE);
   else if(config->proxyntlm)

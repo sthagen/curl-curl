@@ -474,7 +474,7 @@ static CURLcode http_perhapsrewind(struct Curl_easy *data,
 
   if(abort_upload) {
     /* We'd like to abort the upload - but should we? */
-#if defined(USE_NTLM)
+#ifdef USE_NTLM
     if((data->state.authproxy.picked == CURLAUTH_NTLM) ||
        (data->state.authhost.picked == CURLAUTH_NTLM)) {
       ongoing_auth = "NTLM";
@@ -486,7 +486,7 @@ static CURLcode http_perhapsrewind(struct Curl_easy *data,
       }
     }
 #endif
-#if defined(USE_SPNEGO)
+#ifdef USE_SPNEGO
     /* There is still data left to send */
     if((data->state.authproxy.picked == CURLAUTH_NEGOTIATE) ||
        (data->state.authhost.picked == CURLAUTH_NEGOTIATE)) {
@@ -1896,7 +1896,7 @@ static CURLcode http_host(struct Curl_easy *data, struct connectdata *conn)
   ptr = Curl_checkheaders(data, STRCONST("Host"));
   if(ptr && (!data->state.this_is_a_follow ||
              curl_strequal(data->state.first_host, conn->host.name))) {
-#if !defined(CURL_DISABLE_COOKIES)
+#ifndef CURL_DISABLE_COOKIES
     /* If we have a given custom Host: header, we extract the hostname in
        order to possibly use it for cookie reasons later on. We only allow the
        custom Host: header if this is NOT a redirect, as setting Host: in the
@@ -2422,7 +2422,7 @@ out:
   return result;
 }
 
-#if !defined(CURL_DISABLE_COOKIES)
+#ifndef CURL_DISABLE_COOKIES
 
 static CURLcode http_cookies(struct Curl_easy *data,
                              struct connectdata *conn,
@@ -2673,17 +2673,17 @@ CURLcode Curl_http(struct Curl_easy *data, bool *done)
   char *altused = NULL;
   const char *p_accept;      /* Accept: string */
   unsigned char httpversion;
+  const char *alpn;
 
   /* Always consider the DO phase done after this function call, even if there
      may be parts of the request that are not yet sent, since we can deal with
      the rest of the request in the PERFORM phase. */
   *done = TRUE;
-
-  switch(conn->alpn) {
-  case CURL_HTTP_VERSION_3:
+  alpn = Curl_conn_get_alpn_negotiated(data, conn);
+  if(alpn && !strcmp("h3", alpn)) {
     DEBUGASSERT(Curl_conn_http_version(data, conn) == 30);
-    break;
-  case CURL_HTTP_VERSION_2:
+  }
+  else if(alpn && !strcmp("h2", alpn)) {
 #ifndef CURL_DISABLE_PROXY
     if((Curl_conn_http_version(data, conn) != 20) &&
        conn->bits.proxy && !conn->bits.tunnel_proxy
@@ -2695,11 +2695,8 @@ CURLcode Curl_http(struct Curl_easy *data, bool *done)
     else
 #endif
       DEBUGASSERT(Curl_conn_http_version(data, conn) == 20);
-    break;
-  case CURL_HTTP_VERSION_1_1:
-    /* continue with HTTP/1.x when explicitly requested */
-    break;
-  default:
+  }
+  else {
     /* Check if user wants to use HTTP/2 with clear TCP */
     if(Curl_http2_may_switch(data)) {
       DEBUGF(infof(data, "HTTP/2 over clean TCP"));
@@ -2707,7 +2704,6 @@ CURLcode Curl_http(struct Curl_easy *data, bool *done)
       if(result)
         goto fail;
     }
-    break;
   }
 
   /* Add collecting of headers written to client. For a new connection,
@@ -3321,7 +3317,7 @@ static CURLcode http_header_s(struct Curl_easy *data,
   (void)hdlen;
 #endif
 
-#if !defined(CURL_DISABLE_COOKIES)
+#ifndef CURL_DISABLE_COOKIES
   v = (data->cookies && data->state.cookie_engine) ?
     HD_VAL(hd, hdlen, "Set-Cookie:") : NULL;
   if(v) {
@@ -3815,7 +3811,7 @@ static CURLcode http_on_response(struct Curl_easy *data,
 
   /* At this point we have some idea about the fate of the connection.
      If we are closing the connection it may result auth failure. */
-#if defined(USE_NTLM)
+#ifdef USE_NTLM
   if(conn->bits.close &&
      (((data->req.httpcode == 401) &&
        (conn->http_ntlm_state == NTLMSTATE_TYPE2)) ||
@@ -3825,7 +3821,7 @@ static CURLcode http_on_response(struct Curl_easy *data,
     data->state.authproblem = TRUE;
   }
 #endif
-#if defined(USE_SPNEGO)
+#ifdef USE_SPNEGO
   if(conn->bits.close &&
     (((data->req.httpcode == 401) &&
       (conn->http_negotiate_state == GSS_AUTHRECV)) ||
@@ -3949,7 +3945,7 @@ static CURLcode http_on_response(struct Curl_easy *data,
      like to call http2_handle_stream_close to properly close a
      stream. In order to do this, we keep reading until we
      close the stream. */
-  if((0 == k->maxdownload) && (k->httpversion_sent < 20))
+  if((k->maxdownload == 0) && (k->httpversion_sent < 20))
     k->download_done = TRUE;
 
   /* final response without error, prepare to receive the body */

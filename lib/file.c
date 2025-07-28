@@ -348,7 +348,7 @@ static CURLcode file_upload(struct Curl_easy *data,
     mode |= O_TRUNC;
 
 #if (defined(ANDROID) || defined(__ANDROID__)) && \
-    (defined(__i386__) || defined(__arm__))
+  (defined(__i386__) || defined(__arm__))
   fd = open(file->path, mode, (mode_t)data->set.new_file_perms);
 #else
   fd = open(file->path, mode, data->set.new_file_perms);
@@ -358,7 +358,7 @@ static CURLcode file_upload(struct Curl_easy *data,
     return CURLE_WRITE_ERROR;
   }
 
-  if(-1 != data->state.infilesize)
+  if(data->state.infilesize != -1)
     /* known size of data to "upload" */
     Curl_pgrsSetUploadSize(data, data->state.infilesize);
 
@@ -470,7 +470,7 @@ static CURLcode file_do(struct Curl_easy *data, bool *done)
   fd = file->fd;
 
   /* VMS: This only works reliable for STREAMLF files */
-  if(-1 != fstat(fd, &statbuf)) {
+  if(fstat(fd, &statbuf) != -1) {
     if(!S_ISDIR(statbuf.st_mode))
       expected_size = statbuf.st_size;
     /* and store the modification time */

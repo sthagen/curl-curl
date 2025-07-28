@@ -488,7 +488,7 @@ static int on_header(nghttp2_session *session, const nghttp2_frame *frame,
                      const uint8_t *value, size_t valuelen,
                      uint8_t flags,
                      void *userp);
-#if !defined(CURL_DISABLE_VERBOSE_STRINGS)
+#ifndef CURL_DISABLE_VERBOSE_STRINGS
 static int error_callback(nghttp2_session *session, const char *msg,
                           size_t len, void *userp);
 #endif
@@ -523,7 +523,7 @@ static CURLcode cf_h2_ctx_open(struct Curl_cfilter *cf,
   nghttp2_session_callbacks_set_on_begin_headers_callback(
     cbs, on_begin_headers);
   nghttp2_session_callbacks_set_on_header_callback(cbs, on_header);
-#if !defined(CURL_DISABLE_VERBOSE_STRINGS)
+#ifndef CURL_DISABLE_VERBOSE_STRINGS
   nghttp2_session_callbacks_set_error_callback(cbs, error_callback);
 #endif
 
@@ -1779,7 +1779,7 @@ static ssize_t req_body_read_callback(nghttp2_session *session,
   return (nread == 0) ? NGHTTP2_ERR_DEFERRED : nread;
 }
 
-#if !defined(CURL_DISABLE_VERBOSE_STRINGS)
+#ifndef CURL_DISABLE_VERBOSE_STRINGS
 static int error_callback(nghttp2_session *session,
                           const char *msg,
                           size_t len,
@@ -2220,7 +2220,7 @@ static CURLcode h2_submit(struct h2_stream_ctx **pstream,
   struct dynhds h2_headers;
   nghttp2_nv *nva = NULL;
   const void *body = NULL;
-  size_t nheader, bodylen, i;
+  size_t nheader, bodylen;
   nghttp2_data_provider data_prd;
   int32_t stream_id;
   nghttp2_priority_spec pri_spec;
@@ -2282,9 +2282,10 @@ static CURLcode h2_submit(struct h2_stream_ctx **pstream,
     goto out;
   }
 
+#ifndef CURL_DISABLE_VERBOSE_STRINGS
 #define MAX_ACC 60000  /* <64KB to account for some overhead */
   if(Curl_trc_is_verbose(data)) {
-    size_t acc = 0;
+    size_t acc = 0, i;
 
     infof(data, "[HTTP/2] [%d] OPENED stream for %s",
           stream_id, data->state.url);
@@ -2302,6 +2303,7 @@ static CURLcode h2_submit(struct h2_stream_ctx **pstream,
             "stream to be rejected.", MAX_ACC);
     }
   }
+#endif
 
   stream->id = stream_id;
 

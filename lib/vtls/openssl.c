@@ -219,8 +219,8 @@ static void ossl_provider_cleanup(struct Curl_easy *data);
 #define OSSL_PACKAGE "BoringSSL"
 #elif defined(OPENSSL_IS_AWSLC)
 #define OSSL_PACKAGE "AWS-LC"
-#elif (defined(USE_NGTCP2) && defined(USE_NGHTTP3) && \
-       !defined(OPENSSL_QUIC_API2)) || defined(USE_MSH3)
+#elif (defined(USE_NGTCP2) && defined(USE_NGHTTP3) &&   \
+       !defined(OPENSSL_QUIC_API2))
 #define OSSL_PACKAGE "quictls"
 #else
 #define OSSL_PACKAGE "OpenSSL"
@@ -958,7 +958,7 @@ static char *ossl_strerror(unsigned long error, char *buf, size_t size)
 static int passwd_callback(char *buf, int num, int encrypting,
                            void *password)
 {
-  DEBUGASSERT(0 == encrypting);
+  DEBUGASSERT(encrypting == 0);
 
   if(!encrypting && num >= 0 && password) {
     int klen = curlx_uztosi(strlen((char *)password));
@@ -975,7 +975,7 @@ static int passwd_callback(char *buf, int num, int encrypting,
  */
 static bool rand_enough(void)
 {
-  return 0 != RAND_status();
+  return RAND_status() != 0;
 }
 
 static CURLcode ossl_seed(struct Curl_easy *data)
@@ -1124,7 +1124,7 @@ static bool is_pkcs11_uri(const char *string)
 #endif
 
 static CURLcode ossl_set_engine(struct Curl_easy *data, const char *engine);
-#if defined(OPENSSL_HAS_PROVIDERS)
+#ifdef OPENSSL_HAS_PROVIDERS
 static CURLcode ossl_set_provider(struct Curl_easy *data,
                                   const char *provider);
 #endif
@@ -1378,7 +1378,7 @@ int cert_stuff(struct Curl_easy *data,
     }
     break;
 #endif
-#if defined(OPENSSL_HAS_PROVIDERS)
+#ifdef OPENSSL_HAS_PROVIDERS
       /* fall through to compatible provider */
     case SSL_FILETYPE_PROVIDER:
     {
@@ -1631,7 +1631,7 @@ fail:
     }
     break;
 #endif
-#if defined(OPENSSL_HAS_PROVIDERS)
+#ifdef OPENSSL_HAS_PROVIDERS
       /* fall through to compatible provider */
     case SSL_FILETYPE_PROVIDER:
     {
@@ -1967,7 +1967,7 @@ static struct curl_slist *ossl_engines_list(struct Curl_easy *data)
   return list;
 }
 
-#if defined(OPENSSL_HAS_PROVIDERS)
+#ifdef OPENSSL_HAS_PROVIDERS
 
 static void ossl_provider_cleanup(struct Curl_easy *data)
 {
@@ -4487,7 +4487,7 @@ static CURLcode ossl_connect_step2(struct Curl_cfilter *cf,
   /* 1  is fine
      0  is "not successful but was shut down controlled"
      <0 is "handshake was not successful, because a fatal error occurred" */
-  if(1 != err) {
+  if(err != 1) {
     int detail = SSL_get_error(octx->ssl, err);
     CURL_TRC_CF(data, cf, "SSL_connect() -> err=%d, detail=%d", err, detail);
 

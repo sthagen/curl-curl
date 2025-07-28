@@ -76,7 +76,7 @@ int getfiletime(const char *filename, struct GlobalConfig *global,
   }
 #else
   struct_stat statbuf;
-  if(-1 != stat(filename, &statbuf)) {
+  if(stat(filename, &statbuf) != -1) {
     *stamp = (curl_off_t)statbuf.st_mtime;
     rc = 0;
   }
@@ -151,4 +151,4 @@ void setfiletime(curl_off_t filetime, const char *filename,
 #endif
   }
 }
-#endif /* defined(HAVE_UTIME) || defined(HAVE_UTIMES) || defined(_WIN32) */
+#endif /* HAVE_UTIME || HAVE_UTIMES || _WIN32 */

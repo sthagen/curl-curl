@@ -1009,7 +1009,7 @@ static CURLcode setup_outfile(struct OperationConfig *config,
        of the file as it is now and open it for append instead */
     struct_stat fileinfo;
     /* VMS -- Danger, the filesize is only valid for stream files */
-    if(0 == stat(per->outfile, &fileinfo))
+    if(stat(per->outfile, &fileinfo) == 0)
       /* set offset to current file size: */
       config->resume_from = fileinfo.st_size;
     else
@@ -1321,7 +1321,8 @@ static CURLcode single_transfer(struct OperationConfig *config,
         }
       }
 
-      if((urlnode->useremote ||
+      outs->out_null = urlnode->out_null;
+      if(!outs->out_null && (urlnode->useremote ||
           (per->outfile && strcmp("-", per->outfile)))) {
         result = setup_outfile(config, per, outs, skipped);
         if(result)
@@ -2104,7 +2105,7 @@ static CURLcode cacertpaths(struct OperationConfig *config)
 
 #ifdef _WIN32
   if(!env) {
-#if defined(CURL_CA_SEARCH_SAFE)
+#ifdef CURL_CA_SEARCH_SAFE
     char *cacert = NULL;
     FILE *cafile = tool_execpath("curl-ca-bundle.crt", &cacert);
     if(cafile) {

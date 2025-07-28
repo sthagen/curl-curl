@@ -24,7 +24,7 @@
 
 #include "curl_setup.h"
 
-#if !defined(CURL_DISABLE_PROXY)
+#ifndef CURL_DISABLE_PROXY
 
 #ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
@@ -876,7 +876,7 @@ CONNECT_RESOLVE_REMOTE:
 #ifdef USE_IPV6
       if(conn->bits.ipv6_ip) {
         char ip6[16];
-        if(1 != curlx_inet_pton(AF_INET6, sx->hostname, ip6))
+        if(curlx_inet_pton(AF_INET6, sx->hostname, ip6) != 1)
           return CURLPX_BAD_ADDRESS_TYPE;
         socksreq[len++] = 4;
         memcpy(&socksreq[len], ip6, sizeof(ip6));
@@ -884,7 +884,7 @@ CONNECT_RESOLVE_REMOTE:
       }
       else
 #endif
-      if(1 == curlx_inet_pton(AF_INET, sx->hostname, ip4)) {
+      if(curlx_inet_pton(AF_INET, sx->hostname, ip4) == 1) {
         socksreq[len++] = 1;
         memcpy(&socksreq[len], ip4, sizeof(ip4));
         len += sizeof(ip4);
@@ -1195,15 +1195,22 @@ static CURLcode socks_cf_query(struct Curl_cfilter *cf,
 {
   struct socks_state *sx = cf->ctx;
 
-  if(sx) {
-    switch(query) {
-    case CF_QUERY_HOST_PORT:
+  switch(query) {
+  case CF_QUERY_HOST_PORT:
+    if(sx) {
       *pres1 = sx->remote_port;
       *((const char **)pres2) = sx->hostname;
       return CURLE_OK;
-    default:
-      break;
     }
+    break;
+  case CF_QUERY_ALPN_NEGOTIATED: {
+    const char **palpn = pres2;
+    DEBUGASSERT(palpn);
+    *palpn = NULL;
+    return CURLE_OK;
+  }
+  default:
+    break;
   }
   return cf->next ?
     cf->next->cft->query(cf->next, data, query, pres1, pres2) :

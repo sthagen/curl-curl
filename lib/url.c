@@ -458,6 +458,14 @@ CURLcode Curl_init_userdefined(struct Curl_easy *data)
 #endif
   }
 
+  /* set default minimum TLS version */
+#ifdef USE_SSL
+  Curl_setopt_SSLVERSION(data, CURLOPT_SSLVERSION, CURL_SSLVERSION_DEFAULT);
+#ifndef CURL_DISABLE_PROXY
+  Curl_setopt_SSLVERSION(data, CURLOPT_PROXY_SSLVERSION,
+                         CURL_SSLVERSION_DEFAULT);
+#endif
+#endif
 #ifndef CURL_DISABLE_FTP
   set->wildcard_enabled = FALSE;
   set->chunk_bgn      = ZERO_NULL;
@@ -1392,17 +1400,15 @@ void Curl_verboseconnect(struct Curl_easy *data,
           conn->primary.remote_port);
 #ifndef CURL_DISABLE_HTTP
     if(conn->handler->protocol & PROTO_FAMILY_HTTP) {
-      switch(conn->alpn) {
-      case CURL_HTTP_VERSION_3:
-        infof(data, "using HTTP/3");
-        break;
-      case CURL_HTTP_VERSION_2:
-        infof(data, "using HTTP/2");
-        break;
-      default:
+      const char *alpn = Curl_conn_get_alpn_negotiated(data, conn);
+      if(!alpn || !strcmp("http/1.1", alpn) || !strcmp("http/1.0", alpn))
         infof(data, "using HTTP/1.x");
-        break;
-      }
+      else if(!strcmp("h2", alpn))
+        infof(data, "using HTTP/2");
+      else if(!strcmp("h3", alpn))
+        infof(data, "using HTTP/3");
+      else
+        infof(data, "using ALPN protocol '%s'", alpn);
     }
 #endif
 }
@@ -2244,7 +2250,7 @@ static char *detect_proxy(struct Curl_easy *data,
  */
 static CURLcode parse_proxy(struct Curl_easy *data,
                             struct connectdata *conn, char *proxy,
-                            curl_proxytype proxytype)
+                            long proxytype)
 {
   char *portptr = NULL;
   int port = -1;
@@ -2562,7 +2568,7 @@ static CURLcode create_conn_helper_init_proxy(struct Curl_easy *data,
    * connection that may exist registered to the same proxy host.
    ***********************************************************************/
   if(proxy || socksproxy) {
-    curl_proxytype ptype = (curl_proxytype)conn->http_proxy.proxytype;
+    long ptype = conn->http_proxy.proxytype;
     if(proxy) {
       result = parse_proxy(data, conn, proxy, ptype);
       Curl_safefree(proxy); /* parse_proxy copies the proxy string */
@@ -3194,8 +3200,8 @@ static CURLcode parse_connect_to_slist(struct Curl_easy *data,
                                &as /* to */,
                                allowed_alpns);
     }
- #endif
- #ifdef USE_HTTP2
+#endif
+#ifdef USE_HTTP2
     if(!hit && (neg->wanted & CURL_HTTP_V2x) &&
        !neg->h2_prior_knowledge) {
       srcalpnid = ALPN_h2;
@@ -3204,7 +3210,7 @@ static CURLcode parse_connect_to_slist(struct Curl_easy *data,
                                &as /* to */,
                                allowed_alpns);
     }
- #endif
+#endif
     if(!hit && (neg->wanted & CURL_HTTP_V1x) &&
        !neg->only_10) {
       srcalpnid = ALPN_h1;
@@ -4081,7 +4087,7 @@ void Curl_data_priority_clear_state(struct Curl_easy *data)
   memset(&data->state.priority, 0, sizeof(data->state.priority));
 }
 
-#endif /* defined(USE_HTTP2) || defined(USE_HTTP3) */
+#endif /* USE_HTTP2 || USE_HTTP3 */
 
 
 CURLcode Curl_conn_meta_set(struct connectdata *conn, const char *key,

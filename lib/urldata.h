@@ -317,7 +317,7 @@ struct ssl_general_config {
 #ifndef CURL_DISABLE_DIGEST_AUTH
 /* Struct used for Digest challenge-response authentication */
 struct digestdata {
-#if defined(USE_WINDOWS_SSPI)
+#ifdef USE_WINDOWS_SSPI
   BYTE *input_token;
   size_t input_token_len;
   CtxtHandle *http_context;
@@ -625,8 +625,7 @@ struct ip_quadruple {
 struct proxy_info {
   struct hostname host;
   int port;
-  unsigned char proxytype; /* curl_proxytype: what kind of proxy that is in
-                              use */
+  unsigned char proxytype; /* what kind of proxy that is in use */
   char *user;    /* proxy username string, allocated */
   char *passwd;  /* proxy password string, allocated */
 };
@@ -745,7 +744,7 @@ struct connectdata {
   CtxtHandle *sslContext;
 #endif
 
-#if defined(USE_NTLM)
+#ifdef USE_NTLM
   curlntlm http_ntlm_state;
   curlntlm proxy_ntlm_state;
 #endif
@@ -780,11 +779,6 @@ struct connectdata {
   unsigned short localport;
   unsigned short secondary_port; /* secondary socket remote port to connect to
                                     (ftp) */
-  unsigned char alpn; /* APLN TLS negotiated protocol, a CURL_HTTP_VERSION*
-                         value */
-#ifndef CURL_DISABLE_PROXY
-  unsigned char proxy_alpn; /* APLN of proxy tunnel, CURL_HTTP_VERSION* */
-#endif
   unsigned char transport_wanted; /* one of the TRNSPRT_* defines. Not
    necessarily the transport the connection ends using due to Alt-Svc
    and happy eyeballing. Use `Curl_conn_get_transport() for actual value
@@ -966,7 +960,6 @@ typedef enum {
   EXPIRE_HAPPY_EYEBALLS_DNS, /* See asyn-ares.c */
   EXPIRE_HAPPY_EYEBALLS,
   EXPIRE_MULTI_PENDING,
-  EXPIRE_RUN_NOW,
   EXPIRE_SPEEDCHECK,
   EXPIRE_TIMEOUT,
   EXPIRE_TOOFAST,
@@ -1053,7 +1046,7 @@ struct UrlState {
   struct Curl_async async;  /* asynchronous name resolver data */
 #endif
 
-#if defined(USE_OPENSSL)
+#ifdef USE_OPENSSL
   /* void instead of ENGINE to avoid bleeding OpenSSL into this header */
   void *engine;
   /* void instead of OSSL_PROVIDER */
@@ -1255,7 +1248,7 @@ enum dupstring {
   STRING_FTP_ALTERNATIVE_TO_USER, /* command to send if USER/PASS fails */
   STRING_FTPPORT,         /* port to send with the FTP PORT command */
 #endif
-#if defined(HAVE_GSSAPI)
+#ifdef HAVE_GSSAPI
   STRING_KRB_LEVEL,       /* krb security level */
 #endif
 #ifndef CURL_DISABLE_NETRC
@@ -1441,7 +1434,7 @@ struct UserDefined {
   unsigned short proxyport; /* If non-zero, use this port number by
                                default. If the proxy string features a
                                ":[port]" that one will override this. */
-  unsigned char proxytype; /* what kind of proxy: curl_proxytype */
+  unsigned char proxytype; /* what kind of proxy */
   unsigned char socks5auth;/* kind of SOCKS5 authentication to use (bitmask) */
 #endif
   struct ssl_general_config general_ssl; /* general user defined SSL stuff */
@@ -1620,7 +1613,7 @@ struct UserDefined {
                              location: */
   BIT(opt_no_body);    /* as set with CURLOPT_NOBODY */
   BIT(verbose);        /* output verbosity */
-#if defined(HAVE_GSSAPI)
+#ifdef HAVE_GSSAPI
   BIT(krb);            /* Kerberos connection requested */
 #endif
   BIT(reuse_forbid);   /* forbidden to be reused, close after use */

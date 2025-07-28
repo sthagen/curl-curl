@@ -224,6 +224,7 @@ static const struct LongShort aliases[]= {
   {"ntlm",                       ARG_BOOL, ' ', C_NTLM},
   {"ntlm-wb",                    ARG_BOOL|ARG_DEPR, ' ', C_NTLM_WB},
   {"oauth2-bearer",              ARG_STRG|ARG_CLEAR, ' ', C_OAUTH2_BEARER},
+  {"out-null",                   ARG_BOOL, ' ', C_OUT_NULL},
   {"output",                     ARG_FILE, 'o', C_OUTPUT},
   {"output-dir",                 ARG_STRG, ' ', C_OUTPUT_DIR},
   {"parallel",                   ARG_BOOL, 'Z', C_PARALLEL},
@@ -1310,9 +1311,13 @@ static ParameterError parse_output(struct OperationConfig *config,
     return PARAM_NO_MEM;
 
   /* fill in the outfile */
-  err = getstr(&url->outfile, nextarg, DENY_BLANK);
+  if(nextarg)
+    err = getstr(&url->outfile, nextarg, DENY_BLANK);
+  else
+    url->outfile = NULL;
   url->useremote = FALSE; /* switch off */
   url->outset = TRUE;
+  url->out_null = !nextarg;
   return err;
 }
 
@@ -1351,6 +1356,7 @@ static ParameterError parse_remote_name(struct OperationConfig *config,
   url->outfile = NULL; /* leave it */
   url->useremote = toggle;
   url->outset = TRUE;
+  url->out_null = FALSE;
   return PARAM_OK;
 }
 
@@ -1585,7 +1591,7 @@ static ParameterError parse_time_cond(struct OperationConfig *config,
     break;
   }
   config->condtime = (curl_off_t)curl_getdate(nextarg, NULL);
-  if(-1 == config->condtime) {
+  if(config->condtime == -1) {
     curl_off_t value;
     /* now let's see if it is a filename to get the time from instead! */
     int rc = getfiletime(nextarg, config->global, &value);
@@ -1682,10 +1688,23 @@ static void opt_depr(struct GlobalConfig *global,
   warnf(global, "--%s is deprecated and has no function anymore", a->lname);
 }
 
+static ParameterError opt_sslver(struct OperationConfig *config,
+                                 unsigned char ver)
+{
+  if(config->ssl_version_max &&
+     (config->ssl_version_max < ver)) {
+    errorf(config->global, "Minimum TLS version set higher than max");
+    return PARAM_BAD_USE;
+  }
+  config->ssl_version = ver;
+  return PARAM_OK;
+}
+
 /* opt_none is the function that handles ARG_NONE options */
 static ParameterError opt_none(struct OperationConfig *config,
                                const struct LongShort *a)
 {
+  ParameterError err = PARAM_OK;
   switch(a->cmd) {
   case C_ANYAUTH: /* --anyauth */
     config->authtype = CURLAUTH_ANY;
@@ -1731,19 +1750,19 @@ static ParameterError opt_none(struct OperationConfig *config,
       sethttpver(config, CURL_HTTP_VERSION_3ONLY);
     break;
   case C_TLSV1: /* --tlsv1 */
-    config->ssl_version = CURL_SSLVERSION_TLSv1;
+    err = opt_sslver(config, 1);
     break;
   case C_TLSV1_0: /* --tlsv1.0 */
-    config->ssl_version = CURL_SSLVERSION_TLSv1_0;
+    err = opt_sslver(config, 1);
     break;
   case C_TLSV1_1: /* --tlsv1.1 */
-    config->ssl_version = CURL_SSLVERSION_TLSv1_1;
+    err = opt_sslver(config, 2);
     break;
   case C_TLSV1_2: /* --tlsv1.2 */
-    config->ssl_version = CURL_SSLVERSION_TLSv1_2;
+    err = opt_sslver(config, 3);
     break;
   case C_TLSV1_3: /* --tlsv1.3 */
-    config->ssl_version = CURL_SSLVERSION_TLSv1_3;
+    err = opt_sslver(config, 4);
     break;
   case C_IPV4: /* --ipv4 */
     config->ip_version = CURL_IPRESOLVE_V4;
@@ -1758,7 +1777,7 @@ static ParameterError opt_none(struct OperationConfig *config,
     config->proxy_ssl_version = CURL_SSLVERSION_TLSv1;
     break;
   }
-  return PARAM_OK;
+  return err;
 }
 
 /* opt_bool is the function that handles boolean options */
@@ -1820,6 +1839,8 @@ static ParameterError opt_bool(struct OperationConfig *config,
       return PARAM_LIBCURL_DOESNT_SUPPORT;
     togglebit(toggle, &config->authtype, CURLAUTH_NTLM);
     break;
+  case C_OUT_NULL: /* --out-null */
+    return parse_output(config, NULL);
   case C_BASIC: /* --basic */
     togglebit(toggle, &config->authtype, CURLAUTH_BASIC);
     break;
@@ -2423,6 +2444,10 @@ static ParameterError opt_filestring(struct OperationConfig *config,
     break;
   case C_TLS_MAX: /* --tls-max */
     err = str2tls_max(&config->ssl_version_max, nextarg);
+    if(!err && (config->ssl_version_max < config->ssl_version)) {
+      errorf(global, "--tls-max set lower than minimum accepted version");
+      err = PARAM_BAD_USE;
+    }
     break;
   case C_HAPPY_EYEBALLS_TIMEOUT_MS: /* --happy-eyeballs-timeout-ms */
     err = str2unum(&config->happy_eyeballs_timeout_ms, nextarg);
@@ -2786,6 +2811,9 @@ static ParameterError opt_filestring(struct OperationConfig *config,
   return err;
 }
 
+/* the longest command line option, excluding the leading -- */
+#define MAX_OPTION_LEN 26
+
 ParameterError getparameter(const char *flag, /* f or -long-flag */
                             const char *nextarg,    /* NULL if unset */
                             bool *usedarg,    /* set to TRUE if the arg
@@ -2799,6 +2827,7 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
   bool toggle = TRUE; /* how to switch boolean options, on or off. Controlled
                          by using --OPTION or --no-OPTION */
   bool nextalloc = FALSE; /* if nextarg is allocated */
+  bool consumearg = TRUE; /* the argument comes separate */
   const struct LongShort *a = NULL;
   struct GlobalConfig *global = config->global;
   verbose_nopts = 0; /* options processed in `flag`*/
@@ -2810,6 +2839,8 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
     const char *word = ('-' == flag[0]) ? flag + 2 : flag;
     bool noflagged = FALSE;
     bool expand = FALSE;
+    const char *p;
+    struct Curl_str out;
 
     if(!strncmp(word, "no-", 3)) {
       /* disable this option but ignore the "no-" part when looking for it */
@@ -2823,7 +2854,21 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
       expand = TRUE;
     }
 
-    a = findlongopt(word);
+    p = word;
+    /* is there an '=' ? */
+    if(!curlx_str_until(&p, &out, MAX_OPTION_LEN, '=') &&
+       !curlx_str_single(&p, '=') ) {
+      /* there's an equal sign */
+      char tempword[MAX_OPTION_LEN + 1];
+      memcpy(tempword, curlx_str(&out), curlx_strlen(&out));
+      tempword[curlx_strlen(&out)] = 0;
+      a = findlongopt(tempword);
+      nextarg = p;
+      consumearg = FALSE; /* it is not separate */
+    }
+    else
+      a = findlongopt(word);
+
     if(a) {
       longopt = TRUE;
     }
@@ -2893,7 +2938,7 @@ ParameterError getparameter(const char *flag, /* f or -long-flag */
         break;
       }
       else {
-        *usedarg = TRUE; /* mark it as used */
+        *usedarg = consumearg; /* mark it as used */
       }
       if(a->desc & ARG_DEPR) {
         opt_depr(global, a);

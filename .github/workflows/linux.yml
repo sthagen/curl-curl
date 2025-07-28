@@ -49,8 +49,6 @@ env:
   WOLFSSH_VERSION: 1.4.19
   # renovate: datasource=github-tags depName=Mbed-TLS/mbedtls versioning=semver registryUrl=https://github.com
   MBEDTLS_VERSION: 3.6.4
-  # renovate: datasource=github-tags depName=nibanks/msh3 versioning=semver registryUrl=https://github.com
-  MSH3_VERSION: 0.6.0
   # renovate: datasource=github-tags depName=awslabs/aws-lc versioning=semver registryUrl=https://github.com
   AWSLC_VERSION: 1.56.0
   # handled in renovate.json
@@ -127,19 +125,7 @@ jobs:
             install_steps: skipall
             generate: -DCURL_USE_MBEDTLS=ON -DENABLE_DEBUG=ON -DCURL_USE_PKGCONFIG=OFF -DCURL_COMPLETION_FISH=ON -DCURL_COMPLETION_ZSH=ON
 
-          - name: 'msh3'
-            install_packages: zlib1g-dev
-            install_steps: quictls msh3
-            LDFLAGS: -Wl,-rpath,/home/runner/msh3/lib -Wl,-rpath,/home/runner/quictls/lib
-            configure: --with-msh3=/home/runner/msh3 --with-openssl=/home/runner/quictls --enable-debug
-
-          - name: 'msh3'
-            install_packages: zlib1g-dev
-            install_steps: quictls msh3 skipall
-            PKG_CONFIG_PATH: /home/runner/msh3/lib/pkgconfig  # Broken as of v0.6.0
-            generate: -DOPENSSL_ROOT_DIR=/home/runner/quictls -DUSE_MSH3=ON -DMSH3_INCLUDE_DIR=/home/runner/msh3/include -DMSH3_LIBRARY=/home/runner/msh3/lib/libmsh3.so -DENABLE_DEBUG=ON
-
-          - name: 'awslc'
+          - name: awslc
             install_packages: zlib1g-dev
             install_steps: awslc pytest
             configure: LDFLAGS=-Wl,-rpath,/home/runner/awslc/lib --with-openssl=/home/runner/awslc --enable-ech
@@ -179,7 +165,7 @@ jobs:
 
           - name: 'openssl clang krb5 LTO'
             install_packages: zlib1g-dev libkrb5-dev clang
-            install_steps: skipall
+            install_steps: skiprun
             generate: -DCURL_USE_OPENSSL=ON -DCURL_USE_GSSAPI=ON -DENABLE_DEBUG=ON -DCURL_LTO=ON
 
           - name: 'openssl !ipv6 !--libcurl !--digest-auth'
@@ -273,7 +259,7 @@ jobs:
 
           - name: 'rustls'
             install_packages: libnghttp2-dev libldap-dev
-            install_steps: rust rustls skipall pytest
+            install_steps: rust rustls skiprun pytest
             generate: -DCURL_USE_RUSTLS=ON -DUSE_ECH=ON -DENABLE_DEBUG=ON
 
           - name: 'IntelC openssl'
@@ -289,11 +275,11 @@ jobs:
             container: 'andy5995/slackware-build-essential:15.0'
 
           - name: 'Alpine MUSL https-rr'
-            configure: --enable-debug --with-ssl --with-libssh2 --with-libidn2 --with-gssapi --enable-ldap --with-libpsl --enable-threaded-resolver --enable-ares --enable-httpsrr
+            configure: --enable-debug --with-ssl --with-libssh2 --with-libidn2 --with-gssapi --enable-ldap --with-libpsl --enable-httpsrr --enable-ares --enable-threaded-resolver
             container: 'alpine:3.20'
 
-          - name: 'Alpine MUSL c-ares https-rr'
-            configure: --enable-debug --with-ssl --with-libssh2 --with-libidn2 --with-gssapi --enable-ldap --with-libpsl --disable-threaded-resolver --enable-ares --enable-httpsrr --disable-unity
+          - name: 'Alpine MUSL https-rr c-ares'
+            configure: --enable-debug --with-ssl --with-libssh2 --with-libidn2 --with-gssapi --enable-ldap --with-libpsl --enable-httpsrr --enable-ares --disable-threaded-resolver
             container: 'alpine:3.20'
 
     steps:
@@ -500,25 +486,6 @@ jobs:
           make
           make -j1 install_sw
 
-      - name: 'cache msh3'
-        if: ${{ contains(matrix.build.install_steps, 'msh3') }}
-        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
-        id: cache-msh3
-        env:
-          cache-name: cache-msh3
-        with:
-          path: ~/msh3
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ env.MSH3_VERSION }}
-
-      - name: 'build msh3'
-        if: ${{ contains(matrix.build.install_steps, 'msh3') && steps.cache-msh3.outputs.cache-hit != 'true' }}
-        run: |
-          git clone --quiet --depth=1 -b "v${MSH3_VERSION}" --recursive https://github.com/nibanks/msh3
-          cd msh3
-          cmake -B . -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=/home/runner/msh3
-          cmake --build .
-          cmake --install .
-
       - name: 'cache awslc'
         if: ${{ contains(matrix.build.install_steps, 'awslc') }}
         uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
@@ -661,7 +628,7 @@ jobs:
           fi
 
       - name: 'install test prereqs'
-        if: ${{ !contains(matrix.build.install_steps, 'skipall') && matrix.build.container == null }}
+        if: ${{ !contains(matrix.build.install_steps, 'skipall') && !contains(matrix.build.install_steps, 'skiprun') && matrix.build.container == null }}
         run: |
           [ -x ~/venv/bin/activate ] && source ~/venv/bin/activate
           python3 -m pip install -r tests/requirements.txt

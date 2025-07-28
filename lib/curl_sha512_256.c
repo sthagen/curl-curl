@@ -38,7 +38,7 @@
  * * Rustls
  * Skip the backend if it does not support the required algorithm */
 
-#if defined(USE_OPENSSL)
+#ifdef USE_OPENSSL
 #  include <openssl/opensslv.h>
 #  if (!defined(LIBRESSL_VERSION_NUMBER) && \
         defined(OPENSSL_VERSION_NUMBER) && \
@@ -78,12 +78,12 @@
 
 #if !defined(HAS_SHA512_256_IMPLEMENTATION) && defined(USE_GNUTLS)
 #  include <nettle/sha.h>
-#  if defined(SHA512_256_DIGEST_SIZE)
+#  ifdef SHA512_256_DIGEST_SIZE
 #    define USE_GNUTLS_SHA512_256           1
 #  endif
 #endif /* ! HAS_SHA512_256_IMPLEMENTATION && USE_GNUTLS */
 
-#if defined(USE_OPENSSL_SHA512_256)
+#ifdef USE_OPENSSL_SHA512_256
 
 /* OpenSSL does not provide macros for SHA-512/256 sizes */
 
@@ -317,7 +317,7 @@ static CURL_FORCEINLINE curl_uint64_t Curl_rotr64(curl_uint64_t value,
                                                   unsigned int bits)
 {
   bits %= 64;
-  if(0 == bits)
+  if(bits == 0)
     return value;
   /* Defined in a form which modern compiler could optimize. */
   return (value >> bits) | (value << (64 - bits));
@@ -621,7 +621,7 @@ static CURLcode Curl_sha512_256_update(void *context,
 
   DEBUGASSERT((data != NULL) || (length == 0));
 
-  if(0 == length)
+  if(length == 0)
     return CURLE_OK; /* Shortcut, do nothing */
 
   /* Note: (count & (CURL_SHA512_256_BLOCK_SIZE-1))
@@ -633,7 +633,7 @@ static CURLcode Curl_sha512_256_update(void *context,
   ctx->count_bits_hi += ctx->count >> 61;
   ctx->count &= CURL_UINT64_C(0x1FFFFFFFFFFFFFFF);
 
-  if(0 != bytes_have) {
+  if(bytes_have) {
     unsigned int bytes_left = CURL_SHA512_256_BLOCK_SIZE - bytes_have;
     if(length >= bytes_left) {
       /* Combine new data with data in the buffer and process the full
@@ -656,7 +656,7 @@ static CURLcode Curl_sha512_256_update(void *context,
     length -= CURL_SHA512_256_BLOCK_SIZE;
   }
 
-  if(0 != length) {
+  if(length) {
     /* Copy incomplete block of new data (if any)
        to the buffer. */
     memcpy(((unsigned char *) ctx_buf) + bytes_have, data, length);
