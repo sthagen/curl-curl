@@ -372,35 +372,35 @@ fi
 AC_SUBST(HTTPD)
 AC_SUBST(APXS)
 
-dnl we'd like a sockd as test server
+dnl we'd like a dante as test socks server
 dnl
-SOCKD_ENABLED="maybe"
-AC_ARG_WITH(test-sockd, [AS_HELP_STRING([--with-test-sockd=PATH],
-                         [where to find dante sockd for testing])],
-  [request_sockd=$withval], [request_sockd=check])
-if test x"$request_sockd" = "xcheck" -o x"$request_sockd" = "xyes"; then
-  if test -x "/usr/sbin/sockd"; then
+DANTED_ENABLED="maybe"
+AC_ARG_WITH(test-danted, [AS_HELP_STRING([--with-test-danted=PATH],
+                         [where to find danted socks daemon for testing])],
+  [request_danted=$withval], [request_danted=check])
+if test x"$request_danted" = "xcheck" -o x"$request_danted" = "xyes"; then
+  if test -x "/usr/sbin/danted"; then
     # common location on distros (debian/ubuntu)
-    SOCKD="/usr/sbin/sockd"
+    DANTED="/usr/sbin/danted"
   else
-    AC_PATH_PROG([SOCKD], [sockd])
-    if test "x$SOCKD" = "x"; then
-      AC_PATH_PROG([SOCKD], [sockd])
+    AC_PATH_PROG([DANTED], [danted])
+    if test "x$DANTED" = "x"; then
+      AC_PATH_PROG([DANTED], [danted])
     fi
   fi
-elif test x"$request_sockd" != "xno"; then
-  SOCKD="${request_sockd}"
-  if test ! -x "${SOCKD}"; then
-    AC_MSG_NOTICE([sockd not found as ${SOCKD}, sockd tests disabled])
-    SOCKD_ENABLED="no"
+elif test x"$request_danted" != "xno"; then
+  DANTED="${request_danted}"
+  if test ! -x "${DANTED}"; then
+    AC_MSG_NOTICE([danted not found as ${DANTED}, danted tests disabled])
+    DANTED_ENABLED="no"
   else
-    AC_MSG_NOTICE([using SOCKD=$SOCKD for tests])
+    AC_MSG_NOTICE([using DANTED=$DANTED for tests])
   fi
 fi
-if test x"$SOCKD_ENABLED" = "xno"; then
-  SOCKD=""
+if test x"$DANTED_ENABLED" = "xno"; then
+  DANTED=""
 fi
-AC_SUBST(SOCKD)
+AC_SUBST(DANTED)
 
 dnl the nghttpx we might use in httpd testing
 if test "x$TEST_NGHTTPX" != "x" -a "x$TEST_NGHTTPX" != "xnghttpx"; then
@@ -4045,30 +4045,14 @@ AC_CHECK_TYPE([bool],[
 #endif
 ])
 
-# check for sa_family_t
-AC_CHECK_TYPE(sa_family_t,
-  AC_DEFINE(HAVE_SA_FAMILY_T, 1, [Define to 1 if symbol `sa_family_t' exists]),
+if test "$curl_cv_native_windows" != 'yes'; then
+  # check for sa_family_t
+  AC_CHECK_TYPE(sa_family_t,
+    AC_DEFINE(HAVE_SA_FAMILY_T, 1, [Define to 1 if symbol `sa_family_t' exists]),,
   [
-  # The Windows name?
-  AC_CHECK_TYPE(ADDRESS_FAMILY,
-    AC_DEFINE(HAVE_ADDRESS_FAMILY, 1, [Define to 1 if symbol `ADDRESS_FAMILY' exists]),
-    [],
-    [
-#ifdef _WIN32
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <winsock2.h>
-#else
-#include <sys/socket.h>
-#endif
-    ])
-  ],
-[
-#ifndef _WIN32
-#include <sys/socket.h>
-#endif
-])
+  #include <sys/socket.h>
+  ])
+fi
 
 # check for suseconds_t
 AC_CHECK_TYPE([suseconds_t],[

@@ -3235,6 +3235,16 @@ CURLMcode curl_multi_setopt(CURLM *m,
       multi->max_concurrent_streams = (unsigned int)streams;
     }
     break;
+  case CURLMOPT_NETWORK_CHANGED: {
+      long val = va_arg(param, long);
+      if(val & CURLM_NWCOPT_CLEAR_DNS) {
+        Curl_dnscache_clear(multi->admin);
+      }
+      if(val & CURLM_NWCOPT_CLEAR_CONNS) {
+        Curl_cpool_nw_changed(multi->admin);
+      }
+    break;
+  }
   default:
     res = CURLM_UNKNOWN_OPTION;
     break;
@@ -3672,9 +3682,13 @@ static void process_pending_handles(struct Curl_multi *multi)
   if(Curl_uint_bset_first(&multi->pending, &mid)) {
     do {
       struct Curl_easy *data = Curl_multi_get_easy(multi, mid);
-      DEBUGASSERT(data);
-      if(data)
+      if(data) {
         move_pending_to_connect(multi, data);
+        break;
+      }
+      /* transfer no longer known, should not happen */
+      Curl_uint_bset_remove(&multi->pending, mid);
+      DEBUGASSERT(0);
     }
     while(Curl_uint_bset_next(&multi->pending, mid, &mid));
   }
