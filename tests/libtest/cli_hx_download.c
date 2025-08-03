@@ -24,12 +24,33 @@
 #include "first.h"
 
 #include "testtrace.h"
+
+#include "curl_mem_undef.h"
+
+#if defined(USE_QUICHE) || defined(USE_OPENSSL)
+#include <openssl/ssl.h>
+#endif
+#ifdef USE_WOLFSSL
+#include <wolfssl/options.h>
+#include <wolfssl/version.h>
+#include <wolfssl/ssl.h>
+#endif
+#ifdef USE_GNUTLS
+#include <gnutls/gnutls.h>
+#endif
+#ifdef USE_MBEDTLS
+#include <mbedtls/ssl.h>
+#endif
+#ifdef USE_RUSTLS
+#include <rustls.h>
+#endif
+
 #include "memdebug.h"
 
 static int verbose_d = 1;
 
 struct transfer_d {
-  int idx;
+  size_t idx;
   CURL *easy;
   char filename[128];
   FILE *out;
@@ -41,6 +62,7 @@ struct transfer_d {
   int paused;
   int resumed;
   int done;
+  int checked_ssl;
   CURLcode result;
 };
 
@@ -65,10 +87,12 @@ static size_t my_write_d_cb(char *buf, size_t nitems, size_t buflen,
   size_t blen = (nitems * buflen);
   size_t nwritten;
 
-  curl_mfprintf(stderr, "[t-%d] RECV %ld bytes, total=%ld, pause_at=%ld\n",
-                t->idx, (long)blen, (long)t->recv_size, (long)t->pause_at);
+  curl_mfprintf(stderr, "[t-%zu] RECV %zu bytes, "
+                "total=%" CURL_FORMAT_CURL_OFF_T ", "
+                "pause_at=%" CURL_FORMAT_CURL_OFF_T "\n",
+                t->idx, blen, t->recv_size, t->pause_at);
   if(!t->out) {
-    curl_msnprintf(t->filename, sizeof(t->filename)-1, "download_%u.data",
+    curl_msnprintf(t->filename, sizeof(t->filename)-1, "download_%zu.data",
                    t->idx);
     t->out = fopen(t->filename, "wb");
     if(!t->out)
@@ -78,20 +102,20 @@ static size_t my_write_d_cb(char *buf, size_t nitems, size_t buflen,
   if(!t->resumed &&
      t->recv_size < t->pause_at &&
      ((t->recv_size + (curl_off_t)blen) >= t->pause_at)) {
-    curl_mfprintf(stderr, "[t-%d] PAUSE\n", t->idx);
+    curl_mfprintf(stderr, "[t-%zu] PAUSE\n", t->idx);
     t->paused = 1;
     return CURL_WRITEFUNC_PAUSE;
   }
 
   nwritten = fwrite(buf, nitems, buflen, t->out);
   if(nwritten < blen) {
-    curl_mfprintf(stderr, "[t-%d] write failure\n", t->idx);
+    curl_mfprintf(stderr, "[t-%zu] write failure\n", t->idx);
     return 0;
   }
   t->recv_size += (curl_off_t)nwritten;
   if(t->fail_at > 0 && t->recv_size >= t->fail_at) {
-    curl_mfprintf(stderr, "[t-%d] FAIL by write callback at %ld bytes\n",
-                  t->idx, (long)t->recv_size);
+    curl_mfprintf(stderr, "[t-%zu] FAIL by write callback at "
+                  "%" CURL_FORMAT_CURL_OFF_T " bytes\n", t->idx, t->recv_size);
     return CURL_WRITEFUNC_ERROR;
   }
 
@@ -107,10 +131,84 @@ static int my_progress_d_cb(void *userdata,
   (void)ulnow;
   (void)dltotal;
   if(t->abort_at > 0 && dlnow >= t->abort_at) {
-    curl_mfprintf(stderr, "[t-%d] ABORT by progress_cb at %ld bytes\n",
-                  t->idx, (long)dlnow);
+    curl_mfprintf(stderr, "[t-%zu] ABORT by progress_cb at "
+                  "%" CURL_FORMAT_CURL_OFF_T " bytes\n", t->idx, dlnow);
     return 1;
   }
+
+#if defined(USE_QUICHE) || defined(USE_OPENSSL) || defined(USE_WOLFSSL) || \
+  defined(USE_GNUTLS) || defined(USE_MBEDTLS) || defined(USE_RUSTLS)
+  if(!t->checked_ssl && dlnow > 0) {
+    struct curl_tlssessioninfo *tls;
+    CURLcode res;
+
+    t->checked_ssl = TRUE;
+    res = curl_easy_getinfo(t->easy, CURLINFO_TLS_SSL_PTR, &tls);
+    if(res) {
+      curl_mfprintf(stderr, "[t-%zu] info CURLINFO_TLS_SSL_PTR failed: %d\n",
+                    t->idx, res);
+      assert(0);
+    }
+    else {
+      switch(tls->backend) {
+#if defined(USE_QUICHE) || defined(USE_OPENSSL)
+      case CURLSSLBACKEND_OPENSSL: {
+        const char *version = SSL_get_version((SSL*)tls->internals);
+        assert(version);
+        assert(strcmp(version, "unknown"));
+        curl_mfprintf(stderr, "[t-%zu] info OpenSSL using %s\n",
+                      t->idx, version);
+        break;
+      }
+#endif
+#ifdef USE_WOLFSSL
+      case CURLSSLBACKEND_WOLFSSL: {
+        const char *version = wolfSSL_get_version((WOLFSSL*)tls->internals);
+        assert(version);
+        assert(strcmp(version, "unknown"));
+        curl_mfprintf(stderr, "[t-%zu] info wolfSSL using %s\n",
+                      t->idx, version);
+        break;
+      }
+#endif
+#ifdef USE_GNUTLS
+      case CURLSSLBACKEND_GNUTLS: {
+        int v = gnutls_protocol_get_version((gnutls_session_t)tls->internals);
+        assert(v);
+        curl_mfprintf(stderr, "[t-%zu] info GnuTLS using %s\n",
+                      t->idx, gnutls_protocol_get_name(v));
+        break;
+      }
+#endif
+#ifdef USE_MBEDTLS
+      case CURLSSLBACKEND_MBEDTLS: {
+        const char *version = mbedtls_ssl_get_version(
+          (mbedtls_ssl_context*)tls->internals);
+        assert(version);
+        assert(strcmp(version, "unknown"));
+        curl_mfprintf(stderr, "[t-%zu] info mbedTLS using %s\n",
+                      t->idx, version);
+        break;
+      }
+#endif
+#ifdef USE_RUSTLS
+      case CURLSSLBACKEND_RUSTLS: {
+        int v = rustls_connection_get_protocol_version(
+          (struct rustls_connection*)tls->internals);
+        assert(v);
+        curl_mfprintf(stderr, "[t-%zu] info rustls TLS version 0x%x\n",
+                      t->idx, v);
+        break;
+      }
+#endif
+      default:
+        curl_mfprintf(stderr, "[t-%zu] info SSL_PTR backend=%d, ptr=%p\n",
+                      t->idx, tls->backend, (void *)tls->internals);
+        break;
+      }
+    }
+  }
+#endif
   return 0;
 }
 
@@ -312,7 +410,7 @@ static CURLcode test_cli_hx_download(const char *URL)
   active_transfers = 0;
   for(i = 0; i < transfer_count_d; ++i) {
     t = &transfer_d[i];
-    t->idx = (int)i;
+    t->idx = i;
     t->abort_at = (curl_off_t)abort_offset;
     t->fail_at = (curl_off_t)fail_offset;
     t->pause_at = (curl_off_t)pause_offset;
@@ -325,14 +423,14 @@ static CURLcode test_cli_hx_download(const char *URL)
     if(!t->easy ||
        setup_hx_download(t->easy, url, t, http_version, host, share,
                          use_earlydata, fresh_connect)) {
-      curl_mfprintf(stderr, "[t-%d] FAILED setup\n", (int)i);
+      curl_mfprintf(stderr, "[t-%zu] FAILED setup\n", i);
       result = (CURLcode)1;
       goto cleanup;
     }
     curl_multi_add_handle(multi_handle, t->easy);
     t->started = 1;
     ++active_transfers;
-    curl_mfprintf(stderr, "[t-%d] STARTED\n", t->idx);
+    curl_mfprintf(stderr, "[t-%zu] STARTED\n", t->idx);
   }
 
   do {
@@ -358,13 +456,13 @@ static CURLcode test_cli_hx_download(const char *URL)
         if(t) {
           t->done = 1;
           t->result = m->data.result;
-          curl_mfprintf(stderr, "[t-%d] FINISHED with result %d\n",
+          curl_mfprintf(stderr, "[t-%zu] FINISHED with result %d\n",
                         t->idx, t->result);
           if(use_earlydata) {
             curl_off_t sent;
             curl_easy_getinfo(e, CURLINFO_EARLYDATA_SENT_T, &sent);
-            curl_mfprintf(stderr, "[t-%d] EarlyData: %ld\n", t->idx,
-                          (long)sent);
+            curl_mfprintf(stderr, "[t-%zu] EarlyData: "
+                          "%" CURL_FORMAT_CURL_OFF_T "\n", t->idx, sent);
           }
         }
         else {
@@ -382,7 +480,7 @@ static CURLcode test_cli_hx_download(const char *URL)
             curl_multi_remove_handle(multi_handle, t->easy);
             t->done = 1;
             active_transfers--;
-            curl_mfprintf(stderr, "[t-%d] ABORTED\n", t->idx);
+            curl_mfprintf(stderr, "[t-%zu] ABORTED\n", t->idx);
           }
         }
       }
@@ -394,7 +492,7 @@ static CURLcode test_cli_hx_download(const char *URL)
             t->resumed = 1;
             t->paused = 0;
             curl_easy_pause(t->easy, CURLPAUSE_CONT);
-            curl_mfprintf(stderr, "[t-%d] RESUMED\n", t->idx);
+            curl_mfprintf(stderr, "[t-%zu] RESUMED\n", t->idx);
             break;
           }
         }
@@ -408,14 +506,14 @@ static CURLcode test_cli_hx_download(const char *URL)
             if(!t->easy ||
               setup_hx_download(t->easy, url, t, http_version, host, share,
                                 use_earlydata, fresh_connect)) {
-              curl_mfprintf(stderr, "[t-%d] FAILED setup\n", (int)i);
+              curl_mfprintf(stderr, "[t-%zu] FAILED setup\n", i);
               result = (CURLcode)1;
               goto cleanup;
             }
             curl_multi_add_handle(multi_handle, t->easy);
             t->started = 1;
             ++active_transfers;
-            curl_mfprintf(stderr, "[t-%d] STARTED\n", t->idx);
+            curl_mfprintf(stderr, "[t-%zu] STARTED\n", t->idx);
             break;
           }
         }
@@ -441,6 +539,8 @@ static CURLcode test_cli_hx_download(const char *URL)
     }
     if(t->result)
       result = t->result;
+    else /* on success we expect ssl to have been checked */
+      assert(t->checked_ssl);
   }
   free(transfer_d);
 

@@ -1024,6 +1024,7 @@ static CURLcode h3_open_stream(struct Curl_cfilter *cf,
 
   stream3_id = quiche_h3_send_request(ctx->h3c, ctx->qconn, nva, nheader,
                                       stream->send_closed);
+  CURL_TRC_CF(data, cf, "quiche_send_request() -> %" FMT_PRIu64, stream3_id);
   if(stream3_id < 0) {
     if(QUICHE_H3_ERR_STREAM_BLOCKED == stream3_id) {
       /* quiche seems to report this error if the connection window is
@@ -1551,7 +1552,7 @@ static CURLcode cf_quiche_query(struct Curl_cfilter *cf,
   case CF_QUERY_SSL_CTX_INFO: {
     struct curl_tlssessioninfo *info = pres2;
     if(Curl_vquic_tls_get_ssl_info(&ctx->tls,
-                                   (query == CF_QUERY_SSL_INFO), info))
+                                   (query == CF_QUERY_SSL_CTX_INFO), info))
       return CURLE_OK;
     break;
   }

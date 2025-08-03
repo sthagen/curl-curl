@@ -846,19 +846,19 @@ typedef enum {
 #define CURLAUTH_ANY          (~CURLAUTH_DIGEST_IE)
 #define CURLAUTH_ANYSAFE      (~(CURLAUTH_BASIC|CURLAUTH_DIGEST_IE))
 
-#define CURLSSH_AUTH_ANY       ~0     /* all types supported by the server */
-#define CURLSSH_AUTH_NONE      0      /* none allowed, silly but complete */
-#define CURLSSH_AUTH_PUBLICKEY (1<<0) /* public/private key files */
-#define CURLSSH_AUTH_PASSWORD  (1<<1) /* password */
-#define CURLSSH_AUTH_HOST      (1<<2) /* host key files */
-#define CURLSSH_AUTH_KEYBOARD  (1<<3) /* keyboard interactive */
-#define CURLSSH_AUTH_AGENT     (1<<4) /* agent (ssh-agent, pageant...) */
-#define CURLSSH_AUTH_GSSAPI    (1<<5) /* gssapi (kerberos, ...) */
+#define CURLSSH_AUTH_ANY       ~0L     /* all types supported by the server */
+#define CURLSSH_AUTH_NONE      0L      /* none allowed, silly but complete */
+#define CURLSSH_AUTH_PUBLICKEY (1L<<0) /* public/private key files */
+#define CURLSSH_AUTH_PASSWORD  (1L<<1) /* password */
+#define CURLSSH_AUTH_HOST      (1L<<2) /* host key files */
+#define CURLSSH_AUTH_KEYBOARD  (1L<<3) /* keyboard interactive */
+#define CURLSSH_AUTH_AGENT     (1L<<4) /* agent (ssh-agent, pageant...) */
+#define CURLSSH_AUTH_GSSAPI    (1L<<5) /* gssapi (kerberos, ...) */
 #define CURLSSH_AUTH_DEFAULT CURLSSH_AUTH_ANY
 
-#define CURLGSSAPI_DELEGATION_NONE        0      /* no delegation (default) */
-#define CURLGSSAPI_DELEGATION_POLICY_FLAG (1<<0) /* if permitted by policy */
-#define CURLGSSAPI_DELEGATION_FLAG        (1<<1) /* delegate always */
+#define CURLGSSAPI_DELEGATION_NONE        0L      /* no delegation (default) */
+#define CURLGSSAPI_DELEGATION_POLICY_FLAG (1L<<0) /* if permitted by policy */
+#define CURLGSSAPI_DELEGATION_FLAG        (1L<<1) /* delegate always */
 
 #define CURL_ERROR_SIZE 256
 
@@ -1067,42 +1067,42 @@ typedef CURLSTScode (*curl_hstswrite_callback)(CURL *easy,
                                                void *userp);
 
 /* CURLHSTS_* are bits for the CURLOPT_HSTS option */
-#define CURLHSTS_ENABLE       (long)(1<<0)
-#define CURLHSTS_READONLYFILE (long)(1<<1)
+#define CURLHSTS_ENABLE       (1L<<0)
+#define CURLHSTS_READONLYFILE (1L<<1)
 
 /* The CURLPROTO_ defines below are for the **deprecated** CURLOPT_*PROTOCOLS
    options. Do not use. */
-#define CURLPROTO_HTTP   (1<<0)
-#define CURLPROTO_HTTPS  (1<<1)
-#define CURLPROTO_FTP    (1<<2)
-#define CURLPROTO_FTPS   (1<<3)
-#define CURLPROTO_SCP    (1<<4)
-#define CURLPROTO_SFTP   (1<<5)
-#define CURLPROTO_TELNET (1<<6)
-#define CURLPROTO_LDAP   (1<<7)
-#define CURLPROTO_LDAPS  (1<<8)
-#define CURLPROTO_DICT   (1<<9)
-#define CURLPROTO_FILE   (1<<10)
-#define CURLPROTO_TFTP   (1<<11)
-#define CURLPROTO_IMAP   (1<<12)
-#define CURLPROTO_IMAPS  (1<<13)
-#define CURLPROTO_POP3   (1<<14)
-#define CURLPROTO_POP3S  (1<<15)
-#define CURLPROTO_SMTP   (1<<16)
-#define CURLPROTO_SMTPS  (1<<17)
-#define CURLPROTO_RTSP   (1<<18)
-#define CURLPROTO_RTMP   (1<<19)
-#define CURLPROTO_RTMPT  (1<<20)
-#define CURLPROTO_RTMPE  (1<<21)
-#define CURLPROTO_RTMPTE (1<<22)
-#define CURLPROTO_RTMPS  (1<<23)
-#define CURLPROTO_RTMPTS (1<<24)
-#define CURLPROTO_GOPHER (1<<25)
-#define CURLPROTO_SMB    (1<<26)
-#define CURLPROTO_SMBS   (1<<27)
-#define CURLPROTO_MQTT   (1<<28)
-#define CURLPROTO_GOPHERS (1<<29)
-#define CURLPROTO_ALL    (~0) /* enable everything */
+#define CURLPROTO_HTTP    (1L<<0)
+#define CURLPROTO_HTTPS   (1L<<1)
+#define CURLPROTO_FTP     (1L<<2)
+#define CURLPROTO_FTPS    (1L<<3)
+#define CURLPROTO_SCP     (1L<<4)
+#define CURLPROTO_SFTP    (1L<<5)
+#define CURLPROTO_TELNET  (1L<<6)
+#define CURLPROTO_LDAP    (1L<<7)
+#define CURLPROTO_LDAPS   (1L<<8)
+#define CURLPROTO_DICT    (1L<<9)
+#define CURLPROTO_FILE    (1L<<10)
+#define CURLPROTO_TFTP    (1L<<11)
+#define CURLPROTO_IMAP    (1L<<12)
+#define CURLPROTO_IMAPS   (1L<<13)
+#define CURLPROTO_POP3    (1L<<14)
+#define CURLPROTO_POP3S   (1L<<15)
+#define CURLPROTO_SMTP    (1L<<16)
+#define CURLPROTO_SMTPS   (1L<<17)
+#define CURLPROTO_RTSP    (1L<<18)
+#define CURLPROTO_RTMP    (1L<<19)
+#define CURLPROTO_RTMPT   (1L<<20)
+#define CURLPROTO_RTMPE   (1L<<21)
+#define CURLPROTO_RTMPTE  (1L<<22)
+#define CURLPROTO_RTMPS   (1L<<23)
+#define CURLPROTO_RTMPTS  (1L<<24)
+#define CURLPROTO_GOPHER  (1L<<25)
+#define CURLPROTO_SMB     (1L<<26)
+#define CURLPROTO_SMBS    (1L<<27)
+#define CURLPROTO_MQTT    (1L<<28)
+#define CURLPROTO_GOPHERS (1L<<29)
+#define CURLPROTO_ALL     (~0L) /* enable everything */
 
 /* long may be 32 or 64 bits, but we should never depend on anything else
    but 32 */
@@ -2363,18 +2363,18 @@ enum CURL_NETRC_OPTION {
   CURL_NETRC_LAST = 3
 };
 
-#define CURL_SSLVERSION_DEFAULT 0
-#define CURL_SSLVERSION_TLSv1   1 /* TLS 1.x */
-#define CURL_SSLVERSION_SSLv2   2
-#define CURL_SSLVERSION_SSLv3   3
-#define CURL_SSLVERSION_TLSv1_0 4
-#define CURL_SSLVERSION_TLSv1_1 5
-#define CURL_SSLVERSION_TLSv1_2 6
-#define CURL_SSLVERSION_TLSv1_3 7
+#define CURL_SSLVERSION_DEFAULT 0L
+#define CURL_SSLVERSION_TLSv1   1L /* TLS 1.x */
+#define CURL_SSLVERSION_SSLv2   2L
+#define CURL_SSLVERSION_SSLv3   3L
+#define CURL_SSLVERSION_TLSv1_0 4L
+#define CURL_SSLVERSION_TLSv1_1 5L
+#define CURL_SSLVERSION_TLSv1_2 6L
+#define CURL_SSLVERSION_TLSv1_3 7L
 
-#define CURL_SSLVERSION_LAST 8 /* never use, keep last */
+#define CURL_SSLVERSION_LAST    8L /* never use, keep last */
 
-#define CURL_SSLVERSION_MAX_NONE 0
+#define CURL_SSLVERSION_MAX_NONE 0L
 #define CURL_SSLVERSION_MAX_DEFAULT (CURL_SSLVERSION_TLSv1   << 16)
 #define CURL_SSLVERSION_MAX_TLSv1_0 (CURL_SSLVERSION_TLSv1_0 << 16)
 #define CURL_SSLVERSION_MAX_TLSv1_1 (CURL_SSLVERSION_TLSv1_1 << 16)
@@ -2398,10 +2398,10 @@ enum CURL_TLSAUTH {
    can be bitwise ORed so that CURL_REDIR_POST_301 | CURL_REDIR_POST_302
    | CURL_REDIR_POST_303 == CURL_REDIR_POST_ALL */
 
-#define CURL_REDIR_GET_ALL  0
-#define CURL_REDIR_POST_301 1
-#define CURL_REDIR_POST_302 2
-#define CURL_REDIR_POST_303 4
+#define CURL_REDIR_GET_ALL  0L
+#define CURL_REDIR_POST_301 1L
+#define CURL_REDIR_POST_302 2L
+#define CURL_REDIR_POST_303 4L
 #define CURL_REDIR_POST_ALL \
     (CURL_REDIR_POST_301|CURL_REDIR_POST_302|CURL_REDIR_POST_303)
 
@@ -2430,7 +2430,7 @@ typedef struct curl_mime      curl_mime;      /* Mime context. */
 typedef struct curl_mimepart  curl_mimepart;  /* Mime part context. */
 
 /* CURLMIMEOPT_ defines are for the CURLOPT_MIME_OPTIONS option. */
-#define CURLMIMEOPT_FORMESCAPE  (1<<0) /* Use backslash-escaping for forms. */
+#define CURLMIMEOPT_FORMESCAPE  (1L<<0) /* Use backslash-escaping for forms. */
 
 /*
  * NAME curl_mime_init()

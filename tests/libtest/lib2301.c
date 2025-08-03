@@ -50,8 +50,8 @@ static size_t t2301_write_cb(char *b, size_t size, size_t nitems, void *p)
     0x8a, 0x0
   };
   size_t incoming = nitems;
-  curl_mfprintf(stderr, "Called CURLOPT_WRITEFUNCTION with %d bytes: ",
-                (int)nitems);
+  curl_mfprintf(stderr, "Called CURLOPT_WRITEFUNCTION with %zu bytes: ",
+                nitems);
   for(i = 0; i < nitems; i++)
     curl_mfprintf(stderr, "%02x ", (unsigned char)buffer[i]);
   curl_mfprintf(stderr, "\n");
@@ -84,7 +84,7 @@ static CURLcode test_lib2301(const char *URL)
     /* use the callback style */
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "webbie-sox/3");
     curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-    curl_easy_setopt(curl, CURLOPT_WS_OPTIONS, (long)CURLWS_RAW_MODE);
+    curl_easy_setopt(curl, CURLOPT_WS_OPTIONS, CURLWS_RAW_MODE);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, t2301_write_cb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, curl);
     res = curl_easy_perform(curl);

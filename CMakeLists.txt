@@ -532,13 +532,8 @@ option(BUILD_LIBCURL_DOCS "Build libcurl man pages" ON)
 option(BUILD_MISC_DOCS "Build misc man pages (e.g. curl-config and mk-ca-bundle)" ON)
 option(ENABLE_CURL_MANUAL "Build the man page for curl and enable its -M/--manual option" ON)
 
-if(ENABLE_CURL_MANUAL OR BUILD_LIBCURL_DOCS)
-  if(PERL_FOUND)
-    set(HAVE_MANUAL_TOOLS ON)
-  endif()
-  if(NOT HAVE_MANUAL_TOOLS)
-    message(WARNING "Perl not found. Will not build manuals.")
-  endif()
+if((ENABLE_CURL_MANUAL OR BUILD_LIBCURL_DOCS) AND NOT PERL_FOUND)
+  message(WARNING "Perl not found. Will not build manuals.")
 endif()
 
 # If we are on AIX, do the _ALL_SOURCE magic
@@ -726,6 +721,9 @@ elseif(_enabled_ssl_options_count EQUAL 0)
 endif()
 
 if(CURL_USE_SCHANNEL)
+  if(WINDOWS_STORE)
+    message(FATAL_ERROR "UWP does not support Schannel.")
+  endif()
   set(_ssl_enabled ON)
   set(USE_SCHANNEL ON)  # Windows native SSL/TLS support
   set(USE_WINDOWS_SSPI ON)  # CURL_USE_SCHANNEL requires CURL_WINDOWS_SSPI
@@ -734,7 +732,7 @@ if(CURL_USE_SCHANNEL)
     set(_valid_default_ssl_backend TRUE)
   endif()
 endif()
-if(CURL_WINDOWS_SSPI)
+if(CURL_WINDOWS_SSPI AND NOT WINDOWS_STORE)
   set(USE_WINDOWS_SSPI ON)
 endif()
 
@@ -2031,7 +2029,7 @@ else()
   set(CURL_BUILD_TESTING OFF)
 endif()
 
-if(HAVE_MANUAL_TOOLS)
+if(PERL_FOUND)
   set(CURL_MANPAGE "${PROJECT_BINARY_DIR}/docs/cmdline-opts/curl.1")
   set(CURL_ASCIIPAGE "${PROJECT_BINARY_DIR}/docs/cmdline-opts/curl.txt")
   add_subdirectory(docs)

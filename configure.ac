@@ -280,6 +280,10 @@ AS_HELP_STRING([--with-rustls=PATH],[where to look for Rustls, PATH points to th
   fi
 ])
 
+AC_PATH_PROG(PERL, perl,, $PATH:/usr/local/bin/perl:/usr/bin/:/usr/local/bin)
+AC_SUBST(PERL)
+AM_CONDITIONAL(PERL, test -n "$PERL")
+
 TEST_NGHTTPX=nghttpx
 AC_ARG_WITH(test-nghttpx,dnl
 AS_HELP_STRING([--with-test-nghttpx=PATH],[where to find nghttpx for testing]),
@@ -1056,7 +1060,10 @@ AS_HELP_STRING([--disable-docs],[Disable documentation]),
     AC_MSG_RESULT(yes)
     BUILD_DOCS=1
 )
-
+if test -z "$PERL" -a "x$BUILD_DOCS" != "x0"; then
+  AC_MSG_WARN([perl was not found. Will not build documentation.])
+  BUILD_DOCS=0
+fi
 
 dnl ************************************************************
 dnl disable C code generation support
@@ -4218,16 +4225,6 @@ fi
 
 CURL_CHECK_NONBLOCKING_SOCKET
 
-AC_PATH_PROG(PERL, perl,,
-  $PATH:/usr/local/bin/perl:/usr/bin/:/usr/local/bin)
-AC_SUBST(PERL)
-
-if test "x$BUILD_DOCS" != "x0" -o "x$USE_MANUAL" != "x0" -o "x$CURL_CA_EMBED" != "x"; then
-  if test -z "$PERL"; then
-    AC_MSG_ERROR([perl was not found, needed for docs, manual and CA embed])
-  fi
-fi
-
 dnl set variable for use in automakefile(s)
 AM_CONDITIONAL(BUILD_DOCS, test x"$BUILD_DOCS" = x1)
 
@@ -4351,44 +4348,46 @@ AS_HELP_STRING([--disable-verbose],[Disable verbose strings]),
     AC_MSG_RESULT(yes)
 )
 
-dnl ************************************************************
-dnl enable SSPI support
-dnl
-AC_MSG_CHECKING([whether to enable SSPI support (Windows native builds only)])
-AC_ARG_ENABLE(sspi,
-AS_HELP_STRING([--enable-sspi],[Enable SSPI])
-AS_HELP_STRING([--disable-sspi],[Disable SSPI]),
-[ case "$enableval" in
-  yes)
-    if test "$curl_cv_native_windows" = "yes"; then
-      AC_MSG_RESULT(yes)
-      AC_DEFINE(USE_WINDOWS_SSPI, 1, [to enable SSPI support])
-      USE_WINDOWS_SSPI=1
-      curl_sspi_msg="enabled"
-    else
-      AC_MSG_RESULT(no)
-      AC_MSG_WARN([--enable-sspi Ignored. Only supported on native Windows builds.])
-    fi
-    ;;
-  *)
-    if test "x$SCHANNEL_ENABLED" = "x1"; then
-      # --with-schannel implies --enable-sspi
-      AC_MSG_RESULT(yes)
-    else
-      AC_MSG_RESULT(no)
-    fi
-    ;;
-  esac ],
-    if test "x$SCHANNEL_ENABLED" = "x1"; then
-      # --with-schannel implies --enable-sspi
-      AC_MSG_RESULT(yes)
-    else
-      AC_MSG_RESULT(no)
-    fi
-)
+if test "$curl_cv_winuwp" != 'yes'; then
+  dnl ************************************************************
+  dnl enable SSPI support
+  dnl
+  AC_MSG_CHECKING([whether to enable SSPI support (Windows native builds only)])
+  AC_ARG_ENABLE(sspi,
+  AS_HELP_STRING([--enable-sspi],[Enable SSPI])
+  AS_HELP_STRING([--disable-sspi],[Disable SSPI]),
+  [ case "$enableval" in
+    yes)
+      if test "$curl_cv_native_windows" = "yes"; then
+        AC_MSG_RESULT(yes)
+        AC_DEFINE(USE_WINDOWS_SSPI, 1, [to enable SSPI support])
+        USE_WINDOWS_SSPI=1
+        curl_sspi_msg="enabled"
+      else
+        AC_MSG_RESULT(no)
+        AC_MSG_WARN([--enable-sspi Ignored. Only supported on native Windows builds.])
+      fi
+      ;;
+    *)
+      if test "x$SCHANNEL_ENABLED" = "x1"; then
+        # --with-schannel implies --enable-sspi
+        AC_MSG_RESULT(yes)
+      else
+        AC_MSG_RESULT(no)
+      fi
+      ;;
+    esac ],
+      if test "x$SCHANNEL_ENABLED" = "x1"; then
+        # --with-schannel implies --enable-sspi
+        AC_MSG_RESULT(yes)
+      else
+        AC_MSG_RESULT(no)
+      fi
+  )
 
-if test "x$USE_WINDOWS_SSPI" = "x1"; then
-  LIBS="-lsecur32 $LIBS"
+  if test "x$USE_WINDOWS_SSPI" = "x1"; then
+    LIBS="-lsecur32 $LIBS"
+  fi
 fi
 
 dnl ************************************************************
