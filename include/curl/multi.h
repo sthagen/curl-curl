@@ -403,15 +403,15 @@ typedef enum {
 
 /* Definition of bits for the CURLMOPT_NETWORK_CHANGED argument: */
 
-/* - CURLM_NWCOPT_CLEAR_CONNS tells libcurl to prevent further reuse
-     of existing connections. Connections that are idle will be closed.
-     Ongoing transfers will continue with the connection they have. */
-#define CURLM_NWCOPT_CLEAR_CONNS (1L<<0)
+/* - CURLMNWC_CLEAR_CONNS tells libcurl to prevent further reuse of existing
+   connections. Connections that are idle will be closed. Ongoing transfers
+   will continue with the connection they have. */
+#define CURLMNWC_CLEAR_CONNS (1L<<0)
 
-/* - CURLM_NWCOPT_CLEAR_DNS tells libcurl to prevent further reuse
-     of existing connections. Connections that are idle will be closed.
-     Ongoing transfers will continue with the connection they have. */
-#define CURLM_NWCOPT_CLEAR_DNS (1L<<0)
+/* - CURLMNWC_CLEAR_DNS tells libcurl to prevent further reuse of existing
+   connections. Connections that are idle will be closed. Ongoing transfers
+   will continue with the connection they have. */
+#define CURLMNWC_CLEAR_DNS (1L<<0)
 
 /*
  * Name:    curl_multi_setopt()
@@ -447,6 +447,36 @@ CURL_EXTERN CURLMcode curl_multi_assign(CURLM *multi_handle,
  * Returns: NULL on failure, otherwise a CURL **array pointer
  */
 CURL_EXTERN CURL **curl_multi_get_handles(CURLM *multi_handle);
+
+
+typedef enum {
+  CURLMINFO_NONE, /* first, never use this */
+  /* The number of easy handles currently managed by the multi handle,
+   * e.g. have been added but not yet removed. */
+  CURLMINFO_XFERS_CURRENT = 1,
+  /* The number of easy handles running, e.g. not done and not queueing. */
+  CURLMINFO_XFERS_RUNNING = 2,
+  /* The number of easy handles waiting to start, e.g. for a connection
+   * to become available due to limits on parallelism, max connections
+   * or other factors. */
+  CURLMINFO_XFERS_PENDING = 3,
+  /* The number of easy handles finished, waiting for their results to
+   * be read via `curl_multi_info_read()`. */
+  CURLMINFO_XFERS_DONE = 4,
+  /* The total number of easy handles added to the multi handle, ever. */
+  CURLMINFO_XFERS_ADDED = 5
+} CURLMinfo_offt;
+
+/*
+ * Name:    curl_multi_get_offt()
+ *
+ * Desc:    Retrieves a numeric value for the `CURLMINFO_*` enums.
+ *
+ * Returns: CULRM_OK or error when value could not be obtained.
+ */
+CURL_EXTERN CURLMcode curl_multi_get_offt(CURLM *multi_handle,
+                                          CURLMinfo_offt info,
+                                          curl_off_t *pvalue);
 
 /*
  * Name: curl_push_callback

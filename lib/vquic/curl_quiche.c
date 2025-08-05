@@ -1142,15 +1142,16 @@ static bool stream_is_writeable(struct Curl_cfilter *cf,
     ctx->qconn, (curl_uint64_t)stream->id, 1) > 0);
 }
 
-static void cf_quiche_adjust_pollset(struct Curl_cfilter *cf,
-                                     struct Curl_easy *data,
-                                     struct easy_pollset *ps)
+static CURLcode cf_quiche_adjust_pollset(struct Curl_cfilter *cf,
+                                         struct Curl_easy *data,
+                                         struct easy_pollset *ps)
 {
   struct cf_quiche_ctx *ctx = cf->ctx;
   bool want_recv, want_send;
+  CURLcode result = CURLE_OK;
 
   if(!ctx->qconn)
-    return;
+    return CURLE_OK;
 
   Curl_pollset_check(data, ps, ctx->q.sockfd, &want_recv, &want_send);
   if(want_recv || want_send) {
@@ -1165,8 +1166,9 @@ static void cf_quiche_adjust_pollset(struct Curl_cfilter *cf,
     want_send = (!s_exhaust && want_send) ||
                  !Curl_bufq_is_empty(&ctx->q.sendbuf);
 
-    Curl_pollset_set(data, ps, ctx->q.sockfd, want_recv, want_send);
+    result = Curl_pollset_set(data, ps, ctx->q.sockfd, want_recv, want_send);
   }
+  return result;
 }
 
 /*
@@ -1195,9 +1197,9 @@ static CURLcode h3_data_pause(struct Curl_cfilter *cf,
   return CURLE_OK;
 }
 
-static CURLcode cf_quiche_data_event(struct Curl_cfilter *cf,
-                                     struct Curl_easy *data,
-                                     int event, int arg1, void *arg2)
+static CURLcode cf_quiche_cntrl(struct Curl_cfilter *cf,
+                                struct Curl_easy *data,
+                                int event, int arg1, void *arg2)
 {
   struct cf_quiche_ctx *ctx = cf->ctx;
   CURLcode result = CURLE_OK;
@@ -1236,6 +1238,10 @@ static CURLcode cf_quiche_data_event(struct Curl_cfilter *cf,
     }
     break;
   }
+  case CF_CTRL_CONN_INFO_UPDATE:
+    if(!cf->sockindex && cf->connected)
+      cf->conn->httpversion_seen = 30;
+    break;
   default:
     break;
   }
@@ -1619,7 +1625,7 @@ struct Curl_cftype Curl_cft_http3 = {
   cf_quiche_data_pending,
   cf_quiche_send,
   cf_quiche_recv,
-  cf_quiche_data_event,
+  cf_quiche_cntrl,
   cf_quiche_conn_is_alive,
   Curl_cf_def_conn_keep_alive,
   cf_quiche_query,

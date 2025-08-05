@@ -471,15 +471,6 @@ struct hostname {
 #define FIRSTSOCKET     0
 #define SECONDARYSOCKET 1
 
-/* Polling requested by an easy handle.
- * `action` is CURL_POLL_IN, CURL_POLL_OUT or CURL_POLL_INOUT.
- */
-struct easy_pollset {
-  curl_socket_t sockets[MAX_SOCKSPEREASYHANDLE];
-  unsigned int num;
-  unsigned char actions[MAX_SOCKSPEREASYHANDLE];
-};
-
 /*
  * Specific protocol handler.
  */
@@ -516,24 +507,24 @@ struct Curl_handler {
 
   /* Called from the multi interface during the PROTOCONNECT phase, and it
      should then return a proper fd set */
-  int (*proto_getsock)(struct Curl_easy *data,
-                       struct connectdata *conn, curl_socket_t *socks);
+  CURLcode (*proto_pollset)(struct Curl_easy *data,
+                            struct easy_pollset *ps);
 
   /* Called from the multi interface during the DOING phase, and it should
      then return a proper fd set */
-  int (*doing_getsock)(struct Curl_easy *data,
-                       struct connectdata *conn, curl_socket_t *socks);
+  CURLcode (*doing_pollset)(struct Curl_easy *data,
+                            struct easy_pollset *ps);
 
   /* Called from the multi interface during the DO_MORE phase, and it should
      then return a proper fd set */
-  int (*domore_getsock)(struct Curl_easy *data,
-                        struct connectdata *conn, curl_socket_t *socks);
+  CURLcode (*domore_pollset)(struct Curl_easy *data,
+                            struct easy_pollset *ps);
 
   /* Called from the multi interface during the DO_DONE, PERFORM and
      WAITPERFORM phases, and it should then return a proper fd set. Not setting
      this will make libcurl use the generic default one. */
-  int (*perform_getsock)(struct Curl_easy *data,
-                         struct connectdata *conn, curl_socket_t *socks);
+  CURLcode (*perform_pollset)(struct Curl_easy *data,
+                              struct easy_pollset *ps);
 
   /* This function *MAY* be set to a protocol-dependent function that is run
    * by the curl_disconnect(), as a step in the disconnection. If the handler
@@ -777,7 +768,7 @@ struct connectdata {
    and happy eyeballing. Use `Curl_conn_get_transport() for actual value
    once the connection is set up. */
   unsigned char ip_version; /* copied from the Curl_easy at creation time */
-  /* HTTP version last responded with by the server.
+  /* HTTP version last responded with by the server or negotiated via ALPN.
    * 0 at start, then one of 09, 10, 11, etc. */
   unsigned char httpversion_seen;
   unsigned char connect_only;
@@ -1357,8 +1348,6 @@ struct UserDefined {
   void *writeheader; /* write the header to this if non-NULL */
   unsigned long httpauth;  /* kind of HTTP authentication to use (bitmask) */
   unsigned long proxyauth; /* kind of proxy authentication to use (bitmask) */
-  long maxredirs;    /* maximum no. of http(s) redirects to follow, set to -1
-                        for infinity */
   void *postfields;  /* if POST, set the fields' values here */
   curl_seek_callback seek_func;      /* function that seeks the input */
   curl_off_t postfieldsize; /* if POST, this might have a size to use instead
@@ -1397,9 +1386,6 @@ struct UserDefined {
                            is to be reused */
   timediff_t conn_max_age_ms; /* max time since creation to allow a
                             connection that is to be reused */
-#ifndef CURL_DISABLE_TFTP
-  long tftp_blksize;    /* in bytes, 0 means use default */
-#endif
   curl_off_t filesize;  /* size of file to upload, -1 means unknown */
   long low_speed_limit; /* bytes/second */
   long low_speed_time;  /* number of seconds */
@@ -1431,7 +1417,7 @@ struct UserDefined {
   unsigned char socks5auth;/* kind of SOCKS5 authentication to use (bitmask) */
 #endif
   struct ssl_general_config general_ssl; /* general user defined SSL stuff */
-  int dns_cache_timeout_ms; /* DNS cache timeout (milliseconds) */
+  timediff_t dns_cache_timeout_ms; /* DNS cache timeout (milliseconds) */
   unsigned int buffer_size;      /* size of receive buffer to use */
   unsigned int upload_buffer_size; /* size of upload buffer to use,
                                       keep it >= CURL_MAX_WRITE_SIZE */
@@ -1494,7 +1480,6 @@ struct UserDefined {
   int tcp_keepintvl;    /* seconds between TCP keepalive probes */
   int tcp_keepcnt;      /* maximum number of keepalive probes */
 
-  long expect_100_timeout; /* in milliseconds */
 #if defined(USE_HTTP2) || defined(USE_HTTP3)
   struct Curl_data_priority priority;
 #endif
@@ -1514,12 +1499,18 @@ struct UserDefined {
 #ifdef USE_ECH
   int tls_ech;      /* TLS ECH configuration  */
 #endif
+  short maxredirs;    /* maximum no. of http(s) redirects to follow,
+                         set to -1 for infinity */
+  unsigned short expect_100_timeout; /* in milliseconds */
   unsigned short use_port; /* which port to use (when not using default) */
 #ifndef CURL_DISABLE_BINDLOCAL
   unsigned short localport; /* local port number to bind to */
   unsigned short localportrange; /* number of additional port numbers to test
                                     in case the 'localport' one cannot be
                                     bind()ed */
+#endif
+#ifndef CURL_DISABLE_TFTP
+  unsigned short tftp_blksize;    /* in bytes, 0 means use default */
 #endif
 #ifndef CURL_DISABLE_NETRC
   unsigned char use_netrc;        /* enum CURL_NETRC_OPTION values  */

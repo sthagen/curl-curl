@@ -2168,9 +2168,9 @@ static bool cf_osslq_data_pending(struct Curl_cfilter *cf,
   return stream && !Curl_bufq_is_empty(&stream->recvbuf);
 }
 
-static CURLcode cf_osslq_data_event(struct Curl_cfilter *cf,
-                                    struct Curl_easy *data,
-                                    int event, int arg1, void *arg2)
+static CURLcode cf_osslq_cntrl(struct Curl_cfilter *cf,
+                               struct Curl_easy *data,
+                               int event, int arg1, void *arg2)
 {
   struct cf_osslq_ctx *ctx = cf->ctx;
   CURLcode result = CURLE_OK;
@@ -2206,6 +2206,10 @@ static CURLcode cf_osslq_data_event(struct Curl_cfilter *cf,
     }
     break;
   }
+  case CF_CTRL_CONN_INFO_UPDATE:
+    if(!cf->sockindex && cf->connected)
+      cf->conn->httpversion_seen = 30;
+    break;
   default:
     break;
   }
@@ -2266,11 +2270,12 @@ out:
   return alive;
 }
 
-static void cf_osslq_adjust_pollset(struct Curl_cfilter *cf,
-                                    struct Curl_easy *data,
-                                    struct easy_pollset *ps)
+static CURLcode cf_osslq_adjust_pollset(struct Curl_cfilter *cf,
+                                        struct Curl_easy *data,
+                                        struct easy_pollset *ps)
 {
   struct cf_osslq_ctx *ctx = cf->ctx;
+  CURLcode result = CURLE_OK;
 
   if(!ctx->tls.ossl.ssl) {
     /* NOP */
@@ -2278,9 +2283,9 @@ static void cf_osslq_adjust_pollset(struct Curl_cfilter *cf,
   else if(!cf->connected) {
     /* during handshake, transfer has not started yet. we always
      * add our socket for polling if SSL wants to send/recv */
-    Curl_pollset_set(data, ps, ctx->q.sockfd,
-                     SSL_net_read_desired(ctx->tls.ossl.ssl),
-                     SSL_net_write_desired(ctx->tls.ossl.ssl));
+    result = Curl_pollset_set(data, ps, ctx->q.sockfd,
+                              SSL_net_read_desired(ctx->tls.ossl.ssl),
+                              SSL_net_write_desired(ctx->tls.ossl.ssl));
   }
   else {
     /* once connected, we only modify the socket if it is present.
@@ -2288,15 +2293,16 @@ static void cf_osslq_adjust_pollset(struct Curl_cfilter *cf,
     bool want_recv, want_send;
     Curl_pollset_check(data, ps, ctx->q.sockfd, &want_recv, &want_send);
     if(want_recv || want_send) {
-      Curl_pollset_set(data, ps, ctx->q.sockfd,
-                       SSL_net_read_desired(ctx->tls.ossl.ssl),
-                       SSL_net_write_desired(ctx->tls.ossl.ssl));
+      result = Curl_pollset_set(data, ps, ctx->q.sockfd,
+                                SSL_net_read_desired(ctx->tls.ossl.ssl),
+                                SSL_net_write_desired(ctx->tls.ossl.ssl));
     }
     else if(ctx->need_recv || ctx->need_send) {
-      Curl_pollset_set(data, ps, ctx->q.sockfd,
-                       ctx->need_recv, ctx->need_send);
+      result = Curl_pollset_set(data, ps, ctx->q.sockfd,
+                                ctx->need_recv, ctx->need_send);
     }
   }
+  return result;
 }
 
 static CURLcode cf_osslq_query(struct Curl_cfilter *cf,
@@ -2382,7 +2388,7 @@ struct Curl_cftype Curl_cft_http3 = {
   cf_osslq_data_pending,
   cf_osslq_send,
   cf_osslq_recv,
-  cf_osslq_data_event,
+  cf_osslq_cntrl,
   cf_osslq_conn_is_alive,
   Curl_cf_def_conn_keep_alive,
   cf_osslq_query,

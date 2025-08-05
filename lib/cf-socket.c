@@ -109,7 +109,7 @@ static void set_ipv6_v6only(curl_socket_t sockfd, int on)
 
 static void tcpnodelay(struct Curl_easy *data, curl_socket_t sockfd)
 {
-#ifdef TCP_NODELAY
+#if defined(TCP_NODELAY) && defined(CURL_TCP_NODELAY_SUPPORTED)
   curl_socklen_t onoff = (curl_socklen_t) 1;
   int level = IPPROTO_TCP;
   char buffer[STRERROR_LEN];
@@ -1376,11 +1376,12 @@ out:
   return result;
 }
 
-static void cf_socket_adjust_pollset(struct Curl_cfilter *cf,
-                                     struct Curl_easy *data,
-                                     struct easy_pollset *ps)
+static CURLcode cf_socket_adjust_pollset(struct Curl_cfilter *cf,
+                                         struct Curl_easy *data,
+                                         struct easy_pollset *ps)
 {
   struct cf_socket_ctx *ctx = cf->ctx;
+  CURLcode result = CURLE_OK;
 
   if(ctx->sock != CURL_SOCKET_BAD) {
     /* A listening socket filter needs to be connected before the accept
@@ -1388,21 +1389,22 @@ static void cf_socket_adjust_pollset(struct Curl_cfilter *cf,
      * FTP no longer does the socket checks and accept calls and delegates
      * all that to the filter. */
     if(ctx->listening) {
-      Curl_pollset_set_in_only(data, ps, ctx->sock);
+      result = Curl_pollset_set_in_only(data, ps, ctx->sock);
       CURL_TRC_CF(data, cf, "adjust_pollset, listening, POLLIN fd=%"
                   FMT_SOCKET_T, ctx->sock);
     }
     else if(!cf->connected) {
-      Curl_pollset_set_out_only(data, ps, ctx->sock);
+      result = Curl_pollset_set_out_only(data, ps, ctx->sock);
       CURL_TRC_CF(data, cf, "adjust_pollset, !connected, POLLOUT fd=%"
                   FMT_SOCKET_T, ctx->sock);
     }
     else if(!ctx->active) {
-      Curl_pollset_add_in(data, ps, ctx->sock);
+      result = Curl_pollset_add_in(data, ps, ctx->sock);
       CURL_TRC_CF(data, cf, "adjust_pollset, !active, POLLIN fd=%"
                   FMT_SOCKET_T, ctx->sock);
     }
   }
+  return result;
 }
 
 #ifdef USE_WINSOCK
