@@ -1199,10 +1199,10 @@ sftp_upload_init(struct Curl_easy *data,
     Curl_pgrsSetUploadSize(data, data->state.infilesize);
   }
   /* upload data */
-  Curl_xfer_setup1(data, CURL_XFER_SEND, -1, FALSE);
+  Curl_xfer_setup_send(data, FIRSTSOCKET);
 
   /* not set by Curl_xfer_setup to preserve keepon bits */
-  data->conn->sockfd = data->conn->writesockfd;
+  data->conn->recv_idx = FIRSTSOCKET;
 
   /* store this original bitmask setup to use later on if we cannot
      figure out a "real" bitmask */
@@ -1540,10 +1540,10 @@ sftp_download_stat(struct Curl_easy *data,
     myssh_state(data, sshc, SSH_STOP);
     return CURLE_OK;
   }
-  Curl_xfer_setup1(data, CURL_XFER_RECV, data->req.size, FALSE);
+  Curl_xfer_setup_recv(data, FIRSTSOCKET, data->req.size, FALSE);
 
   /* not set by Curl_xfer_setup to preserve keepon bits */
-  data->conn->writesockfd = data->conn->sockfd;
+  data->conn->send_idx = 0;
 
   myssh_state(data, sshc, SSH_STOP);
 
@@ -1945,8 +1945,8 @@ static CURLcode ssh_state_auth_done(struct Curl_easy *data,
 
   Curl_pgrsTime(data, TIMER_APPCONNECT); /* SSH is connected */
 
-  conn->sockfd = conn->sock[FIRSTSOCKET];
-  conn->writesockfd = CURL_SOCKET_BAD;
+  data->conn->recv_idx = FIRSTSOCKET;
+  conn->send_idx = -1;
 
   if(conn->handler->protocol == CURLPROTO_SFTP) {
     myssh_state(data, sshc, SSH_SFTP_INIT);
@@ -2460,10 +2460,10 @@ static CURLcode ssh_state_scp_download_init(struct Curl_easy *data,
   /* download data */
   bytecount = (curl_off_t)sb.st_size;
   data->req.maxdownload = (curl_off_t)sb.st_size;
-  Curl_xfer_setup1(data, CURL_XFER_RECV, bytecount, FALSE);
+  Curl_xfer_setup_recv(data, FIRSTSOCKET, bytecount, FALSE);
 
   /* not set by Curl_xfer_setup to preserve keepon bits */
-  data->conn->writesockfd = data->conn->sockfd;
+  data->conn->send_idx = 0;
 
   myssh_state(data, sshc, SSH_STOP);
   return CURLE_OK;
@@ -2609,10 +2609,10 @@ static CURLcode ssh_state_scp_upload_init(struct Curl_easy *data,
   /* upload data */
   data->req.size = data->state.infilesize;
   Curl_pgrsSetUploadSize(data, data->state.infilesize);
-  Curl_xfer_setup1(data, CURL_XFER_SEND, -1, FALSE);
+  Curl_xfer_setup_send(data, FIRSTSOCKET);
 
   /* not set by Curl_xfer_setup to preserve keepon bits */
-  data->conn->sockfd = data->conn->writesockfd;
+  data->conn->recv_idx = FIRSTSOCKET;
 
   /* store this original bitmask setup to use later on if we cannot
      figure out a "real" bitmask */

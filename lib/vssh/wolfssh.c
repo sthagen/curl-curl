@@ -717,10 +717,10 @@ static CURLcode wssh_statemach_act(struct Curl_easy *data,
         Curl_pgrsSetUploadSize(data, data->state.infilesize);
       }
       /* upload data */
-      Curl_xfer_setup1(data, CURL_XFER_SEND, -1, FALSE);
+      Curl_xfer_setup_send(data, FIRSTSOCKET);
 
       /* not set by Curl_xfer_setup to preserve keepon bits */
-      conn->sockfd = conn->writesockfd;
+      data->conn->recv_idx = FIRSTSOCKET;
 
       if(result) {
         wssh_state(data, sshc, SSH_SFTP_CLOSE);
@@ -816,10 +816,10 @@ static CURLcode wssh_statemach_act(struct Curl_easy *data,
         wssh_state(data, sshc, SSH_STOP);
         break;
       }
-      Curl_xfer_setup1(data, CURL_XFER_RECV, data->req.size, FALSE);
+      Curl_xfer_setup_recv(data, FIRSTSOCKET, data->req.size, FALSE);
 
       /* not set by Curl_xfer_setup to preserve keepon bits */
-      conn->writesockfd = conn->sockfd;
+      conn->send_idx = 0;
 
       if(result) {
         /* this should never occur; the close state should be entered

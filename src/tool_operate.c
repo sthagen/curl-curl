@@ -260,16 +260,13 @@ static struct per_transfer *del_per_transfer(struct per_transfer *per)
   return n;
 }
 
-static CURLcode pre_transfer(struct GlobalConfig *global,
-                             struct per_transfer *per)
+static CURLcode pre_transfer(struct per_transfer *per)
 {
   curl_off_t uploadfilesize = -1;
   struct_stat fileinfo;
   CURLcode result = CURLE_OK;
-#ifdef CURL_DISABLE_LIBCURL_OPTION
-  (void)global; /* otherwise used in the my_setopt macros */
-#else
-  struct OperationConfig *config = global->current;
+#ifndef CURL_DISABLE_LIBCURL_OPTION
+  struct OperationConfig *config = per->config;
 #endif
 
   if(per->uploadfile && !stdin_upload(per->uploadfile)) {
@@ -348,7 +345,7 @@ void single_transfer_cleanup(struct OperationConfig *config)
 
   state = &config->state;
   /* Free list of remaining URLs */
-  glob_cleanup(&state->urls);
+  glob_cleanup(&state->urlglob);
   state->outfiles = NULL;
   tool_safefree(state->uploadfile);
   /* Free list of globbed upload files */
@@ -862,7 +859,7 @@ static CURLcode etag_store(struct OperationConfig *config,
       warnf(config->global, "Failed creating file for saving etags: \"%s\". "
             "Skip this transfer", config->etag_save_file);
       state->outfiles = NULL;
-      glob_cleanup(&state->urls);
+      glob_cleanup(&state->urlglob);
       *skip = TRUE;
       return CURLE_OK;
     }
@@ -955,10 +952,11 @@ static CURLcode setup_outfile(struct OperationConfig *config,
       return result;
     }
   }
-  else if(state->urls) {
+  else if(glob_inuse(&state->urlglob)) {
     /* fill '#1' ... '#9' terms from URL pattern */
     char *storefile = per->outfile;
-    CURLcode result = glob_match_url(&per->outfile, storefile, state->urls);
+    CURLcode result =
+      glob_match_url(&per->outfile, storefile, &state->urlglob);
     tool_safefree(storefile);
     if(result) {
       /* bad globbing */
@@ -1153,7 +1151,7 @@ static CURLcode single_transfer(struct OperationConfig *config,
     if(u->outfile && !state->outfiles)
       state->outfiles = u->outfile;
 
-    if(!config->globoff && u->infile && !state->inglob) {
+    if(!config->globoff && u->infile && !glob_inuse(&state->inglob)) {
       /* Unless explicitly shut off */
       result = glob_url(&state->inglob, u->infile, &state->infilenum,
                         (!global->silent || global->showerror) ?
@@ -1165,8 +1163,8 @@ static CURLcode single_transfer(struct OperationConfig *config,
 
     if(state->up || u->infile) {
       if(!state->uploadfile) {
-        if(state->inglob) {
-          result = glob_next_url(&state->uploadfile, state->inglob);
+        if(glob_inuse(&state->inglob)) {
+          result = glob_next_url(&state->uploadfile, &state->inglob);
           if(result == CURLE_OUT_OF_MEMORY)
             errorf(global, "out of memory");
         }
@@ -1184,7 +1182,7 @@ static CURLcode single_transfer(struct OperationConfig *config,
       if(!config->globoff && !u->noglob) {
         /* Unless explicitly shut off, we expand '{...}' and '[...]'
            expressions and return total number of URLs in pattern set */
-        result = glob_url(&state->urls, u->url, &state->urlnum,
+        result = glob_url(&state->urlglob, u->url, &state->urlnum,
                           (!global->silent || global->showerror) ?
                           tool_stderr : NULL);
         if(result)
@@ -1268,8 +1266,8 @@ static CURLcode single_transfer(struct OperationConfig *config,
       /* default output stream is stdout */
       outs->stream = stdout;
 
-      if(state->urls) {
-        result = glob_next_url(&per->url, state->urls);
+      if(glob_inuse(&state->urlglob)) {
+        result = glob_next_url(&per->url, &state->urlglob);
         if(result)
           return result;
       }
@@ -1371,7 +1369,7 @@ static CURLcode single_transfer(struct OperationConfig *config,
       if(state->li >= state->urlnum) {
         state->li = 0;
         state->urlnum = 0; /* forced reglob of URLs */
-        glob_cleanup(&state->urls);
+        glob_cleanup(&state->urlglob);
         state->up++;
         tool_safefree(state->uploadfile); /* clear it to get the next */
       }
@@ -1383,7 +1381,7 @@ static CURLcode single_transfer(struct OperationConfig *config,
        node itself nor modifying next pointer. */
     u->outset = u->urlset = u->useremote =
       u->uploadset = u->noupload = u->noglob = FALSE;
-    glob_cleanup(&state->urls);
+    glob_cleanup(&state->urlglob);
     state->urlnum = 0;
 
     state->outfiles = NULL;
@@ -1445,7 +1443,7 @@ static CURLcode add_parallel_transfers(struct GlobalConfig *global,
     }
     per->added = TRUE;
 
-    result = pre_transfer(global, per);
+    result = pre_transfer(per);
     if(result)
       return result;
 
@@ -1930,7 +1928,7 @@ static CURLcode serial_transfers(struct GlobalConfig *global,
 
     start = curlx_now();
     if(!per->skip) {
-      result = pre_transfer(global, per);
+      result = pre_transfer(per);
       if(result)
         break;
 

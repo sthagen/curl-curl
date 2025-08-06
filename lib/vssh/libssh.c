@@ -1115,8 +1115,8 @@ static int myssh_in_AUTH_DONE(struct Curl_easy *data,
   /* At this point we have an authenticated ssh session. */
   infof(data, "Authentication complete");
   Curl_pgrsTime(data, TIMER_APPCONNECT);      /* SSH is connected */
-  data->conn->sockfd = data->conn->sock[FIRSTSOCKET];
-  data->conn->writesockfd = CURL_SOCKET_BAD;
+  data->conn->recv_idx = FIRSTSOCKET;
+  data->conn->send_idx = -1;
 
   if(data->conn->handler->protocol == CURLPROTO_SFTP) {
     myssh_to(data, sshc, SSH_SFTP_INIT);
@@ -1251,10 +1251,10 @@ static int myssh_in_UPLOAD_INIT(struct Curl_easy *data,
     Curl_pgrsSetUploadSize(data, data->state.infilesize);
   }
   /* upload data */
-  Curl_xfer_setup1(data, CURL_XFER_SEND, -1, FALSE);
+  Curl_xfer_setup_send(data, FIRSTSOCKET);
 
   /* not set by Curl_xfer_setup to preserve keepon bits */
-  data->conn->sockfd = data->conn->writesockfd;
+  data->conn->recv_idx = FIRSTSOCKET;
 
   /* store this original bitmask setup to use later on if we cannot
      figure out a "real" bitmask */
@@ -1423,10 +1423,10 @@ static int myssh_in_SFTP_DOWNLOAD_STAT(struct Curl_easy *data,
     myssh_to(data, sshc, SSH_STOP);
     return rc;
   }
-  Curl_xfer_setup1(data, CURL_XFER_RECV, data->req.size, FALSE);
+  Curl_xfer_setup_recv(data, FIRSTSOCKET, data->req.size, FALSE);
 
   /* not set by Curl_xfer_setup to preserve keepon bits */
-  data->conn->writesockfd = data->conn->sockfd;
+  data->conn->send_idx = 0;
 
   sshc->sftp_recv_state = 0;
   myssh_to(data, sshc, SSH_STOP);
@@ -2240,10 +2240,10 @@ static CURLcode myssh_statemach_act(struct Curl_easy *data,
       }
 
       /* upload data */
-      Curl_xfer_setup1(data, CURL_XFER_SEND, -1, FALSE);
+      Curl_xfer_setup_send(data, FIRSTSOCKET);
 
       /* not set by Curl_xfer_setup to preserve keepon bits */
-      conn->sockfd = conn->writesockfd;
+      data->conn->recv_idx = FIRSTSOCKET;
 
       /* store this original bitmask setup to use later on if we cannot
          figure out a "real" bitmask */
@@ -2279,10 +2279,10 @@ static CURLcode myssh_statemach_act(struct Curl_easy *data,
         /* download data */
         bytecount = ssh_scp_request_get_size(sshc->scp_session);
         data->req.maxdownload = (curl_off_t) bytecount;
-        Curl_xfer_setup1(data, CURL_XFER_RECV, bytecount, FALSE);
+        Curl_xfer_setup_recv(data, FIRSTSOCKET, bytecount, FALSE);
 
         /* not set by Curl_xfer_setup to preserve keepon bits */
-        conn->writesockfd = conn->sockfd;
+        conn->send_idx = 0;
 
         myssh_to(data, sshc, SSH_STOP);
         break;

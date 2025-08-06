@@ -2415,7 +2415,7 @@ static CURLcode http_req_complete(struct Curl_easy *data,
 out:
   if(!result) {
     /* setup variables for the upcoming transfer */
-    Curl_xfer_setup1(data, CURL_XFER_SENDRECV, -1, TRUE);
+    Curl_xfer_setup_sendrecv(data, FIRSTSOCKET, -1, TRUE);
   }
   return result;
 }
@@ -2704,8 +2704,6 @@ CURLcode Curl_http(struct Curl_easy *data, bool *done)
       if(result)
         goto fail;
       info_version = "HTTP/2";
-      /* There is no ALPN here, but the connection is now definitely h2 */
-      conn->httpversion_seen = 20;
     }
     else
       info_version = "HTTP/1.x";
