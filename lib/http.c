@@ -1528,8 +1528,7 @@ CURLcode Curl_http_do_pollset(struct Curl_easy *data,
                               struct easy_pollset *ps)
 {
   /* write mode */
-  curl_socket_t sock = Curl_conn_get_socket(data, FIRSTSOCKET);
-  return Curl_pollset_add_out(data, ps, sock);
+  return Curl_pollset_add_out(data, ps, data->conn->sock[FIRSTSOCKET]);
 }
 
 /*
@@ -2415,7 +2414,7 @@ static CURLcode http_req_complete(struct Curl_easy *data,
 out:
   if(!result) {
     /* setup variables for the upcoming transfer */
-    Curl_xfer_setup_sendrecv(data, FIRSTSOCKET, -1, TRUE);
+    Curl_xfer_setup_sendrecv(data, FIRSTSOCKET, -1);
   }
   return result;
 }
@@ -2704,6 +2703,8 @@ CURLcode Curl_http(struct Curl_easy *data, bool *done)
       if(result)
         goto fail;
       info_version = "HTTP/2";
+      /* There is no ALPN here, but the connection is now definitely h2 */
+      conn->httpversion_seen = 20;
     }
     else
       info_version = "HTTP/1.x";
