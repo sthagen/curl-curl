@@ -258,7 +258,7 @@ target_link_libraries(my_target PRIVATE CURL::libcurl)
 
 - `CURL_CA_BUNDLE`:                         Path to the CA bundle. Set `none` to disable or `auto` for auto-detection. Default: `auto`
 - `CURL_CA_EMBED`:                          Path to the CA bundle to embed in the curl tool. Default: (disabled)
-- `CURL_CA_FALLBACK`:                       Use built-in CA store of TLS backend. Default: `OFF`
+- `CURL_CA_FALLBACK`:                       Use built-in CA store of OpenSSL. Default: `OFF`
 - `CURL_CA_PATH`:                           Location of default CA path. Set `none` to disable or `auto` for auto-detection. Default: `auto`
 - `CURL_CA_SEARCH_SAFE`:                    Enable safe CA bundle search (within the curl tool directory) on Windows. Default: `OFF`
 
@@ -434,10 +434,11 @@ Details via CMake
 - `NGHTTP3_LIBRARY`:                        Path to `nghttp3` library.
 - `NGTCP2_INCLUDE_DIR`:                     The ngtcp2 include directory.
 - `NGTCP2_LIBRARY`:                         Path to `ngtcp2` library.
-- `NGTCP2_CRYPTO_BORINGSSL_LIBRARY`:        Path to `ngtcp2_crypto_boringssl` library.
+- `NGTCP2_CRYPTO_BORINGSSL_LIBRARY`:        Path to `ngtcp2_crypto_boringssl` library. (also for AWS-LC)
 - `NGTCP2_CRYPTO_GNUTLS_LIBRARY`:           Path to `ngtcp2_crypto_gnutls` library.
+- `NGTCP2_CRYPTO_LIBRESSL_LIBRARY`:         Path to `ngtcp2_crypto_libressl` library. (requires ngtcp2 1.15.0+)
 - `NGTCP2_CRYPTO_OSSL_LIBRARY`:             Path to `ngtcp2_crypto_ossl` library.
-- `NGTCP2_CRYPTO_QUICTLS_LIBRARY`:          Path to `ngtcp2_crypto_quictls` library.
+- `NGTCP2_CRYPTO_QUICTLS_LIBRARY`:          Path to `ngtcp2_crypto_quictls` library. (also for LibreSSL with ngtcp2 <1.15.0)
 - `NGTCP2_CRYPTO_WOLFSSL_LIBRARY`:          Path to `ngtcp2_crypto_wolfssl` library.
 - `NETTLE_INCLUDE_DIR`:                     The nettle include directory.
 - `NETTLE_LIBRARY`:                         Path to `nettle` library.

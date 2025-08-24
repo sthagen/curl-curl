@@ -1119,6 +1119,11 @@ static CURLcode single_transfer(struct OperationConfig *config,
     struct getout *u = state->urlnode;
     FILE *err = (!global->silent || global->showerror) ? tool_stderr : NULL;
 
+    if(!u->url) {
+      /* This node has no URL. End of the road. */
+      warnf("Got more output options than URLs");
+      break;
+    }
     if(u->infile) {
       if(!config->globoff && !glob_inuse(&state->inglob))
         result = glob_url(&state->inglob, u->infile, &state->upnum, err);
@@ -1141,11 +1146,6 @@ static CURLcode single_transfer(struct OperationConfig *config,
       glob_cleanup(&state->inglob);
       state->upidx = 0;
       state->urlnode = u->next; /* next node */
-      if(state->urlnode && !state->urlnode->url) {
-        /* This node has no URL. End of the road. */
-        warnf("Got more output options than URLs");
-        break;
-      }
       continue;
     }
 
@@ -1514,9 +1514,9 @@ static void on_uv_timeout(uv_timer_t *req)
 }
 
 /* callback from libcurl to update the timeout expiry */
-static int cb_timeout(CURLM *multi, long timeout_ms,
-                      struct datauv *uv)
+static int cb_timeout(CURLM *multi, long timeout_ms, void *userp)
 {
+  struct datauv *uv = userp;
   (void)multi;
 #if DEBUG_UV
   fprintf(tool_stderr, "parallel_event: cb_timeout=%ld\n", timeout_ms);
@@ -1562,11 +1562,11 @@ static void destroy_context(struct contextuv *c)
 
 /* callback from libcurl to update socket activity to wait for */
 static int cb_socket(CURL *easy, curl_socket_t s, int action,
-                     struct datauv *uv,
-                     void *socketp)
+                     void *userp, void *socketp)
 {
   struct contextuv *c;
   int events = 0;
+  struct datauv *uv = userp;
   (void)easy;
 
 #if DEBUG_UV
@@ -1622,7 +1622,7 @@ static CURLcode parallel_event(struct parastate *s)
   curl_multi_setopt(s->multi, CURLMOPT_SOCKETDATA, &uv);
   curl_multi_setopt(s->multi, CURLMOPT_TIMERFUNCTION, cb_timeout);
   curl_multi_setopt(s->multi, CURLMOPT_TIMERDATA, &uv);
-  curl_multi_setopt(s->multi, CURLMOPT_MAX_HOST_CONNECTIONS,
+  curl_multi_setopt(s->multi, CURLMOPT_MAX_HOST_CONNECTIONS, (long)
                     global->parallel_host);
 
   /* kickstart the thing */

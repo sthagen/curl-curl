@@ -37,6 +37,14 @@
 
 #include "../urldata.h"
 
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+#define HAVE_OPENSSL3  /* non-fork OpenSSL 3.x or later */
+#endif
+
+#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
+#define HAVE_BORINGSSL_LIKE
+#endif
+
 /*
  * Whether SSL_CTX_set_keylog_callback is available.
  * OpenSSL: supported since 1.1.1 https://github.com/openssl/openssl/pull/2287
@@ -44,15 +52,13 @@
  * LibreSSL: not supported. 3.5.0+ has a stub function that does nothing.
  */
 #if (OPENSSL_VERSION_NUMBER >= 0x10101000L && \
-     !defined(LIBRESSL_VERSION_NUMBER)) || \
-    defined(OPENSSL_IS_BORINGSSL)
+  !defined(LIBRESSL_VERSION_NUMBER)) || defined(HAVE_BORINGSSL_LIKE)
 #define HAVE_KEYLOG_CALLBACK
 #endif
 
 /* Check for OpenSSL 1.1.1 which has early data support. */
 #undef HAVE_OPENSSL_EARLYDATA
-#if defined(TLS1_3_VERSION) && \
-    !defined(OPENSSL_IS_BORINGSSL) && !defined(OPENSSL_IS_AWSLC)
+#if defined(TLS1_3_VERSION) && !defined(HAVE_BORINGSSL_LIKE)
 #define HAVE_OPENSSL_EARLYDATA
 #endif
 
@@ -103,7 +109,7 @@ CURLcode Curl_ossl_ctx_init(struct ossl_ctx *octx,
                             void *ssl_user_data,
                             Curl_ossl_init_session_reuse_cb *sess_reuse_cb);
 
-#if (OPENSSL_VERSION_NUMBER < 0x30000000L)
+#ifndef HAVE_OPENSSL3
 #define SSL_get1_peer_certificate SSL_get_peer_certificate
 #endif
 

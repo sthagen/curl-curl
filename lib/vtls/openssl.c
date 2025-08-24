@@ -90,11 +90,9 @@
 #define USE_ECH_OPENSSL
 #endif
 
-#ifdef USE_ECH_OPENSSL
-# if !defined(OPENSSL_IS_BORINGSSL) && !defined(OPENSSL_IS_AWSLC)
-#  include <openssl/ech.h>
-# endif
-#endif /* USE_ECH_OPENSSL */
+#if defined(USE_ECH_OPENSSL) && !defined(HAVE_BORINGSSL_LIKE)
+#include <openssl/ech.h>
+#endif
 
 #ifndef OPENSSL_NO_OCSP
 #include <openssl/ocsp.h>
@@ -106,15 +104,15 @@
 #endif
 
 #ifdef LIBRESSL_VERSION_NUMBER
-# /* As of LibreSSL 2.0.0-4.0.0: OPENSSL_VERSION_NUMBER == 0x20000000L */
-# if LIBRESSL_VERSION_NUMBER < 0x2090100fL /* 2019-04-13 */
-#  error "LibreSSL 2.9.1 or later required"
-# endif
+/* As of LibreSSL 2.0.0-4.0.0: OPENSSL_VERSION_NUMBER == 0x20000000L */
+#  if LIBRESSL_VERSION_NUMBER < 0x2090100fL /* 2019-04-13 */
+#    error "LibreSSL 2.9.1 or later required"
+#  endif
 #elif OPENSSL_VERSION_NUMBER < 0x1000201fL /* 2015-03-19 */
-# error "OpenSSL 1.0.2a or later required"
+#  error "OpenSSL 1.0.2a or later required"
 #endif
 
-#if OPENSSL_VERSION_NUMBER >= 0x3000000fL && !defined(OPENSSL_NO_UI_CONSOLE)
+#if defined(HAVE_OPENSSL3) && !defined(OPENSSL_NO_UI_CONSOLE)
 #include <openssl/provider.h>
 #include <openssl/store.h>
 /* this is used in the following conditions to make them easier to read */
@@ -123,10 +121,9 @@
 static void ossl_provider_cleanup(struct Curl_easy *data);
 #endif
 
-#if (OPENSSL_VERSION_NUMBER >= 0x10100000L && \
-     !defined(LIBRESSL_VERSION_NUMBER) && \
-     !defined(OPENSSL_IS_BORINGSSL))
-  #define HAVE_SSL_CTX_SET_DEFAULT_READ_BUFFER_LEN 1
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L && \
+  !defined(LIBRESSL_VERSION_NUMBER) && !defined(OPENSSL_IS_BORINGSSL)
+#define HAVE_SSL_CTX_SET_DEFAULT_READ_BUFFER_LEN 1
 #endif
 
 #include "../curlx/warnless.h"
@@ -134,17 +131,6 @@ static void ossl_provider_cleanup(struct Curl_easy *data);
 /* The last #include files should be: */
 #include "../curl_memory.h"
 #include "../memdebug.h"
-
-/* Uncomment the ALLOW_RENEG line to a real #define if you want to allow TLS
-   renegotiations when built with BoringSSL. Renegotiating is non-compliant
-   with HTTP/2 and "an extremely dangerous protocol feature". Beware.
-
-#define ALLOW_RENEG 1
- */
-
-#ifndef OPENSSL_VERSION_NUMBER
-#error "OPENSSL_VERSION_NUMBER not defined"
-#endif
 
 #if defined(USE_OPENSSL_ENGINE) || defined(OPENSSL_HAS_PROVIDERS)
 #include <openssl/ui.h>
@@ -175,7 +161,7 @@ static void ossl_provider_cleanup(struct Curl_easy *data);
 #define HAVE_SSL_COMP_FREE_COMPRESSION_METHODS 1
 #endif
 
-#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+#ifdef HAVE_OPENSSL3
 #define HAVE_EVP_PKEY_GET_PARAMS 1
 #endif
 
@@ -198,10 +184,10 @@ static void ossl_provider_cleanup(struct Curl_easy *data);
      (defined(LIBRESSL_VERSION_NUMBER) && \
       LIBRESSL_VERSION_NUMBER >= 0x3040100fL)) && \
     !defined(OPENSSL_IS_BORINGSSL)
-  #define HAVE_SSL_CTX_SET_CIPHERSUITES
-  #ifndef OPENSSL_IS_AWSLC
-    #define HAVE_SSL_CTX_SET_POST_HANDSHAKE_AUTH
-  #endif
+#  define HAVE_SSL_CTX_SET_CIPHERSUITES
+#  ifndef OPENSSL_IS_AWSLC
+#    define HAVE_SSL_CTX_SET_POST_HANDSHAKE_AUTH
+#  endif
 #endif
 
 /* Whether SSL_CTX_set1_sigalgs_list is available
@@ -209,9 +195,8 @@ static void ossl_provider_cleanup(struct Curl_easy *data);
  * BoringSSL: supported since 0.20240913.0 (commit 826ce15)
  * LibreSSL: no
  */
-#if (OPENSSL_VERSION_NUMBER >= 0x10002000L && \
-      !defined(LIBRESSL_VERSION_NUMBER))
-  #define HAVE_SSL_CTX_SET1_SIGALGS
+#if OPENSSL_VERSION_NUMBER >= 0x10002000L && !defined(LIBRESSL_VERSION_NUMBER)
+#define HAVE_SSL_CTX_SET1_SIGALGS
 #endif
 
 #ifdef LIBRESSL_VERSION_NUMBER
@@ -220,21 +205,23 @@ static void ossl_provider_cleanup(struct Curl_easy *data);
 #define OSSL_PACKAGE "BoringSSL"
 #elif defined(OPENSSL_IS_AWSLC)
 #define OSSL_PACKAGE "AWS-LC"
-#elif (defined(USE_NGTCP2) && defined(USE_NGHTTP3) &&   \
-       !defined(OPENSSL_QUIC_API2))
+#elif defined(USE_NGTCP2) && defined(USE_NGHTTP3) &&   \
+  !defined(OPENSSL_QUIC_API2)
 #define OSSL_PACKAGE "quictls"
 #else
 #define OSSL_PACKAGE "OpenSSL"
 #endif
 
-#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
+#ifdef HAVE_BORINGSSL_LIKE
 typedef size_t numcert_t;
+typedef uint32_t sslerr_t;
 #else
 typedef int numcert_t;
+typedef unsigned long sslerr_t;
 #endif
 #define ossl_valsize_t numcert_t
 
-#if (OPENSSL_VERSION_NUMBER >= 0x10100000L)
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
 /* up2date versions of OpenSSL maintain reasonably secure defaults without
  * breaking compatibility, so it is better not to override the defaults in curl
  */
@@ -245,28 +232,8 @@ typedef int numcert_t;
   "ALL:!EXPORT:!EXPORT40:!EXPORT56:!aNULL:!LOW:!RC4:@STRENGTH"
 #endif
 
-#ifdef HAVE_OPENSSL_SRP
-/* the function exists */
-#ifdef USE_TLS_SRP
-/* the functionality is not disabled */
-#define USE_OPENSSL_SRP
-#endif
-#endif
-
-#if (OPENSSL_VERSION_NUMBER >= 0x10100000L)
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
 #define HAVE_RANDOM_INIT_BY_DEFAULT 1
-#endif
-
-#if (OPENSSL_VERSION_NUMBER >= 0x10100000L) && \
-    !defined(OPENSSL_IS_BORINGSSL) && \
-    !defined(OPENSSL_IS_AWSLC)
-#define HAVE_OPENSSL_VERSION
-#endif
-
-#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
-typedef uint32_t sslerr_t;
-#else
-typedef unsigned long sslerr_t;
 #endif
 
 /*
@@ -274,7 +241,7 @@ typedef unsigned long sslerr_t;
  * X509_STORE between connections. The API is:
  * * `X509_STORE_up_ref`       -- Introduced: OpenSSL 1.1.0.
  */
-#if (OPENSSL_VERSION_NUMBER >= 0x10100000L) /* OpenSSL >= 1.1.0 */
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L /* OpenSSL >= 1.1.0 */
 #define HAVE_SSL_X509_STORE_SHARE
 #endif
 
@@ -345,8 +312,7 @@ static CURLcode X509V3_ext(struct Curl_easy *data,
 {
   int i;
   CURLcode result = CURLE_OK;
-#if OPENSSL_VERSION_NUMBER >= 0x10100000L && \
-  !defined(LIBRESSL_VERSION_NUMBER)
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L && !defined(LIBRESSL_VERSION_NUMBER)
   const STACK_OF(X509_EXTENSION) *exts = extsarg;
 #else
   STACK_OF(X509_EXTENSION) *exts = CURL_UNCONST(extsarg);
@@ -704,13 +670,11 @@ static long ossl_bio_cf_ctrl(BIO *bio, int cmd, long num, void *ptr)
   case BIO_CTRL_DUP:
     ret = 1;
     break;
-#ifdef BIO_CTRL_EOF
   case BIO_CTRL_EOF: {
     /* EOF has been reached on input? */
     struct ssl_connect_data *connssl = cf->ctx;
     return connssl->peer_closed;
   }
-#endif
   default:
     ret = 0;
     break;
@@ -914,17 +878,17 @@ static const char *SSL_ERROR_to_str(int err)
     return "SSL_ERROR_WANT_CONNECT";
   case SSL_ERROR_WANT_ACCEPT:
     return "SSL_ERROR_WANT_ACCEPT";
-#ifdef SSL_ERROR_WANT_ASYNC
+#ifdef SSL_ERROR_WANT_ASYNC  /* OpenSSL 1.1.0+, LibreSSL 3.6.0+ */
   case SSL_ERROR_WANT_ASYNC:
     return "SSL_ERROR_WANT_ASYNC";
 #endif
-#ifdef SSL_ERROR_WANT_ASYNC_JOB
+#ifdef SSL_ERROR_WANT_ASYNC_JOB  /* OpenSSL 1.1.0+, LibreSSL 3.6.0+ */
   case SSL_ERROR_WANT_ASYNC_JOB:
     return "SSL_ERROR_WANT_ASYNC_JOB";
 #endif
-#ifdef SSL_ERROR_WANT_EARLY
-  case SSL_ERROR_WANT_EARLY:
-    return "SSL_ERROR_WANT_EARLY";
+#ifdef SSL_ERROR_WANT_CLIENT_HELLO_CB  /* OpenSSL 1.1.1, LibreSSL 3.6.0+ */
+  case SSL_ERROR_WANT_CLIENT_HELLO_CB:
+    return "SSL_ERROR_WANT_CLIENT_HELLO_CB";
 #endif
   default:
     return "SSL_ERROR unknown";
@@ -949,7 +913,7 @@ static char *ossl_strerror(unsigned long error, char *buf, size_t size)
     *buf = '\0';
   }
 
-#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
+#ifdef HAVE_BORINGSSL_LIKE
   ERR_error_string_n((uint32_t)error, buf, size);
 #else
   ERR_error_string_n(error, buf, size);
@@ -1280,8 +1244,7 @@ static int enginecheck(struct Curl_easy *data,
     UI_METHOD *ui_method =
       UI_create_method(OSSL_UI_METHOD_CAST("curl user interface"));
     if(!ui_method) {
-      failf(data, "unable do create " OSSL_PACKAGE
-            " user-interface method");
+      failf(data, "unable do create " OSSL_PACKAGE " user-interface method");
       return 0;
     }
     UI_method_set_opener(ui_method, UI_method_get_opener(UI_OpenSSL()));
@@ -1343,8 +1306,7 @@ static int providercheck(struct Curl_easy *data,
     UI_METHOD *ui_method =
       UI_create_method(OSSL_UI_METHOD_CAST("curl user interface"));
     if(!ui_method) {
-      failf(data, "unable do create " OSSL_PACKAGE
-            " user-interface method");
+      failf(data, "unable do create " OSSL_PACKAGE " user-interface method");
       return 0;
     }
     UI_method_set_opener(ui_method, UI_method_get_opener(UI_OpenSSL()));
@@ -1411,6 +1373,7 @@ static int providercheck(struct Curl_easy *data,
 static int engineload(struct Curl_easy *data,
                       SSL_CTX* ctx,
                       const char *cert_file)
+/* ENGINE_CTRL_GET_CMD_FROM_NAME supported by OpenSSL, LibreSSL <=3.8.3 */
 #if defined(USE_OPENSSL_ENGINE) && defined(ENGINE_CTRL_GET_CMD_FROM_NAME)
 {
   char error_buffer[256];
@@ -1571,8 +1534,7 @@ static int pkcs12load(struct Curl_easy *data,
     cert_bio = BIO_new_mem_buf(cert_blob->data, (int)(cert_blob->len));
     if(!cert_bio) {
       failf(data,
-            "BIO_new_mem_buf NULL, " OSSL_PACKAGE
-            " error %s",
+            "BIO_new_mem_buf NULL, " OSSL_PACKAGE " error %s",
             ossl_strerror(ERR_get_error(), error_buffer,
                           sizeof(error_buffer)) );
       return 0;
@@ -1582,8 +1544,7 @@ static int pkcs12load(struct Curl_easy *data,
     cert_bio = BIO_new(BIO_s_file());
     if(!cert_bio) {
       failf(data,
-            "BIO_new return NULL, " OSSL_PACKAGE
-            " error %s",
+            "BIO_new return NULL, " OSSL_PACKAGE " error %s",
             ossl_strerror(ERR_get_error(), error_buffer,
                           sizeof(error_buffer)) );
       return 0;
@@ -1818,8 +1779,7 @@ static CURLcode client_cert(struct Curl_easy *data,
       EVP_PKEY_free(pktmp);
     }
 
-#if !defined(OPENSSL_NO_RSA) && !defined(OPENSSL_IS_BORINGSSL) &&       \
-  !defined(OPENSSL_NO_DEPRECATED_3_0)
+#if !defined(OPENSSL_NO_RSA) && !defined(OPENSSL_NO_DEPRECATED_3_0)
     {
       /* If RSA is used, do not check the private key if its flags indicate
        * it does not support it. */
@@ -1904,12 +1864,6 @@ static int ossl_init(void)
 
 #ifdef USE_OPENSSL_ENGINE
   ENGINE_load_builtin_engines();
-#endif
-
-/* CONF_MFLAGS_DEFAULT_SECTION was introduced some time between 0.9.8b and
-   0.9.8e */
-#ifndef CONF_MFLAGS_DEFAULT_SECTION
-#define CONF_MFLAGS_DEFAULT_SECTION 0x0
 #endif
 
 #ifndef CURL_DISABLE_OPENSSL_AUTO_LOAD_CONFIG
@@ -2394,7 +2348,7 @@ static CURLcode ossl_verifyhost(struct Curl_easy *data,
   altnames = X509_get_ext_d2i(server_cert, NID_subject_alt_name, NULL, NULL);
 
   if(altnames) {
-#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
+#ifdef HAVE_BORINGSSL_LIKE
     size_t numalts;
     size_t i;
 #else
@@ -2550,7 +2504,7 @@ static CURLcode verifystatus(struct Curl_cfilter *cf,
                              struct ossl_ctx *octx)
 {
   int i, ocsp_status;
-#ifdef OPENSSL_IS_AWSLC
+#ifdef HAVE_BORINGSSL_LIKE
   const uint8_t *status;
 #else
   unsigned char *status;
@@ -2683,15 +2637,9 @@ end:
 }
 #endif
 
-#endif /* USE_OPENSSL */
-
-/* The SSL_CTRL_SET_MSG_CALLBACK does not exist in ancient OpenSSL versions
-   and thus this cannot be done there. */
-#ifdef SSL_CTRL_SET_MSG_CALLBACK
-
 static const char *ssl_msg_type(int ssl_ver, int msg)
 {
-#ifdef SSL2_VERSION_MAJOR
+#ifdef SSL2_VERSION_MAJOR  /* OpenSSL 1.0.2, LibreSSL <=3.9.2 */
   if(ssl_ver == SSL2_VERSION_MAJOR) {
     switch(msg) {
     case SSL2_MT_ERROR:
@@ -2837,7 +2785,7 @@ static void ossl_trace(int direction, int ssl_ver, int content_type,
     verstr = "TLSv1.2";
     break;
 #endif
-#ifdef TLS1_3_VERSION
+#ifdef TLS1_3_VERSION  /* OpenSSL 1.1.1+, all forks */
   case TLS1_3_VERSION:
     verstr = "TLSv1.3";
     break;
@@ -2903,17 +2851,13 @@ static void ossl_trace(int direction, int ssl_ver, int content_type,
              CURLINFO_SSL_DATA_IN, (const char *)buf, len);
   (void)ssl;
 }
-#endif
-
-#ifdef USE_OPENSSL
-/* ====================================================== */
 
 /* Check for ALPN support. */
 #ifndef OPENSSL_NO_TLSEXT
 #  define HAS_ALPN_OPENSSL
 #endif
 
-#if (OPENSSL_VERSION_NUMBER >= 0x10100000L) /* 1.1.0 */
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L /* 1.1.0 */
 static CURLcode
 ossl_set_ssl_version_min_max(struct Curl_cfilter *cf, SSL_CTX *ctx)
 {
@@ -2923,9 +2867,7 @@ ossl_set_ssl_version_min_max(struct Curl_cfilter *cf, SSL_CTX *ctx)
   long curl_ssl_version_max;
 
   /* convert curl min SSL version option to OpenSSL constant */
-#if (defined(OPENSSL_IS_BORINGSSL) || \
-     defined(OPENSSL_IS_AWSLC) || \
-     defined(LIBRESSL_VERSION_NUMBER))
+#if defined(HAVE_BORINGSSL_LIKE) || defined(LIBRESSL_VERSION_NUMBER)
   uint16_t ossl_ssl_version_min = 0;
   uint16_t ossl_ssl_version_max = 0;
 #else
@@ -3002,9 +2944,9 @@ ossl_set_ssl_version_min_max(struct Curl_cfilter *cf, SSL_CTX *ctx)
 }
 #endif
 
-#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
+#ifdef HAVE_BORINGSSL_LIKE
 typedef uint32_t ctx_option_t;
-#elif OPENSSL_VERSION_NUMBER >= 0x30000000L
+#elif defined(HAVE_OPENSSL3)
 typedef uint64_t ctx_option_t;
 #elif OPENSSL_VERSION_NUMBER >= 0x10100000L && \
   !defined(LIBRESSL_VERSION_NUMBER)
@@ -3013,7 +2955,7 @@ typedef unsigned long ctx_option_t;
 typedef long ctx_option_t;
 #endif
 
-#if (OPENSSL_VERSION_NUMBER < 0x10100000L) /* 1.1.0 */
+#if OPENSSL_VERSION_NUMBER < 0x10100000L /* 1.1.0 */
 static CURLcode
 ossl_set_ssl_version_min_max_legacy(ctx_option_t *ctx_options,
                                     struct Curl_cfilter *cf,
@@ -3428,7 +3370,7 @@ static CURLcode ossl_populate_x509_store(struct Curl_cfilter *cf,
     }
 
     if(ssl_cafile || ssl_capath) {
-#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+#ifdef HAVE_OPENSSL3
       /* OpenSSL 3.0.0 has deprecated SSL_CTX_load_verify_locations */
       if(ssl_cafile && !X509_STORE_load_file(store, ssl_cafile)) {
         if(!imported_native_ca && !imported_ca_info_blob) {
@@ -3505,10 +3447,7 @@ static CURLcode ossl_populate_x509_store(struct Curl_cfilter *cf,
        https://web.archive.org/web/20190422050538/
        rt.openssl.org/Ticket/Display.html?id=3621
     */
-#ifdef X509_V_FLAG_TRUSTED_FIRST
     X509_STORE_set_flags(store, X509_V_FLAG_TRUSTED_FIRST);
-#endif
-#ifdef X509_V_FLAG_PARTIAL_CHAIN
     if(!ssl_config->no_partialchain && !ssl_crlfile) {
       /* Have intermediate certificates in the trust store be treated as
          trust-anchors, in the same way as self-signed root CA certificates
@@ -3520,7 +3459,6 @@ static CURLcode ossl_populate_x509_store(struct Curl_cfilter *cf,
       */
       X509_STORE_set_flags(store, X509_V_FLAG_PARTIAL_CHAIN);
     }
-#endif
   }
 
   return result;
@@ -3813,14 +3751,14 @@ static CURLcode ossl_init_ech(struct ossl_ctx *octx,
 
   if(data->set.tls_ech & CURLECH_GREASE) {
     infof(data, "ECH: will GREASE ClientHello");
-# if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
+# ifdef HAVE_BORINGSSL_LIKE
     SSL_set_enable_ech_grease(octx->ssl, 1);
 # else
     SSL_set_options(octx->ssl, SSL_OP_ECH_GREASE);
 # endif
   }
   else if(data->set.tls_ech & CURLECH_CLA_CFG) {
-# if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
+# ifdef HAVE_BORINGSSL_LIKE
     /* have to do base64 decode here for BoringSSL */
     const char *b64 = data->set.str[STRING_ECH_CONFIG];
 
@@ -3901,7 +3839,7 @@ static CURLcode ossl_init_ech(struct ossl_ctx *octx,
       Curl_resolv_unlink(data, &dns);
     }
   }
-# if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
+# ifdef HAVE_BORINGSSL_LIKE
   if(trying_ech_now && outername) {
     infof(data, "ECH: setting public_name not supported with BoringSSL");
     return CURLE_SSL_CONNECT_ERROR;
@@ -3918,7 +3856,7 @@ static CURLcode ossl_init_ech(struct ossl_ctx *octx,
       return CURLE_SSL_CONNECT_ERROR;
     }
   }
-# endif  /* OPENSSL_IS_BORINGSSL || OPENSSL_IS_AWSLC */
+# endif /* HAVE_BORINGSSL_LIKE */
   if(trying_ech_now
      && SSL_set_min_proto_version(octx->ssl, TLS1_3_VERSION) != 1) {
     infof(data, "ECH: cannot force TLSv1.3 [ERROR]");
@@ -3954,15 +3892,9 @@ static CURLcode ossl_init_ssl(struct ossl_ctx *octx,
     SSL_set_tlsext_status_type(octx->ssl, TLSEXT_STATUSTYPE_ocsp);
 #endif
 
-#if (defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)) && \
-    defined(ALLOW_RENEG)
-  SSL_set_renegotiate_mode(octx->ssl, ssl_renegotiate_freely);
-#endif
-
   SSL_set_connect_state(octx->ssl);
 
   octx->server_cert = NULL;
-#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
   if(peer->sni) {
     if(!SSL_set_tlsext_host_name(octx->ssl, peer->sni)) {
       failf(data, "Failed set SNI");
@@ -3976,9 +3908,7 @@ static CURLcode ossl_init_ssl(struct ossl_ctx *octx,
     if(result)
       return result;
   }
-#endif  /* USE_ECH_OPENSSL */
-
-#endif
+#endif /* USE_ECH_OPENSSL */
 
   return ossl_init_session_and_alpns(octx, cf, data, peer,
                                      alpns_requested, sess_reuse_cb);
@@ -4006,11 +3936,11 @@ static CURLcode ossl_init_method(struct Curl_cfilter *cf,
     case CURL_SSLVERSION_TLSv1_2:
     case CURL_SSLVERSION_TLSv1_3:
       /* it will be handled later with the context options */
-  #if (OPENSSL_VERSION_NUMBER >= 0x10100000L)
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
       *pmethod = TLS_client_method();
-  #else
+#else
       *pmethod = SSLv23_client_method();
-  #endif
+#endif
       break;
     case CURL_SSLVERSION_SSLv2:
       failf(data, "No SSLv2 support");
@@ -4104,13 +4034,11 @@ CURLcode Curl_ossl_ctx_init(struct ossl_ctx *octx,
       return result;
   }
 
-#ifdef SSL_CTRL_SET_MSG_CALLBACK
   if(data->set.fdebug && data->set.verbose) {
     /* the SSL trace callback is only used for verbose logging */
     SSL_CTX_set_msg_callback(octx->ssl_ctx, ossl_trace);
     SSL_CTX_set_msg_callback_arg(octx->ssl_ctx, cf);
   }
-#endif
 
   /* OpenSSL contains code to work around lots of bugs and flaws in various
      SSL-implementations. SSL_CTX_set_options() is used to enabled those
@@ -4148,27 +4076,15 @@ CURLcode Curl_ossl_ctx_init(struct ossl_ctx *octx,
      SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS bit must not be set.
   */
 
-  ctx_options = SSL_OP_ALL;
+  ctx_options = SSL_OP_ALL | SSL_OP_NO_TICKET | SSL_OP_NO_COMPRESSION;
 
-#ifdef SSL_OP_NO_TICKET
-  ctx_options |= SSL_OP_NO_TICKET;
-#endif
-
-#ifdef SSL_OP_NO_COMPRESSION
-  ctx_options |= SSL_OP_NO_COMPRESSION;
-#endif
-
-#ifdef SSL_OP_NETSCAPE_REUSE_CIPHER_CHANGE_BUG
   /* mitigate CVE-2010-4180 */
   ctx_options &= ~(ctx_option_t)SSL_OP_NETSCAPE_REUSE_CIPHER_CHANGE_BUG;
-#endif
 
-#ifdef SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS
   /* unless the user explicitly asks to allow the protocol vulnerability we
      use the work-around */
   if(!ssl_config->enable_beast)
     ctx_options &= ~(ctx_option_t)SSL_OP_DONT_INSERT_EMPTY_FRAGMENTS;
-#endif
 
   switch(ssl_version_min) {
   case CURL_SSLVERSION_SSLv2:
@@ -4187,7 +4103,7 @@ CURLcode Curl_ossl_ctx_init(struct ossl_ctx *octx,
     ctx_options |= SSL_OP_NO_SSLv2;
     ctx_options |= SSL_OP_NO_SSLv3;
 
-#if (OPENSSL_VERSION_NUMBER >= 0x10100000L) /* 1.1.0 */
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L /* 1.1.0 */
     result = ossl_set_ssl_version_min_max(cf, octx->ssl_ctx);
 #else
     result = ossl_set_ssl_version_min_max_legacy(&ctx_options, cf, data);
@@ -4218,10 +4134,8 @@ CURLcode Curl_ossl_ctx_init(struct ossl_ctx *octx,
   SSL_CTX_set_default_read_buffer_len(octx->ssl_ctx, 0x401e * 4);
 #endif
 
-#ifdef SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER
   /* We do retry writes sometimes from another buffer address */
   SSL_CTX_set_mode(octx->ssl_ctx, SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
-#endif
 
   ciphers = conn_config->cipher_list;
   if(!ciphers && (peer->transport != TRNSPRT_QUIC))
@@ -4267,7 +4181,7 @@ CURLcode Curl_ossl_ctx_init(struct ossl_ctx *octx,
   {
     const char *curves = conn_config->curves;
     if(curves) {
-#if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
+#ifdef HAVE_BORINGSSL_LIKE
 #define OSSL_CURVE_CAST(x) (x)
 #else
 #define OSSL_CURVE_CAST(x) (char *)CURL_UNCONST(x)
@@ -4294,7 +4208,7 @@ CURLcode Curl_ossl_ctx_init(struct ossl_ctx *octx,
   }
 #endif
 
-#ifdef USE_OPENSSL_SRP
+#if defined(HAVE_OPENSSL_SRP) && defined(USE_TLS_SRP)
   if(ssl_config->primary.username && Curl_auth_allowed_to_host(data)) {
     char * const ssl_username = ssl_config->primary.username;
     char * const ssl_password = ssl_config->primary.password;
@@ -4317,7 +4231,7 @@ CURLcode Curl_ossl_ctx_init(struct ossl_ctx *octx,
       }
     }
   }
-#endif
+#endif /* HAVE_OPENSSL_SRP && USE_TLS_SRP */
 
   /* OpenSSL always tries to verify the peer, this only says whether it should
    * fail to connect if the verification fails, or if it should continue
@@ -4407,9 +4321,9 @@ void Curl_ossl_report_handshake(struct Curl_easy *data,
     int psigtype_nid = NID_undef;
     const char *negotiated_group_name = NULL;
 
-#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+#ifdef HAVE_OPENSSL3
     SSL_get_peer_signature_type_nid(octx->ssl, &psigtype_nid);
-#if (OPENSSL_VERSION_NUMBER >= 0x30200000L)
+#if OPENSSL_VERSION_NUMBER >= 0x30200000L
     negotiated_group_name = SSL_get0_group_name(octx->ssl);
 #else
     negotiated_group_name =
@@ -4490,7 +4404,7 @@ static void ossl_trace_ech_retry_configs(struct Curl_easy *data, SSL* ssl,
   CURLcode result = CURLE_OK;
   size_t rcl = 0;
   int rv = 1;
-# if !defined(OPENSSL_IS_BORINGSSL) && !defined(OPENSSL_IS_AWSLC)
+# ifndef HAVE_BORINGSSL_LIKE
   char *inner = NULL;
   unsigned char *rcs = NULL;
   char *outer = NULL;
@@ -4505,7 +4419,7 @@ static void ossl_trace_ech_retry_configs(struct Curl_easy *data, SSL* ssl,
   /* nothing to trace if not doing ECH */
   if(!ECH_ENABLED(data))
     return;
-# if !defined(OPENSSL_IS_BORINGSSL) && !defined(OPENSSL_IS_AWSLC)
+# ifndef HAVE_BORINGSSL_LIKE
   rv = SSL_ech_get1_retry_config(ssl, &rcs, &rcl);
 # else
   SSL_get0_ech_retry_configs(ssl, &rcs, &rcl);
@@ -4520,7 +4434,7 @@ static void ossl_trace_ech_retry_configs(struct Curl_easy *data, SSL* ssl,
     if(!result && b64str) {
       infof(data, "ECH: retry_configs %s", b64str);
       free(b64str);
-#if !defined(OPENSSL_IS_BORINGSSL) && !defined(OPENSSL_IS_AWSLC)
+#ifndef HAVE_BORINGSSL_LIKE
       rv = SSL_ech_get1_status(ssl, &inner, &outer);
       infof(data, "ECH: retry_configs for %s from %s, %d %d",
             inner ? inner : "NULL", outer ? outer : "NULL", reason, rv);
@@ -4536,7 +4450,7 @@ static void ossl_trace_ech_retry_configs(struct Curl_easy *data, SSL* ssl,
   }
   else
     infof(data, "ECH: no retry_configs (rv = %d)", rv);
-# if !defined(OPENSSL_IS_BORINGSSL) && !defined(OPENSSL_IS_AWSLC)
+# ifndef HAVE_BORINGSSL_LIKE
   OPENSSL_free((void *)rcs);
 # endif
   return;
@@ -4655,7 +4569,7 @@ static CURLcode ossl_connect_step2(struct Curl_cfilter *cf,
 #endif
 #ifdef USE_ECH_OPENSSL
       else if((lib == ERR_LIB_SSL) &&
-# if !defined(OPENSSL_IS_BORINGSSL) && !defined(OPENSSL_IS_AWSLC)
+# ifndef HAVE_BORINGSSL_LIKE
               (reason == SSL_R_ECH_REQUIRED)) {
 # else
               (reason == SSL_R_ECH_REJECTED)) {
@@ -4700,8 +4614,7 @@ static CURLcode ossl_connect_step2(struct Curl_cfilter *cf,
     connssl->connecting_state = ssl_connect_3;
     Curl_ossl_report_handshake(data, octx);
 
-#ifdef USE_ECH_OPENSSL
-# if !defined(OPENSSL_IS_BORINGSSL) && !defined(OPENSSL_IS_AWSLC)
+#if defined(USE_ECH_OPENSSL) && !defined(HAVE_BORINGSSL_LIKE)
     if(ECH_ENABLED(data)) {
       char *inner = NULL, *outer = NULL;
       const char *status = NULL;
@@ -4759,8 +4672,7 @@ static CURLcode ossl_connect_step2(struct Curl_cfilter *cf,
     else {
       infof(data, "ECH: result: status is not attempted");
     }
-# endif  /* !OPENSSL_IS_BORINGSSL && !OPENSSL_IS_AWSLC */
-#endif  /* USE_ECH_OPENSSL */
+#endif /* USE_ECH_OPENSSL && !HAVE_BORINGSSL_LIKE */
 
 #ifdef HAS_ALPN_OPENSSL
     /* Sets data and len to negotiated protocol, len is 0 if no protocol was
@@ -4837,12 +4749,10 @@ static CURLcode ossl_pkp_pin_peer_pubkey(struct Curl_easy *data, X509* cert,
   return result;
 }
 
-#if (OPENSSL_VERSION_NUMBER >= 0x10100000L) &&  \
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L &&  \
   !(defined(LIBRESSL_VERSION_NUMBER) && \
     LIBRESSL_VERSION_NUMBER < 0x3060000fL) && \
-  !defined(OPENSSL_IS_BORINGSSL) && \
-  !defined(OPENSSL_IS_AWSLC) && \
-  !defined(CURL_DISABLE_VERBOSE_STRINGS)
+  !defined(HAVE_BORINGSSL_LIKE) && !defined(CURL_DISABLE_VERBOSE_STRINGS)
 static void infof_certstack(struct Curl_easy *data, const SSL *ssl)
 {
   STACK_OF(X509) *certstack;
@@ -4877,11 +4787,11 @@ static void infof_certstack(struct Curl_easy *data, const SSL *ssl)
 
     current_pkey = X509_get0_pubkey(current_cert);
     key_bits = EVP_PKEY_bits(current_pkey);
-#if (OPENSSL_VERSION_NUMBER < 0x30000000L)
+#ifndef HAVE_OPENSSL3
 #define EVP_PKEY_get_security_bits EVP_PKEY_security_bits
 #endif
     key_sec_bits = EVP_PKEY_get_security_bits(current_pkey);
-#if (OPENSSL_VERSION_NUMBER >= 0x30000000L)
+#ifdef HAVE_OPENSSL3
     {
       char group_name[80] = "";
       get_group_name = EVP_PKEY_get_group_name(current_pkey, group_name,
@@ -4932,8 +4842,7 @@ CURLcode Curl_ossl_check_peer_cert(struct Curl_cfilter *cf,
 
   if(!mem) {
     failf(data,
-          "BIO_new return NULL, " OSSL_PACKAGE
-          " error %s",
+          "BIO_new return NULL, " OSSL_PACKAGE " error %s",
           ossl_strerror(ERR_get_error(), error_buffer,
                         sizeof(error_buffer)) );
     return CURLE_OUT_OF_MEMORY;
@@ -5009,8 +4918,7 @@ CURLcode Curl_ossl_check_peer_cert(struct Curl_cfilter *cf,
                              (int)conn_config->issuercert_blob->len);
         if(!fp) {
           failf(data,
-                "BIO_new_mem_buf NULL, " OSSL_PACKAGE
-                " error %s",
+                "BIO_new_mem_buf NULL, " OSSL_PACKAGE " error %s",
                 ossl_strerror(ERR_get_error(), error_buffer,
                               sizeof(error_buffer)) );
           X509_free(octx->server_cert);
@@ -5022,8 +4930,7 @@ CURLcode Curl_ossl_check_peer_cert(struct Curl_cfilter *cf,
         fp = BIO_new(BIO_s_file());
         if(!fp) {
           failf(data,
-                "BIO_new return NULL, " OSSL_PACKAGE
-                " error %s",
+                "BIO_new return NULL, " OSSL_PACKAGE " error %s",
                 ossl_strerror(ERR_get_error(), error_buffer,
                               sizeof(error_buffer)) );
           X509_free(octx->server_cert);
@@ -5631,16 +5538,14 @@ size_t Curl_ossl_version(char *buffer, size_t size)
 #elif defined(OPENSSL_IS_BORINGSSL)
 #ifdef CURL_BORINGSSL_VERSION
   return msnprintf(buffer, size, "%s/%s",
-                   OSSL_PACKAGE,
-                   CURL_BORINGSSL_VERSION);
+                   OSSL_PACKAGE, CURL_BORINGSSL_VERSION);
 #else
   return msnprintf(buffer, size, OSSL_PACKAGE);
 #endif
 #elif defined(OPENSSL_IS_AWSLC)
   return msnprintf(buffer, size, "%s/%s",
-                   OSSL_PACKAGE,
-                   AWSLC_VERSION_NUMBER_STRING);
-#elif defined(HAVE_OPENSSL_VERSION) && defined(OPENSSL_VERSION_STRING)
+                   OSSL_PACKAGE, AWSLC_VERSION_NUMBER_STRING);
+#elif defined(OPENSSL_VERSION_STRING)  /* OpenSSL 3+ */
   return msnprintf(buffer, size, "%s/%s",
                    OSSL_PACKAGE, OpenSSL_version(OPENSSL_VERSION_STRING));
 #else
@@ -5675,7 +5580,7 @@ size_t Curl_ossl_version(char *buffer, size_t size)
                    (ssleay_value >> 20) & 0xff,
                    (ssleay_value >> 12) & 0xff,
                    sub);
-#endif /* OPENSSL_IS_BORINGSSL */
+#endif
 }
 
 /* can be called with data == NULL */
