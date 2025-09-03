@@ -323,8 +323,14 @@ CURLcode Curl_idn_decode(const char *input, char **output)
       result = CURLE_OUT_OF_MEMORY;
   }
 #endif
-  if(!result)
-    *output = d;
+  if(!result) {
+    if(!d[0]) { /* ended up zero length, not acceptable */
+      result = CURLE_URL_MALFORMAT;
+      free(d);
+    }
+    else
+      *output = d;
+  }
   return result;
 }
 
