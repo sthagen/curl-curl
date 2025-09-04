@@ -882,7 +882,6 @@ static CURLcode ws_enc_write_payload(struct ws_encoder *enc,
 }
 
 
-
 struct cr_ws_ctx {
   struct Curl_creader super;
   BIT(read_eos);  /* we read an EOS from the next reader */
@@ -1200,6 +1199,7 @@ CURLcode Curl_ws_accept(struct Curl_easy *data,
 
       /* start over with sending */
       data->req.eos_read = FALSE;
+      data->req.upload_done = FALSE;
       k->keepon |= KEEP_SEND;
     }
 
