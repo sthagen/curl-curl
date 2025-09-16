@@ -42,7 +42,7 @@ env:
   MAKEFLAGS: -j 5
   CURL_CI: github
   # handled in renovate.json
-  OPENSSL_VERSION: 3.5.2
+  OPENSSL_VERSION: 3.5.3
   # handled in renovate.json
   QUICTLS_VERSION: 3.3.0
   # renovate: datasource=github-tags depName=libressl/portable versioning=semver registryUrl=https://github.com
@@ -60,7 +60,7 @@ env:
   # renovate: datasource=github-tags depName=ngtcp2/ngtcp2 versioning=semver registryUrl=https://github.com
   NGTCP2_VERSION: 1.15.1
   # renovate: datasource=github-tags depName=nghttp2/nghttp2 versioning=semver registryUrl=https://github.com
-  NGHTTP2_VERSION: 1.67.0
+  NGHTTP2_VERSION: 1.67.1
   # renovate: datasource=github-tags depName=cloudflare/quiche versioning=semver registryUrl=https://github.com
   QUICHE_VERSION: 0.24.6
 
