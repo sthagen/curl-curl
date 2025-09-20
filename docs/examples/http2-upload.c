@@ -45,6 +45,9 @@
 #ifdef _WIN32
 #undef stat
 #define stat _stat
+#undef fstat
+#define fstat _fstat
+#define fileno _fileno
 #endif
 
 /* curl stuff */
@@ -68,14 +71,14 @@ int my_gettimeofday(struct timeval *tp, void *tzp)
   (void)tzp;
   if(tp) {
     /* Offset between 1601-01-01 and 1970-01-01 in 100 nanosec units */
-    #define _WIN32_FT_OFFSET (116444736000000000)
+    #define WIN32_FT_OFFSET (116444736000000000)
     union {
       CURL_TYPEOF_CURL_OFF_T ns100; /* time since 1 Jan 1601 in 100ns units */
       FILETIME ft;
     } _now;
     GetSystemTimeAsFileTime(&_now.ft);
     tp->tv_usec = (long)((_now.ns100 / 10) % 1000000);
-    tp->tv_sec = (long)((_now.ns100 - _WIN32_FT_OFFSET) / 10000000);
+    tp->tv_sec = (long)((_now.ns100 - WIN32_FT_OFFSET) / 10000000);
   }
   return 0;
 }
@@ -223,16 +226,6 @@ static int setup(struct input *i, int num, const char *upload)
 
   curl_msnprintf(url, 256, "https://localhost:8443/upload-%d", num);
 
-  /* get the file size of the local file */
-  if(stat(upload, &file_info)) {
-    fprintf(stderr, "error: could not stat file %s: %s\n", upload,
-            strerror(errno));
-    fclose(out);
-    return 1;
-  }
-
-  uploadsize = file_info.st_size;
-
   i->in = fopen(upload, "rb");
   if(!i->in) {
     fprintf(stderr, "error: could not open file %s for reading: %s\n", upload,
@@ -240,6 +233,19 @@ static int setup(struct input *i, int num, const char *upload)
     fclose(out);
     return 1;
   }
+
+#ifdef UNDER_CE
+  if(stat(upload, &file_info) != 0) {
+#else
+  if(fstat(fileno(i->in), &file_info) != 0) {
+#endif
+    fprintf(stderr, "error: could not stat file %s: %s\n", upload,
+            strerror(errno));
+    fclose(out);
+    return 1;
+  }
+
+  uploadsize = file_info.st_size;
 
   hnd = i->hnd = curl_easy_init();
 

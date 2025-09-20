@@ -112,7 +112,6 @@ CURLcode Curl_auth_create_digest_md5_message(struct Curl_easy *data,
   SecBufferDesc resp_desc;
   SECURITY_STATUS status;
   unsigned long attrs;
-  TimeStamp expiry; /* For Windows 9x compatibility of SSPI calls */
 
   /* Ensure we have a valid challenge message */
   if(!Curl_bufref_len(chlg)) {
@@ -168,7 +167,7 @@ CURLcode Curl_auth_create_digest_md5_message(struct Curl_easy *data,
                                    (TCHAR *)CURL_UNCONST(TEXT(SP_NAME_DIGEST)),
                                    SECPKG_CRED_OUTBOUND, NULL,
                                    p_identity, NULL, NULL,
-                                   &credentials, &expiry);
+                                   &credentials, NULL);
 
   if(status != SEC_E_OK) {
     Curl_sspi_free_identity(p_identity);
@@ -197,7 +196,7 @@ CURLcode Curl_auth_create_digest_md5_message(struct Curl_easy *data,
   status = Curl_pSecFn->InitializeSecurityContext(&credentials, NULL, spn,
                                                   0, 0, 0, &chlg_desc, 0,
                                                   &context, &resp_desc, &attrs,
-                                                  &expiry);
+                                                  NULL);
 
   if(status == SEC_I_COMPLETE_NEEDED ||
      status == SEC_I_COMPLETE_AND_CONTINUE)
@@ -277,7 +276,7 @@ CURLcode Curl_override_sspi_http_realm(const char *chlg,
           if(!domain.tchar_ptr)
             return CURLE_OUT_OF_MEMORY;
 
-          dup_domain.tchar_ptr = _tcsdup(domain.tchar_ptr);
+          dup_domain.tchar_ptr = Curl_tcsdup(domain.tchar_ptr);
           if(!dup_domain.tchar_ptr) {
             curlx_unicodefree(domain.tchar_ptr);
             return CURLE_OUT_OF_MEMORY;
@@ -488,7 +487,6 @@ CURLcode Curl_auth_create_digest_http_message(struct Curl_easy *data,
     SecBuffer resp_buf;
     SecBufferDesc resp_desc;
     unsigned long attrs;
-    TimeStamp expiry; /* For Windows 9x compatibility of SSPI calls */
     TCHAR *spn;
 
     /* free the copy of user/passwd used to make the previous identity */
@@ -521,6 +519,7 @@ CURLcode Curl_auth_create_digest_http_message(struct Curl_easy *data,
 
       if(!digest->user) {
         free(output_token);
+        Curl_sspi_free_identity(p_identity);
         return CURLE_OUT_OF_MEMORY;
       }
     }
@@ -530,6 +529,7 @@ CURLcode Curl_auth_create_digest_http_message(struct Curl_easy *data,
 
       if(!digest->passwd) {
         free(output_token);
+        Curl_sspi_free_identity(p_identity);
         Curl_safefree(digest->user);
         return CURLE_OUT_OF_MEMORY;
       }
@@ -540,7 +540,7 @@ CURLcode Curl_auth_create_digest_http_message(struct Curl_easy *data,
                                    (TCHAR *)CURL_UNCONST(TEXT(SP_NAME_DIGEST)),
                                    SECPKG_CRED_OUTBOUND, NULL,
                                    p_identity, NULL, NULL,
-                                   &credentials, &expiry);
+                                   &credentials, NULL);
     if(status != SEC_E_OK) {
       Curl_sspi_free_identity(p_identity);
       free(output_token);
@@ -595,7 +595,7 @@ CURLcode Curl_auth_create_digest_http_message(struct Curl_easy *data,
                                                   ISC_REQ_USE_HTTP_STYLE, 0, 0,
                                                   &chlg_desc, 0,
                                                   digest->http_context,
-                                                  &resp_desc, &attrs, &expiry);
+                                                  &resp_desc, &attrs, NULL);
     curlx_unicodefree(spn);
 
     if(status == SEC_I_COMPLETE_NEEDED ||

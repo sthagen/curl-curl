@@ -21,39 +21,28 @@
  * SPDX-License-Identifier: curl
  *
  ***************************************************************************/
+#include "first.h"
 
-/* Unset redefined system symbols. */
+#include "memdebug.h"
 
-#undef strdup
-#undef malloc
-#undef calloc
-#undef realloc
-#undef free
-#ifdef _WIN32
-#undef Curl_tcsdup
-#endif
+static CURLcode test_lib1902(const char *URL)
+{
+  CURLcode res = CURLE_OK;
+  CURL *curl;
 
-#ifdef CURLDEBUG
+  curl_global_init(CURL_GLOBAL_ALL);
 
-#undef send
-#undef recv
+  curl = curl_easy_init();
+  if(curl) {
+    easy_setopt(curl, CURLOPT_COOKIEFILE, URL);
+    easy_setopt(curl, CURLOPT_COOKIEJAR,  URL);
 
-#undef socket
-#ifdef HAVE_ACCEPT4
-#undef accept4
-#endif
-#ifdef HAVE_SOCKETPAIR
-#undef socketpair
-#endif
+    /* Do not perform any actual network operation,
+       the issue occur when not calling curl.*perform */
+  }
 
-#undef fopen
-#ifdef CURL_FOPEN
-#define fopen(fname, mode) CURL_FOPEN(fname, mode)
-#endif
-#undef fdopen
-#undef fclose
-
-#endif /* CURLDEBUG */
-
-#undef HEADER_CURL_MEMORY_H
-#undef HEADER_CURL_MEMDEBUG_H
+test_cleanup:
+  curl_easy_cleanup(curl);
+  curl_global_cleanup();
+  return res;
+}
