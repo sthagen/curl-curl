@@ -1474,14 +1474,6 @@ AC_DEFUN([CURL_PREPARE_BUILDINFO], [
   if test "$curl_cv_winuwp" = 'yes'; then
     curl_pflags="${curl_pflags} UWP"
   fi
-  case $host in
-    *-*-*bsd*|*-*-aix*|*-*-hpux*|*-*-interix*|*-*-irix*|*-*-linux*|*-*-solaris*|*-*-sunos*|*-apple-*|*-*-cygwin*|*-*-msys*)
-      curl_pflags="${curl_pflags} UNIX";;
-  esac
-  case $host in
-    *-*-*bsd*)
-      curl_pflags="${curl_pflags} BSD";;
-  esac
   if test "$curl_cv_cygwin" = 'yes'; then
     curl_pflags="${curl_pflags} CYGWIN"
   fi
@@ -1492,7 +1484,7 @@ AC_DEFUN([CURL_PREPARE_BUILDINFO], [
   if test "x$compiler_id" = 'xGNU_C'; then
     curl_pflags="${curl_pflags} GCC"
   fi
-  if "$compiler_id" = "APPLECLANG"; then
+  if test "$compiler_id" = "APPLECLANG"; then
     curl_pflags="${curl_pflags} APPLE-CLANG"
   elif test "$compiler_id" = "CLANG"; then
     curl_pflags="${curl_pflags} LLVM-CLANG"

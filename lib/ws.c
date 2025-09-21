@@ -453,7 +453,7 @@ static CURLcode ws_dec_read_head(struct ws_decoder *dec,
       break;
     case 10:
       if(dec->head[2] > 127) {
-        failf(data, "[WS] frame length longer than 64 signed not supported");
+        failf(data, "[WS] frame length longer than 63 bit not supported");
         return CURLE_RECV_ERROR;
       }
       dec->payload_len = ((curl_off_t)dec->head[2] << 56) |
@@ -1502,7 +1502,7 @@ CURLcode curl_ws_recv(CURL *d, void *buffer,
 
   *nread = 0;
   *metap = NULL;
-  if(!GOOD_EASY_HANDLE(data))
+  if(!GOOD_EASY_HANDLE(data) || (buflen && !buffer))
     return CURLE_BAD_FUNCTION_ARGUMENT;
 
   conn = data->conn;
