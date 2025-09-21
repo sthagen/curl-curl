@@ -765,7 +765,7 @@ static int myssh_in_SFTP_QUOTE_STATVFS(struct Curl_easy *data,
     #else
     #define CURL_LIBSSH_VFS_SIZE_MASK PRIu64
     #endif
-    CURLcode result;
+    CURLcode result = CURLE_OK;
     char *tmp = aprintf("statvfs:\n"
                         "f_bsize: %" CURL_LIBSSH_VFS_SIZE_MASK "\n"
                         "f_frsize: %" CURL_LIBSSH_VFS_SIZE_MASK "\n"
@@ -786,14 +786,13 @@ static int myssh_in_SFTP_QUOTE_STATVFS(struct Curl_easy *data,
                         statvfs->f_namemax);
     sftp_statvfs_free(statvfs);
 
-    if(!tmp) {
-      myssh_to(data, sshc, SSH_SFTP_CLOSE);
-      sshc->nextstate = SSH_NO_STATE;
-      return SSH_OK;
-    }
+    if(!tmp)
+      result = CURLE_OUT_OF_MEMORY;
 
-    result = Curl_client_write(data, CLIENTWRITE_HEADER, tmp, strlen(tmp));
-    free(tmp);
+    if(!result) {
+      result = Curl_client_write(data, CLIENTWRITE_HEADER, tmp, strlen(tmp));
+      free(tmp);
+    }
     if(result) {
       myssh_to(data, sshc, SSH_SFTP_CLOSE);
       sshc->nextstate = SSH_NO_STATE;
@@ -1808,10 +1807,7 @@ static int myssh_in_SFTP_QUOTE_STAT(struct Curl_easy *data,
   if(!strncmp(cmd, "chgrp", 5)) {
     const char *p = sshc->quote_path1;
     curl_off_t gid;
-    (void)curlx_str_number(&p, &gid, UINT_MAX);
-    sshc->quote_attrs->gid = (uint32_t)gid;
-    if(sshc->quote_attrs->gid == 0 && !ISDIGIT(sshc->quote_path1[0]) &&
-       !sshc->acceptfail) {
+    if(curlx_str_number(&p, &gid, UINT_MAX)) {
       Curl_safefree(sshc->quote_path1);
       Curl_safefree(sshc->quote_path2);
       failf(data, "Syntax error: chgrp gid not a number");
@@ -1820,6 +1816,7 @@ static int myssh_in_SFTP_QUOTE_STAT(struct Curl_easy *data,
       sshc->actualcode = CURLE_QUOTE_ERROR;
       return SSH_NO_ERROR;
     }
+    sshc->quote_attrs->gid = (uint32_t)gid;
     sshc->quote_attrs->flags |= SSH_FILEXFER_ATTR_UIDGID;
   }
   else if(!strncmp(cmd, "chmod", 5)) {
@@ -1840,9 +1837,7 @@ static int myssh_in_SFTP_QUOTE_STAT(struct Curl_easy *data,
   else if(!strncmp(cmd, "chown", 5)) {
     const char *p = sshc->quote_path1;
     curl_off_t uid;
-    (void)curlx_str_number(&p, &uid, UINT_MAX);
-    if(sshc->quote_attrs->uid == 0 && !ISDIGIT(sshc->quote_path1[0]) &&
-       !sshc->acceptfail) {
+    if(curlx_str_number(&p, &uid, UINT_MAX)) {
       Curl_safefree(sshc->quote_path1);
       Curl_safefree(sshc->quote_path2);
       failf(data, "Syntax error: chown uid not a number");
@@ -1851,6 +1846,7 @@ static int myssh_in_SFTP_QUOTE_STAT(struct Curl_easy *data,
       sshc->actualcode = CURLE_QUOTE_ERROR;
       return SSH_NO_ERROR;
     }
+    sshc->quote_attrs->uid = (uint32_t)uid;
     sshc->quote_attrs->flags |= SSH_FILEXFER_ATTR_UIDGID;
   }
   else if(!strncmp(cmd, "atime", 5) ||

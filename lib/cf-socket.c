@@ -369,7 +369,7 @@ static CURLcode socket_open(struct Curl_easy *data,
   }
   else {
     /* opensocket callback not set, so simply create the socket now */
-    *sockfd = socket(addr->family, addr->socktype, addr->protocol);
+    *sockfd = CURL_SOCKET(addr->family, addr->socktype, addr->protocol);
   }
 
   if(*sockfd == CURL_SOCKET_BAD)
@@ -453,7 +453,7 @@ int Curl_socket_close(struct Curl_easy *data, struct connectdata *conn,
 /* When you run a program that uses the Windows Sockets API, you may
    experience slow performance when you copy data to a TCP server.
 
-   https://support.microsoft.com/kb/823764
+   https://learn.microsoft.com/troubleshoot/windows-server/networking/slow-performance-copy-data-tcp-server-sockets-api
 
    Work-around: Make the Socket Send Buffer Size Larger Than the Program Send
    Buffer Size
@@ -790,10 +790,10 @@ static CURLcode bindlocal(struct Curl_easy *data, struct connectdata *conn,
       infof(data, "Bind to local port %d failed, trying next", port - 1);
       /* We reuse/clobber the port variable here below */
       if(sock->sa_family == AF_INET)
-        si4->sin_port = ntohs(port);
+        si4->sin_port = htons(port);
 #ifdef USE_IPV6
       else
-        si6->sin6_port = ntohs(port);
+        si6->sin6_port = htons(port);
 #endif
     }
     else
@@ -2113,8 +2113,8 @@ static CURLcode cf_tcp_accept_connect(struct Curl_cfilter *cf,
   if(!getsockname(ctx->sock, (struct sockaddr *) &add, &size)) {
     size = sizeof(add);
 #ifdef HAVE_ACCEPT4
-    s_accepted = accept4(ctx->sock, (struct sockaddr *) &add, &size,
-                         SOCK_NONBLOCK | SOCK_CLOEXEC);
+    s_accepted = CURL_ACCEPT4(ctx->sock, (struct sockaddr *) &add, &size,
+                              SOCK_NONBLOCK | SOCK_CLOEXEC);
 #else
     s_accepted = CURL_ACCEPT(ctx->sock, (struct sockaddr *) &add, &size);
 #endif

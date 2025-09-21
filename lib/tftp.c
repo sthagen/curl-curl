@@ -535,11 +535,12 @@ static CURLcode tftp_send_first(struct tftp_conn *state,
                       (SEND_TYPE_ARG3)sbytes, 0,
                       CURL_SENDTO_ARG5(&remote_addr->curl_sa_addr),
                       (curl_socklen_t)remote_addr->addrlen);
+    free(filename);
     if(senddata != (ssize_t)sbytes) {
       char buffer[STRERROR_LEN];
       failf(data, "%s", Curl_strerror(SOCKERRNO, buffer, sizeof(buffer)));
+      return CURLE_SEND_ERROR;
     }
-    free(filename);
     break;
 
   case TFTP_EVENT_OACK:
@@ -1310,7 +1311,7 @@ static CURLcode tftp_perform(struct Curl_easy *data, bool *dophase_done)
   if((state->state == TFTP_STATE_FIN) || result)
     return result;
 
-  tftp_multi_statemach(data, dophase_done);
+  result = tftp_multi_statemach(data, dophase_done);
 
   if(*dophase_done)
     DEBUGF(infof(data, "DO phase is complete"));

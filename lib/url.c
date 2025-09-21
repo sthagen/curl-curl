@@ -98,7 +98,6 @@
 #include "hsts.h"
 #include "noproxy.h"
 #include "cfilters.h"
-#include "curl_krb5.h"
 #include "idn.h"
 
 /* And now for the protocols */
@@ -365,11 +364,18 @@ CURLcode Curl_init_userdefined(struct Curl_easy *data)
   set->in_set = stdin;  /* default input from stdin */
   set->err = stderr;  /* default stderr to stderr */
 
+#if defined(__clang__) && __clang_major__ >= 16
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wcast-function-type-strict"
+#endif
   /* use fwrite as default function to store output */
   set->fwrite_func = (curl_write_callback)fwrite;
 
   /* use fread as default function to read input */
   set->fread_func_set = (curl_read_callback)fread;
+#if defined(__clang__) && __clang_major__ >= 16
+#pragma clang diagnostic pop
+#endif
   set->is_fread_set = 0;
 
   set->seek_client = ZERO_NULL;
@@ -599,7 +605,6 @@ void Curl_conn_free(struct Curl_easy *data, struct connectdata *conn)
   Curl_safefree(conn->http_proxy.host.rawalloc); /* http proxy name buffer */
   Curl_safefree(conn->socks_proxy.host.rawalloc); /* socks proxy name buffer */
 #endif
-  Curl_sec_conn_destroy(conn);
   Curl_safefree(conn->user);
   Curl_safefree(conn->passwd);
   Curl_safefree(conn->sasl_authzid);
@@ -1447,10 +1452,6 @@ static struct connectdata *allocate_conn(struct Curl_easy *data)
 
   /* Initialize the attached xfers bitset */
   Curl_uint_spbset_init(&conn->xfers_attached);
-
-#ifdef HAVE_GSSAPI
-  conn->data_prot = PROT_CLEAR;
-#endif
 
   /* Store the local bind parameters that will be used for this connection */
   if(data->set.str[STRING_DEVICE]) {
@@ -3466,10 +3467,7 @@ static CURLcode create_conn(struct Curl_easy *data,
 
   /* Do the unfailable inits first, before checks that may early return */
   Curl_hash_init(&conn->meta_hash, 23,
-               Curl_hash_str, curlx_str_key_compare, conn_meta_freeentry);
-
-  /* GSSAPI related inits */
-  Curl_sec_conn_init(conn);
+                 Curl_hash_str, curlx_str_key_compare, conn_meta_freeentry);
 
   result = parseurlandfillconn(data, conn);
   if(result)
