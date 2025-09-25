@@ -110,7 +110,7 @@ jobs:
 
       - name: 'cache libressl'
         if: ${{ contains(matrix.build.install_steps, 'libressl') }}
-        uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         id: cache-libressl
         env:
           cache-name: cache-libressl
@@ -253,7 +253,7 @@ jobs:
               --disable-ldap --disable-pop3 --without-librtmp --disable-rtsp
               --disable-shared --disable-smb --disable-smtp --disable-telnet --disable-tftp --disable-unix-sockets
               --without-brotli --without-gssapi --without-libidn2 --without-libpsl --without-librtmp
-              --without-libssh2 --without-libssh --without-wolfssh
+              --without-libssh2 --without-libssh
               --without-nghttp2 --disable-ntlm --without-ssl --without-zlib --without-zstd
 
             macos-version-min: '10.15'  # Catalina (2019)
@@ -489,8 +489,7 @@ jobs:
         if: ${{ !contains(matrix.build.install_steps, 'skipall') && !contains(matrix.build.install_steps, 'skiprun') }}
         run: |
           python3 -m venv ~/venv
-          source ~/venv/bin/activate
-          python3 -m pip install -r tests/requirements.txt
+          ~/venv/bin/pip --disable-pip-version-check --no-input --no-cache-dir install --progress-bar off --prefer-binary -r tests/requirements.txt
 
       - name: 'run tests'
         if: ${{ !contains(matrix.build.install_steps, 'skipall') && !contains(matrix.build.install_steps, 'skiprun') }}
@@ -517,8 +516,8 @@ jobs:
       - name: 'install pytest prereqs'
         if: ${{ contains(matrix.build.install_steps, 'pytest') }}
         run: |
-          source ~/venv/bin/activate
-          python3 -m pip install -r tests/http/requirements.txt
+          [ -d ~/venv ] || python3 -m venv ~/venv
+          ~/venv/bin/pip --disable-pip-version-check --no-input --no-cache-dir install --progress-bar off --prefer-binary -r tests/http/requirements.txt
 
       - name: 'run pytest'
         if: ${{ contains(matrix.build.install_steps, 'pytest') }}

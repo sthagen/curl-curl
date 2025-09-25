@@ -865,9 +865,9 @@ static CURLcode cf_quiche_recv(struct Curl_cfilter *cf, struct Curl_easy *data,
       goto out;
   }
 
-  if(cf_process_ingress(cf, data)) {
+  result = cf_process_ingress(cf, data);
+  if(result) {
     CURL_TRC_CF(data, cf, "cf_recv, error on ingress");
-    result = CURLE_RECV_ERROR;
     goto out;
   }
 
@@ -1234,8 +1234,10 @@ static CURLcode cf_quiche_cntrl(struct Curl_cfilter *cf,
     break;
   }
   case CF_CTRL_CONN_INFO_UPDATE:
-    if(!cf->sockindex && cf->connected)
+    if(!cf->sockindex && cf->connected) {
       cf->conn->httpversion_seen = 30;
+      Curl_conn_set_multiplex(cf->conn);
+    }
     break;
   default:
     break;
@@ -1350,9 +1352,6 @@ static CURLcode cf_quiche_verify_peer(struct Curl_cfilter *cf,
                                       struct Curl_easy *data)
 {
   struct cf_quiche_ctx *ctx = cf->ctx;
-
-  cf->conn->bits.multiplex = TRUE; /* at least potentially multiplexed */
-
   return Curl_vquic_tls_verify_peer(&ctx->tls, cf, data, &ctx->peer);
 }
 
@@ -1433,9 +1432,11 @@ out:
   if(result && result != CURLE_AGAIN) {
     struct ip_quadruple ip;
 
-    Curl_cf_socket_peek(cf->next, data, NULL, NULL, &ip);
-    infof(data, "connect to %s port %u failed: %s",
-          ip.remote_ip, ip.remote_port, curl_easy_strerror(result));
+    if(!Curl_cf_socket_peek(cf->next, data, NULL, NULL, &ip))
+      infof(data, "connect to %s port %u failed: %s",
+            ip.remote_ip, ip.remote_port, curl_easy_strerror(result));
+    else
+      infof(data, "connect failed: %s", curl_easy_strerror(result));
   }
 #endif
   return result;

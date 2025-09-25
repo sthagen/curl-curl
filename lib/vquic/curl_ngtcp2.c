@@ -464,7 +464,6 @@ static int cf_ngtcp2_handshake_completed(ngtcp2_conn *tconn, void *user_data)
 
   ctx->handshake_at = curlx_now();
   ctx->tls_handshake_complete = TRUE;
-  cf->conn->bits.multiplex = TRUE; /* at least potentially multiplexed */
   Curl_vquic_report_handshake(&ctx->tls, cf, data);
 
   ctx->tls_vrfy_result = Curl_vquic_tls_verify_peer(&ctx->tls, cf,
@@ -1304,8 +1303,10 @@ static CURLcode cf_ngtcp2_recv(struct Curl_cfilter *cf, struct Curl_easy *data,
   *pnread = 0;
 
   /* handshake verification failed in callback, do not recv anything */
-  if(ctx->tls_vrfy_result)
-    return ctx->tls_vrfy_result;
+  if(ctx->tls_vrfy_result) {
+    result = ctx->tls_vrfy_result;
+    goto out;
+  }
 
   pktx_init(&pktx, cf, data);
 
@@ -1989,8 +1990,10 @@ static CURLcode cf_ngtcp2_cntrl(struct Curl_cfilter *cf,
     break;
   }
   case CF_CTRL_CONN_INFO_UPDATE:
-    if(!cf->sockindex && cf->connected)
+    if(!cf->sockindex && cf->connected) {
       cf->conn->httpversion_seen = 30;
+      Curl_conn_set_multiplex(cf->conn);
+    }
     break;
   default:
     break;

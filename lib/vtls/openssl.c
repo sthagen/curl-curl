@@ -741,6 +741,7 @@ static int ossl_bio_cf_in_read(BIO *bio, char *buf, int blen)
   if(!octx->x509_store_setup) {
     r2 = Curl_ssl_setup_x509_store(cf, data, octx->ssl_ctx);
     if(r2) {
+      BIO_clear_retry_flags(bio);
       octx->io_result = r2;
       return -1;
     }
@@ -5368,6 +5369,7 @@ static CURLcode ossl_recv(struct Curl_cfilter *cf,
         connclose(conn, "TLS close_notify");
       break;
     case SSL_ERROR_WANT_READ:
+      connssl->io_need = CURL_SSL_IO_NEED_RECV;
       result = CURLE_AGAIN;
       goto out;
     case SSL_ERROR_WANT_WRITE:

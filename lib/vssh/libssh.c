@@ -1959,6 +1959,8 @@ static CURLcode myssh_statemach_act(struct Curl_easy *data,
     case SSH_SFTP_QUOTE_SETSTAT:
       rc = sftp_setstat(sshc->sftp_session, sshc->quote_path2,
                         sshc->quote_attrs);
+      if(rc == SSH_AGAIN)
+        break;
       if(rc && !sshc->acceptfail) {
         Curl_safefree(sshc->quote_path1);
         Curl_safefree(sshc->quote_path2);
@@ -1978,6 +1980,8 @@ static CURLcode myssh_statemach_act(struct Curl_easy *data,
     case SSH_SFTP_QUOTE_SYMLINK:
       rc = sftp_symlink(sshc->sftp_session, sshc->quote_path2,
                         sshc->quote_path1);
+      if(rc == SSH_AGAIN)
+        break;
       if(rc && !sshc->acceptfail) {
         Curl_safefree(sshc->quote_path1);
         Curl_safefree(sshc->quote_path2);
@@ -1994,6 +1998,8 @@ static CURLcode myssh_statemach_act(struct Curl_easy *data,
     case SSH_SFTP_QUOTE_MKDIR:
       rc = sftp_mkdir(sshc->sftp_session, sshc->quote_path1,
                       (mode_t)data->set.new_directory_perms);
+      if(rc == SSH_AGAIN)
+        break;
       if(rc && !sshc->acceptfail) {
         Curl_safefree(sshc->quote_path1);
         failf(data, "mkdir command failed: %s",
@@ -2009,6 +2015,8 @@ static CURLcode myssh_statemach_act(struct Curl_easy *data,
     case SSH_SFTP_QUOTE_RENAME:
       rc = sftp_rename(sshc->sftp_session, sshc->quote_path1,
                        sshc->quote_path2);
+      if(rc == SSH_AGAIN)
+        break;
       if(rc && !sshc->acceptfail) {
         Curl_safefree(sshc->quote_path1);
         Curl_safefree(sshc->quote_path2);
@@ -2024,6 +2032,8 @@ static CURLcode myssh_statemach_act(struct Curl_easy *data,
 
     case SSH_SFTP_QUOTE_RMDIR:
       rc = sftp_rmdir(sshc->sftp_session, sshc->quote_path1);
+      if(rc == SSH_AGAIN)
+        break;
       if(rc && !sshc->acceptfail) {
         Curl_safefree(sshc->quote_path1);
         failf(data, "rmdir command failed: %s",
@@ -2038,6 +2048,8 @@ static CURLcode myssh_statemach_act(struct Curl_easy *data,
 
     case SSH_SFTP_QUOTE_UNLINK:
       rc = sftp_unlink(sshc->sftp_session, sshc->quote_path1);
+      if(rc == SSH_AGAIN)
+        break;
       if(rc && !sshc->acceptfail) {
         Curl_safefree(sshc->quote_path1);
         failf(data, "rm command failed: %s",
@@ -2392,19 +2404,16 @@ static void myssh_block2waitfor(struct connectdata *conn,
                                 struct ssh_conn *sshc,
                                 bool block)
 {
-  /* If it did not block, or nothing was returned by ssh_get_poll_flags
-   * have the original set */
-  conn->waitfor = sshc->orig_waitfor;
-
   if(block) {
     int dir = ssh_get_poll_flags(sshc->ssh_session);
-    conn->waitfor = 0;
     /* translate the libssh define bits into our own bit defines */
-    if(dir & SSH_READ_PENDING)
-      conn->waitfor |= KEEP_RECV;
-    if(dir & SSH_WRITE_PENDING)
-      conn->waitfor |= KEEP_SEND;
+    conn->waitfor =
+      ((dir & SSH_READ_PENDING) ? KEEP_RECV : 0) |
+      ((dir & SSH_WRITE_PENDING) ? KEEP_SEND : 0);
   }
+  else
+    /* if it did not block, use the original set */
+    conn->waitfor = sshc->orig_waitfor;
 }
 
 /* called repeatedly until done from multi.c */

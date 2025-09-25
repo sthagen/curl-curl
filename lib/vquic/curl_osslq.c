@@ -564,9 +564,6 @@ static CURLcode cf_osslq_verify_peer(struct Curl_cfilter *cf,
                                      struct Curl_easy *data)
 {
   struct cf_osslq_ctx *ctx = cf->ctx;
-
-  cf->conn->bits.multiplex = TRUE; /* at least potentially multiplexed */
-
   return Curl_vquic_tls_verify_peer(&ctx->tls, cf, data, &ctx->peer);
 }
 
@@ -1267,12 +1264,16 @@ static CURLcode h3_quic_recv(void *reader_ctx,
     else if(SSL_get_stream_read_state(x->s->ssl) ==
             SSL_STREAM_STATE_RESET_REMOTE) {
       uint64_t app_error_code = NGHTTP3_H3_NO_ERROR;
-      SSL_get_stream_read_error_code(x->s->ssl, &app_error_code);
-      CURL_TRC_CF(x->data, x->cf, "[%" FMT_PRId64 "] h3_quic_recv -> RESET, "
-                  "rv=%d, app_err=%" FMT_PRIu64,
-                  x->s->id, rv, (curl_uint64_t)app_error_code);
-      if(app_error_code != NGHTTP3_H3_NO_ERROR) {
+      if(!SSL_get_stream_read_error_code(x->s->ssl, &app_error_code)) {
         x->s->reset = TRUE;
+        return CURLE_RECV_ERROR;
+      }
+      else {
+        CURL_TRC_CF(x->data, x->cf, "[%" FMT_PRId64 "] h3_quic_recv -> RESET, "
+                    "rv=%d, app_err=%" FMT_PRIu64,
+                    x->s->id, rv, (curl_uint64_t)app_error_code);
+        if(app_error_code != NGHTTP3_H3_NO_ERROR)
+          x->s->reset = TRUE;
       }
       x->s->recvd_eos = TRUE;
       return CURLE_OK;
@@ -1424,12 +1425,16 @@ static CURLcode cf_progress_ingress(struct Curl_cfilter *cf,
     if(!snew)
       break;
 
-    (void)cf_osslq_h3conn_add_stream(&ctx->h3, snew, cf, data);
+    result = cf_osslq_h3conn_add_stream(&ctx->h3, snew, cf, data);
+    if(result)
+      goto out;
   }
 
   if(!SSL_handle_events(ctx->tls.ossl.ssl)) {
     int detail = SSL_get_error(ctx->tls.ossl.ssl, 0);
     result = cf_osslq_ssl_err(cf, data, detail, CURLE_RECV_ERROR);
+    if(result)
+      goto out;
   }
 
   if(ctx->h3.conn) {
@@ -2205,8 +2210,10 @@ static CURLcode cf_osslq_cntrl(struct Curl_cfilter *cf,
     break;
   }
   case CF_CTRL_CONN_INFO_UPDATE:
-    if(!cf->sockindex && cf->connected)
+    if(!cf->sockindex && cf->connected) {
       cf->conn->httpversion_seen = 30;
+      Curl_conn_set_multiplex(cf->conn);
+    }
     break;
   default:
     break;
