@@ -88,6 +88,11 @@ my %banfunc = (
     "send" => 1,
     "socket" => 1,
     "socketpair" => 1,
+    "fclose" => 1,
+    "fdopen" => 1,
+    "fopen" => 1,
+    "open" => 1,
+    "stat" => 1,
     );
 
 my %warnings_extended = (
@@ -890,7 +895,8 @@ sub scanfile {
         # scan for use of banned functions
         my $bl = $l;
       again:
-        if(($l =~ /^(.*?\W)(\w+)(\s*\()/x) && $banfunc{$2}) {
+        if((($l =~ /^(.*?\W)(\w+)(\s*\()/x) && $banfunc{$2}) ||
+           (($l =~ /^(.*?\()(\w+)(\s*\()/x) && $banfunc{$2})) {
             my $bad = $2;
             my $prefix = $1;
             my $suff = $3;
@@ -899,6 +905,9 @@ sub scanfile {
                       "use of $bad is banned");
             my $replace = 'x' x (length($bad) + 1);
             $prefix =~ s/\*/\\*/;
+            $prefix =~ s/\[/\\[/;
+            $prefix =~ s/\]/\\]/;
+            $prefix =~ s/\(/\\(/;
             $suff =~ s/\(/\\(/;
             $l =~ s/$prefix$bad$suff/$prefix$replace/;
             goto again;
@@ -919,8 +928,8 @@ sub scanfile {
         }
 
         # scan for use of non-binary fopen without the macro
-        if($l =~ /^(.*\W)fopen\s*\([^,]*, *\"([^"]*)/) {
-            my $mode = $2;
+        if($l =~ /^(.*\W)(curlx_fopen|CURLX_FOPEN_LOW)\s*\([^,]*, *\"([^"]*)/) {
+            my $mode = $3;
             if($mode !~ /b/) {
                 checkwarn("FOPENMODE",
                           $line, length($1), $file, $ol,

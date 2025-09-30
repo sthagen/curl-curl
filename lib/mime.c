@@ -34,6 +34,7 @@ struct Curl_easy;
 #include "sendf.h"
 #include "transfer.h"
 #include "strdup.h"
+#include "curlx/fopen.h"
 #include "curlx/base64.h"
 
 #if !defined(CURL_DISABLE_MIME) && \
@@ -131,7 +132,7 @@ static const char aschex[] =
 
 #ifndef __VMS
 #define filesize(name, stat_data) (stat_data.st_size)
-#define fopen_read fopen
+#define fopen_read curlx_fopen
 
 #else
 
@@ -154,7 +155,7 @@ curl_off_t VmsRealFileSize(const char *name,
   int ret_stat;
   FILE * file;
 
-  file = fopen(name, FOPEN_READTEXT); /* VMS */
+  file = curlx_fopen(name, FOPEN_READTEXT); /* VMS */
   if(!file)
     return 0;
 
@@ -165,7 +166,7 @@ curl_off_t VmsRealFileSize(const char *name,
     if(ret_stat)
       count += ret_stat;
   }
-  fclose(file);
+  curlx_fclose(file);
 
   return count;
 }
@@ -204,16 +205,16 @@ static FILE * vmsfopenread(const char *file, const char *mode)
   struct_stat statbuf;
   int result;
 
-  result = stat(file, &statbuf);
+  result = curlx_stat(file, &statbuf);
 
   switch(statbuf.st_fab_rfm) {
   case FAB$C_VAR:
   case FAB$C_VFC:
   case FAB$C_STMCR:
-    return fopen(file, FOPEN_READTEXT); /* VMS */
+    return curlx_fopen(file, FOPEN_READTEXT); /* VMS */
     break;
   default:
-    return fopen(file, FOPEN_READTEXT, "rfm=stmlf", "ctx=stm");
+    return curlx_fopen(file, FOPEN_READTEXT, "rfm=stmlf", "ctx=stm");
   }
 }
 
@@ -745,7 +746,7 @@ static void mime_file_free(void *ptr)
   curl_mimepart *part = (curl_mimepart *) ptr;
 
   if(part->fp) {
-    fclose(part->fp);
+    curlx_fclose(part->fp);
     part->fp = NULL;
   }
   Curl_safefree(part->data);
@@ -967,7 +968,7 @@ static size_t readback_part(curl_mimepart *part,
         mimesetstate(&part->state, MIMESTATE_END, NULL);
         /* Try sparing open file descriptors. */
         if(part->kind == MIMEKIND_FILE && part->fp) {
-          fclose(part->fp);
+          curlx_fclose(part->fp);
           part->fp = NULL;
         }
         FALLTHROUGH();
@@ -1411,7 +1412,7 @@ CURLcode curl_mime_filedata(curl_mimepart *part, const char *filename)
     char *base;
     struct_stat sbuf;
 
-    if(stat(filename, &sbuf))
+    if(curlx_stat(filename, &sbuf))
       result = CURLE_READ_ERROR;
     else {
       part->data = strdup(filename);

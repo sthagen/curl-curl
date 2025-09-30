@@ -27,13 +27,9 @@
 #if !defined(CURL_DISABLE_COOKIES) || !defined(CURL_DISABLE_ALTSVC) ||  \
   !defined(CURL_DISABLE_HSTS)
 
-#ifdef HAVE_FCNTL_H
-#include <fcntl.h>
-#endif
-
 #include "urldata.h"
 #include "rand.h"
-#include "fopen.h"
+#include "curl_fopen.h"
 /* The last 3 #include files should be in this order */
 #include "curl_printf.h"
 #include "curl_memory.h"
@@ -102,11 +98,12 @@ CURLcode Curl_fopen(struct Curl_easy *data, const char *filename,
   char *dir = NULL;
   *tempname = NULL;
 
-  *fh = fopen(filename, FOPEN_WRITETEXT);
+  *fh = curlx_fopen(filename, FOPEN_WRITETEXT);
   if(!*fh)
     goto fail;
   if(
 #ifdef UNDER_CE
+     /* !checksrc! disable BANNEDFUNC 1 */
      stat(filename, &sb) == -1
 #else
      fstat(fileno(*fh), &sb) == -1
@@ -114,7 +111,7 @@ CURLcode Curl_fopen(struct Curl_easy *data, const char *filename,
      || !S_ISREG(sb.st_mode)) {
     return CURLE_OK;
   }
-  fclose(*fh);
+  curlx_fclose(*fh);
   *fh = NULL;
 
   result = Curl_rand_alnum(data, randbuf, sizeof(randbuf));
@@ -137,14 +134,16 @@ CURLcode Curl_fopen(struct Curl_easy *data, const char *filename,
   result = CURLE_WRITE_ERROR;
 #if (defined(ANDROID) || defined(__ANDROID__)) && \
   (defined(__i386__) || defined(__arm__))
-  fd = open(tempstore, O_WRONLY | O_CREAT | O_EXCL, (mode_t)(0600|sb.st_mode));
+  fd = curlx_open(tempstore, O_WRONLY | O_CREAT | O_EXCL,
+                  (mode_t)(0600 | sb.st_mode));
 #else
-  fd = open(tempstore, O_WRONLY | O_CREAT | O_EXCL, 0600|sb.st_mode);
+  fd = curlx_open(tempstore, O_WRONLY | O_CREAT | O_EXCL,
+                  0600 | sb.st_mode);
 #endif
   if(fd == -1)
     goto fail;
 
-  *fh = fdopen(fd, FOPEN_WRITETEXT);
+  *fh = curlx_fdopen(fd, FOPEN_WRITETEXT);
   if(!*fh)
     goto fail;
 

@@ -23,10 +23,6 @@
  ***************************************************************************/
 #include "tool_setup.h"
 
-#ifdef HAVE_FCNTL_H
-#  include <fcntl.h>
-#endif
-
 #ifdef HAVE_LOCALE_H
 #  include <locale.h>
 #endif
@@ -164,7 +160,7 @@ static curl_off_t vms_realfilesize(const char *name,
   FILE * file;
 
   /* !checksrc! disable FOPENMODE 1 */
-  file = fopen(name, "r"); /* VMS */
+  file = curlx_fopen(name, "r"); /* VMS */
   if(!file) {
     return 0;
   }
@@ -175,7 +171,7 @@ static curl_off_t vms_realfilesize(const char *name,
     if(ret_stat)
       count += ret_stat;
   }
-  fclose(file);
+  curlx_fclose(file);
 
   return count;
 }
@@ -279,22 +275,22 @@ static CURLcode pre_transfer(struct per_transfer *per)
 #ifdef __VMS
     /* Calculate the real upload size for VMS */
     per->infd = -1;
-    if(stat(per->uploadfile, &fileinfo) == 0) {
+    if(curlx_stat(per->uploadfile, &fileinfo) == 0) {
       fileinfo.st_size = VmsSpecialSize(uploadfile, &fileinfo);
       switch(fileinfo.st_fab_rfm) {
       case FAB$C_VAR:
       case FAB$C_VFC:
       case FAB$C_STMCR:
-        per->infd = open(per->uploadfile, O_RDONLY | CURL_O_BINARY);
+        per->infd = curlx_open(per->uploadfile, O_RDONLY | CURL_O_BINARY);
         break;
       default:
-        per->infd = open(per->uploadfile, O_RDONLY | CURL_O_BINARY,
-                         "rfm=stmlf", "ctx=stm");
+        per->infd = curlx_open(per->uploadfile, O_RDONLY | CURL_O_BINARY,
+                               "rfm=stmlf", "ctx=stm");
       }
     }
     if(per->infd == -1)
 #else
-      per->infd = open(per->uploadfile, O_RDONLY | CURL_O_BINARY);
+      per->infd = curlx_open(per->uploadfile, O_RDONLY | CURL_O_BINARY);
     if((per->infd == -1) || fstat(per->infd, &fileinfo))
 #endif
     {
@@ -660,7 +656,7 @@ static CURLcode post_per_transfer(struct per_transfer *per,
 
   /* Close the outs file */
   if(outs->fopened && outs->stream) {
-    rc = fclose(outs->stream);
+    rc = curlx_fclose(outs->stream);
     if(!result && rc) {
       /* something went wrong in the writing process */
       result = CURLE_WRITE_ERROR;
@@ -668,8 +664,7 @@ static CURLcode post_per_transfer(struct per_transfer *per,
     }
     if(result && config->rm_partial) {
       struct_stat st;
-      if(!stat(outs->filename, &st) &&
-         S_ISREG(st.st_mode)) {
+      if(!curlx_stat(outs->filename, &st) && S_ISREG(st.st_mode)) {
         if(!unlink(outs->filename))
           notef("Removed output file: %s", outs->filename);
         else
@@ -696,13 +691,13 @@ skip:
 
   /* Close function-local opened file descriptors */
   if(per->heads.fopened && per->heads.stream)
-    fclose(per->heads.stream);
+    curlx_fclose(per->heads.stream);
 
   if(per->heads.alloc_filename)
     tool_safefree(per->heads.filename);
 
   if(per->etag_save.fopened && per->etag_save.stream)
-    fclose(per->etag_save.stream);
+    curlx_fclose(per->etag_save.stream);
 
   if(per->etag_save.alloc_filename)
     tool_safefree(per->etag_save.filename);
@@ -800,7 +795,7 @@ static CURLcode etag_compare(struct OperationConfig *config)
   ParameterError pe;
 
   /* open file for reading: */
-  FILE *file = fopen(config->etag_compare_file, FOPEN_READTEXT);
+  FILE *file = curlx_fopen(config->etag_compare_file, FOPEN_READTEXT);
   if(!file)
     warnf("Failed to open %s: %s", config->etag_compare_file,
           strerror(errno));
@@ -815,7 +810,7 @@ static CURLcode etag_compare(struct OperationConfig *config)
 
   if(!header) {
     if(file)
-      fclose(file);
+      curlx_fclose(file);
     errorf("Failed to allocate memory for custom etag header");
     return CURLE_OUT_OF_MEMORY;
   }
@@ -825,7 +820,7 @@ static CURLcode etag_compare(struct OperationConfig *config)
   tool_safefree(header);
 
   if(file)
-    fclose(file);
+    curlx_fclose(file);
   if(pe != PARAM_OK)
     result = CURLE_OUT_OF_MEMORY;
   return result;
@@ -843,7 +838,7 @@ static CURLcode etag_store(struct OperationConfig *config,
 
   /* open file for output: */
   if(strcmp(config->etag_save_file, "-")) {
-    FILE *newfile = fopen(config->etag_save_file, "ab");
+    FILE *newfile = curlx_fopen(config->etag_save_file, "ab");
     if(!newfile) {
       warnf("Failed creating file for saving etags: \"%s\". "
             "Skip this transfer", config->etag_save_file);
@@ -893,11 +888,11 @@ static CURLcode setup_headerfile(struct OperationConfig *config,
         return result;
     }
     if(!per->prev || per->prev->config != config) {
-      newfile = fopen(config->headerfile, "wb");
+      newfile = curlx_fopen(config->headerfile, "wb");
       if(newfile)
-        fclose(newfile);
+        curlx_fclose(newfile);
     }
-    newfile = fopen(config->headerfile, "ab");
+    newfile = curlx_fopen(config->headerfile, "ab");
 
     if(!newfile) {
       errorf("Failed to open %s", config->headerfile);
@@ -974,7 +969,7 @@ static CURLcode setup_outfile(struct OperationConfig *config,
 
   if(config->skip_existing) {
     struct_stat fileinfo;
-    if(!stat(per->outfile, &fileinfo)) {
+    if(!curlx_stat(per->outfile, &fileinfo)) {
       /* file is present */
       notef("skips transfer, \"%s\" exists locally", per->outfile);
       per->skip = TRUE;
@@ -987,7 +982,7 @@ static CURLcode setup_outfile(struct OperationConfig *config,
        of the file as it is now and open it for append instead */
     struct_stat fileinfo;
     /* VMS -- Danger, the filesize is only valid for stream files */
-    if(stat(per->outfile, &fileinfo) == 0)
+    if(curlx_stat(per->outfile, &fileinfo) == 0)
       /* set offset to current file size: */
       config->resume_from = fileinfo.st_size;
     else
@@ -999,11 +994,11 @@ static CURLcode setup_outfile(struct OperationConfig *config,
 #ifdef __VMS
     /* open file for output, forcing VMS output format into stream
        mode which is needed for stat() call above to always work. */
-    FILE *file = fopen(outfile, "ab",
-                       "ctx=stm", "rfm=stmlf", "rat=cr", "mrs=0");
+    FILE *file = curlx_fopen(outfile, "ab",
+                           "ctx=stm", "rfm=stmlf", "rat=cr", "mrs=0");
 #else
     /* open file for output: */
-    FILE *file = fopen(per->outfile, "ab");
+    FILE *file = curlx_fopen(per->outfile, "ab");
 #endif
     if(!file) {
       errorf("cannot open '%s'", per->outfile);
@@ -1193,7 +1188,7 @@ static CURLcode single_transfer(struct OperationConfig *config,
     if(result) {
       curl_easy_cleanup(curl);
       if(etag_first.fopened)
-        fclose(etag_first.stream);
+        curlx_fclose(etag_first.stream);
       return result;
     }
     per->etag_save = etag_first; /* copy the whole struct */
@@ -2004,7 +1999,7 @@ static CURLcode cacertpaths(struct OperationConfig *config)
     char *cacert = NULL;
     FILE *cafile = tool_execpath("curl-ca-bundle.crt", &cacert);
     if(cafile) {
-      fclose(cafile);
+      curlx_fclose(cafile);
       config->cacert = strdup(cacert);
     }
 #elif !defined(CURL_WINDOWS_UWP) && !defined(UNDER_CE) && \
