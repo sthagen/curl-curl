@@ -44,9 +44,6 @@
 #ifdef HAVE_NETDB_H
 #include <netdb.h>
 #endif
-#ifdef HAVE_FCNTL_H
-#include <fcntl.h>
-#endif
 #ifdef HAVE_ARPA_INET_H
 #include <arpa/inet.h>
 #endif
@@ -336,12 +333,11 @@ static CURLcode sock_assign_addr(struct Curl_sockaddr_ex *dest,
   }
   dest->addrlen = (unsigned int)ai->ai_addrlen;
 
-  if(dest->addrlen > sizeof(struct Curl_sockaddr_storage)) {
-    DEBUGASSERT(0);
+  DEBUGASSERT(dest->addrlen <= sizeof(dest->curl_sa_addrbuf));
+  if(dest->addrlen > sizeof(dest->curl_sa_addrbuf))
     return CURLE_TOO_LARGE;
-  }
 
-  memcpy(&dest->curl_sa_addr, ai->ai_addr, dest->addrlen);
+  memcpy(&dest->curl_sa_addrbuf, ai->ai_addr, dest->addrlen);
   return CURLE_OK;
 }
 
@@ -825,8 +821,8 @@ static bool verifyconnect(curl_socket_t sockfd, int *error)
    * In October 2003 we effectively nullified this function on Windows due to
    * problems with it using all CPU in multi-threaded cases.
    *
-   * In May 2004, we bring it back to offer more info back on connect failures.
-   * Gisle Vanem could reproduce the former problems with this function, but
+   * In May 2004, we brought it back to offer more info back on connect
+   * failures. We could reproduce the former problems with this function, but
    * could avoid them by adding this SleepEx() call below:
    *
    *    "I do not have Rational Quantify, but the hint from his post was
@@ -1332,7 +1328,8 @@ static CURLcode cf_tcp_connect(struct Curl_cfilter *cf,
   rc = SOCKET_WRITABLE(ctx->sock, 0);
 
   if(rc == 0) { /* no connection yet */
-    CURL_TRC_CF(data, cf, "not connected yet");
+    CURL_TRC_CF(data, cf, "not connected yet on fd=%" FMT_SOCKET_T,
+                ctx->sock);
     return CURLE_OK;
   }
   else if(rc == CURL_CSELECT_OUT || cf->conn->bits.tcp_fastopen) {
@@ -1342,7 +1339,7 @@ static CURLcode cf_tcp_connect(struct Curl_cfilter *cf,
       set_local_ip(cf, data);
       *done = TRUE;
       cf->connected = TRUE;
-      CURL_TRC_CF(data, cf, "connected");
+      CURL_TRC_CF(data, cf, "connected on fd=%" FMT_SOCKET_T, ctx->sock);
       return CURLE_OK;
     }
   }

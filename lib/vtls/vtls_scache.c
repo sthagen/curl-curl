@@ -29,9 +29,6 @@
 #ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
 #endif
-#ifdef HAVE_FCNTL_H
-#include <fcntl.h>
-#endif
 
 #include "../urldata.h"
 #include "../cfilters.h"
@@ -905,7 +902,6 @@ CURLcode Curl_ssl_scache_take(struct Curl_cfilter *cf,
       peer->age = scache->age; /* set this as used in this age */
     }
   }
-  Curl_ssl_scache_unlock(data);
   if(s) {
     *ps = s;
     CURL_TRC_SSLS(data, "took session for %s [proto=0x%x, "
@@ -917,6 +913,7 @@ CURLcode Curl_ssl_scache_take(struct Curl_cfilter *cf,
   else {
     CURL_TRC_SSLS(data, "no cached session for %s", ssl_peer_key);
   }
+  Curl_ssl_scache_unlock(data);
   return result;
 }
 

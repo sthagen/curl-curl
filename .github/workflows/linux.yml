@@ -37,8 +37,8 @@ env:
   MAKEFLAGS: -j 5
   CURL_CI: github
   CURL_CLANG_TIDYFLAGS: '-checks=-clang-analyzer-security.insecureAPI.bzero,-clang-analyzer-security.insecureAPI.strcpy,-clang-analyzer-optin.performance.Padding,-clang-analyzer-security.ArrayBound,-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,-clang-analyzer-valist.Uninitialized'
-  # renovate: datasource=github-tags depName=libressl-portable/portable versioning=semver registryUrl=https://github.com
-  LIBRESSL_VERSION: 4.1.0
+  # renovate: datasource=github-tags depName=libressl/portable versioning=semver registryUrl=https://github.com
+  LIBRESSL_VERSION: 4.1.1
   # renovate: datasource=github-tags depName=wolfSSL/wolfssl versioning=semver extractVersion=^v?(?<version>.+)-stable$ registryUrl=https://github.com
   WOLFSSL_VERSION: 5.8.2
   # renovate: datasource=github-tags depName=Mbed-TLS/mbedtls versioning=semver registryUrl=https://github.com
@@ -48,7 +48,7 @@ env:
   # renovate: datasource=github-tags depName=google/boringssl versioning=semver registryUrl=https://github.com
   BORINGSSL_VERSION: 0.20250818.0
   # handled in renovate.json
-  OPENSSL_VERSION: 3.5.3
+  OPENSSL_VERSION: 3.6.0
   # handled in renovate.json
   QUICTLS_VERSION: 3.3.0
   # renovate: datasource=github-tags depName=rustls/rustls-ffi versioning=semver registryUrl=https://github.com
@@ -156,7 +156,7 @@ jobs:
 
           - name: 'openssl arm'
             install_steps: pytest
-            configure: CFLAGS=-std=gnu89 --with-openssl --enable-debug
+            configure: CFLAGS=-std=gnu89 --with-openssl --enable-debug --disable-verbose
             image: 'ubuntu-24.04-arm'
 
           - name: 'openssl -O3 libssh valgrind'
@@ -239,6 +239,21 @@ jobs:
               --enable-ech --with-gssapi --enable-ssls-export
               --disable-debug --disable-unity
 
+          - name: 'scan-build H3 c-ares'
+            install_packages: clang-tools clang libidn2-dev libnghttp2-dev
+            install_steps: skipall
+            install_steps_brew: openssl libngtcp2 libnghttp3 c-ares
+            CC: clang
+            configure-prefix: scan-build
+            make-prefix: scan-build --status-bugs
+            LDFLAGS: -Wl,-rpath,/home/linuxbrew/.linuxbrew/opt/openssl/lib -Wl,-rpath,/home/linuxbrew/.linuxbrew/opt/libngtcp2/lib -Wl,-rpath,/home/linuxbrew/.linuxbrew/opt/libnghttp3/lib -Wl,-rpath,/home/linuxbrew/.linuxbrew/opt/c-ares/lib
+            PKG_CONFIG_PATH: /home/linuxbrew/.linuxbrew/opt/libngtcp2/lib/pkgconfig:/home/linuxbrew/.linuxbrew/opt/libnghttp3/lib/pkgconfig:/home/linuxbrew/.linuxbrew/opt/c-ares/lib/pkgconfig
+            configure: >-
+              --with-openssl=/home/linuxbrew/.linuxbrew/opt/openssl --with-ngtcp2 --with-nghttp3=
+              --with-libidn2 --enable-httpsrr --enable-ares
+              --disable-debug --disable-unity
+              --disable-verbose
+
           - name: 'address-sanitizer'
             install_packages: clang libssl-dev libssh-dev libidn2-dev libnghttp2-dev libubsan1 libasan8 libtsan2
             install_steps: pytest randcurl
@@ -246,6 +261,16 @@ jobs:
             LDFLAGS: -fsanitize=address,undefined -fno-sanitize-recover=undefined,integer -ldl -lubsan
             CC: clang
             generate: -DENABLE_DEBUG=ON -DCURL_USE_LIBSSH=ON
+
+          - name: 'address-sanitizer H3 c-ares'
+            install_packages: clang libubsan1 libasan8 libtsan2
+            install_steps: pytest
+            install_steps_brew: openssl libngtcp2 libnghttp3 c-ares
+            CFLAGS: -fsanitize=address,undefined,signed-integer-overflow -fno-sanitize-recover=undefined,integer -Wformat -Werror=format-security -Werror=array-bounds -g
+            LDFLAGS: -fsanitize=address,undefined -fno-sanitize-recover=undefined,integer -ldl -lubsan -Wl,-rpath,/home/linuxbrew/.linuxbrew/opt/c-ares/lib
+            PKG_CONFIG_PATH: /home/linuxbrew/.linuxbrew/opt/libngtcp2/lib/pkgconfig:/home/linuxbrew/.linuxbrew/opt/libnghttp3/lib/pkgconfig:/home/linuxbrew/.linuxbrew/opt/c-ares/lib/pkgconfig
+            CC: clang
+            generate: -DENABLE_DEBUG=ON -DCURL_USE_OPENSSL=ON -DOPENSSL_ROOT_DIR=/home/linuxbrew/.linuxbrew/opt/openssl -DUSE_NGTCP2=ON -DUSE_SSLS_EXPORT=ON -DENABLE_ARES=ON
 
           - name: 'thread-sanitizer'
             install_packages: clang libtsan2
@@ -360,10 +385,11 @@ jobs:
         if: ${{ contains(matrix.build.install_steps, 'libressl') && steps.cache-libressl.outputs.cache-hit != 'true' }}
         run: |
           curl --disable --fail --silent --show-error --connect-timeout 15 --max-time 120 --retry 6 --retry-connrefused \
-            --location "https://github.com/libressl/portable/releases/download/v${LIBRESSL_VERSION}/libressl-${LIBRESSL_VERSION}.tar.gz" | tar -xz
+            "https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-${LIBRESSL_VERSION}.tar.gz" | tar -xz
           cd "libressl-${LIBRESSL_VERSION}"
-          ./configure --disable-dependency-tracking --prefix=/home/runner/libressl
-          make install
+          cmake -B . -G Ninja -DLIBRESSL_APPS=OFF -DLIBRESSL_TESTS=OFF -DCMAKE_INSTALL_PREFIX=/home/runner/libressl
+          cmake --build .
+          cmake --install .
 
       - name: 'cache wolfssl (all)'
         if: ${{ contains(matrix.build.install_steps, 'wolfssl-all') }}
