@@ -36,7 +36,10 @@
 
 /* curl stuff */
 #include <curl/curl.h>
-#include <curl/mprintf.h>
+
+#if defined(_MSC_VER) && (_MSC_VER < 1900)
+#define snprintf _snprintf
+#endif
 
 #ifndef CURLPIPE_MULTIPLEX
 /* This little trick makes sure that we do not enable pipelining for libcurls
@@ -149,7 +152,7 @@ static int setup(struct transfer *t, int num)
 
   hnd = t->easy = curl_easy_init();
 
-  curl_msnprintf(filename, 128, "dl-%d", num);
+  snprintf(filename, sizeof(filename), "dl-%d", num);
 
   t->out = fopen(filename, "wb");
   if(!t->out) {

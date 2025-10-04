@@ -53,11 +53,15 @@ my %banfunc = (
     "gets" => 1,
     "strtok" => 1,
     "sprintf" => 1,
+    "snprintf" => 1,
     "vsprintf" => 1,
+    "vsnprintf" => 1,
+    "sscanf" => 1,
     "strcat" => 1,
     "strncat" => 1,
     "strncpy" => 1,
     "strtok_r" => 1,
+    "strtol" => 1,
     "strtoul" => 1,
     "_mbscat" => 1,
     "_mbsncat" => 1,
@@ -908,6 +912,7 @@ sub scanfile {
             $prefix =~ s/\[/\\[/;
             $prefix =~ s/\]/\\]/;
             $prefix =~ s/\(/\\(/;
+            $prefix =~ s/\)/\\)/;
             $suff =~ s/\(/\\(/;
             $l =~ s/$prefix$bad$suff/$prefix$replace/;
             goto again;
