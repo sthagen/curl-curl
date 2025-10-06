@@ -63,9 +63,9 @@
 #include "hostcheck.h"
 #include "../transfer.h"
 #include "../multiif.h"
+#include "../curlx/strerr.h"
 #include "../curlx/strparse.h"
 #include "../strdup.h"
-#include "../strerror.h"
 #include "../curl_printf.h"
 #include "apple.h"
 
@@ -2169,14 +2169,16 @@ static CURLcode ossl_shutdown(struct Curl_cfilter *cf,
   /* SSL should now have started the shutdown from our side. Since it
    * was not complete, we are lacking the close notify from the server. */
   if(send_shutdown && !(SSL_get_shutdown(octx->ssl) & SSL_SENT_SHUTDOWN)) {
+    int rc;
     ERR_clear_error();
     CURL_TRC_CF(data, cf, "send SSL close notify");
-    if(SSL_shutdown(octx->ssl) == 1) {
+    rc = SSL_shutdown(octx->ssl);
+    if(rc == 1) {
       CURL_TRC_CF(data, cf, "SSL shutdown finished");
       *done = TRUE;
       goto out;
     }
-    if(SSL_ERROR_WANT_WRITE == SSL_get_error(octx->ssl, nread)) {
+    if(SSL_ERROR_WANT_WRITE == SSL_get_error(octx->ssl, rc)) {
       CURL_TRC_CF(data, cf, "SSL shutdown still wants to send");
       connssl->io_need = CURL_SSL_IO_NEED_SEND;
       goto out;
@@ -4668,7 +4670,7 @@ static CURLcode ossl_connect_step2(struct Curl_cfilter *cf,
         int sockerr = SOCKERRNO;
 
         if(sockerr && detail == SSL_ERROR_SYSCALL)
-          Curl_strerror(sockerr, extramsg, sizeof(extramsg));
+          curlx_strerror(sockerr, extramsg, sizeof(extramsg));
         failf(data, OSSL_PACKAGE " SSL_connect: %s in connection to %s:%d ",
               extramsg[0] ? extramsg : SSL_ERROR_to_str(detail),
               connssl->peer.hostname, connssl->peer.port);
@@ -5274,7 +5276,7 @@ static CURLcode ossl_send_earlydata(struct Curl_cfilter *cf,
         if(sslerror)
           ossl_strerror(sslerror, error_buffer, sizeof(error_buffer));
         else if(sockerr)
-          Curl_strerror(sockerr, error_buffer, sizeof(error_buffer));
+          curlx_strerror(sockerr, error_buffer, sizeof(error_buffer));
         else
           msnprintf(error_buffer, sizeof(error_buffer), "%s",
                     SSL_ERROR_to_str(err));
@@ -5460,7 +5462,7 @@ static CURLcode ossl_send(struct Curl_cfilter *cf,
       if(sslerror)
         ossl_strerror(sslerror, error_buffer, sizeof(error_buffer));
       else if(sockerr)
-        Curl_strerror(sockerr, error_buffer, sizeof(error_buffer));
+        curlx_strerror(sockerr, error_buffer, sizeof(error_buffer));
       else
         msnprintf(error_buffer, sizeof(error_buffer), "%s",
                   SSL_ERROR_to_str(err));
@@ -5557,7 +5559,7 @@ static CURLcode ossl_recv(struct Curl_cfilter *cf,
         if(sslerror)
           ossl_strerror(sslerror, error_buffer, sizeof(error_buffer));
         else if(sockerr && err == SSL_ERROR_SYSCALL)
-          Curl_strerror(sockerr, error_buffer, sizeof(error_buffer));
+          curlx_strerror(sockerr, error_buffer, sizeof(error_buffer));
         else
           msnprintf(error_buffer, sizeof(error_buffer), "%s",
                     SSL_ERROR_to_str(err));
@@ -5580,7 +5582,7 @@ static CURLcode ossl_recv(struct Curl_cfilter *cf,
            * the error in case of some weirdness in the OSSL stack */
           int sockerr = SOCKERRNO;
           if(sockerr)
-            Curl_strerror(sockerr, error_buffer, sizeof(error_buffer));
+            curlx_strerror(sockerr, error_buffer, sizeof(error_buffer));
           else {
             msnprintf(error_buffer, sizeof(error_buffer),
                       "Connection closed abruptly");

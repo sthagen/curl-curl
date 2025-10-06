@@ -39,7 +39,6 @@
 #include "../multiif.h"
 #include "../connect.h"
 #include "../progress.h"
-#include "../strerror.h"
 #include "../select.h"
 #include "../http1.h"
 #include "vquic.h"
@@ -148,14 +147,22 @@ static void cf_quiche_ctx_free(struct cf_quiche_ctx *ctx)
 
 static void cf_quiche_ctx_close(struct cf_quiche_ctx *ctx)
 {
-  if(ctx->h3c)
+  if(ctx->h3c) {
     quiche_h3_conn_free(ctx->h3c);
-  if(ctx->h3config)
+    ctx->h3c = NULL;
+  }
+  if(ctx->h3config) {
     quiche_h3_config_free(ctx->h3config);
-  if(ctx->qconn)
+    ctx->h3config = NULL;
+  }
+  if(ctx->qconn) {
     quiche_conn_free(ctx->qconn);
-  if(ctx->cfg)
+    ctx->qconn = NULL;
+  }
+  if(ctx->cfg) {
     quiche_config_free(ctx->cfg);
+    ctx->cfg = NULL;
+  }
 }
 
 static CURLcode cf_flush_egress(struct Curl_cfilter *cf,
@@ -1296,7 +1303,9 @@ static CURLcode cf_quiche_ctx_open(struct Curl_cfilter *cf,
   if(result)
     return result;
 
-  Curl_cf_socket_peek(cf->next, data, &ctx->q.sockfd, &sockaddr, NULL);
+  if(Curl_cf_socket_peek(cf->next, data, &ctx->q.sockfd, &sockaddr, NULL))
+    return CURLE_QUIC_CONNECT_ERROR;
+
   ctx->q.local_addrlen = sizeof(ctx->q.local_addr);
   rv = getsockname(ctx->q.sockfd, (struct sockaddr *)&ctx->q.local_addr,
                    &ctx->q.local_addrlen);
@@ -1495,6 +1504,7 @@ static void cf_quiche_close(struct Curl_cfilter *cf, struct Curl_easy *data)
     bool done;
     (void)cf_quiche_shutdown(cf, data, &done);
     cf_quiche_ctx_close(cf->ctx);
+    cf->connected = FALSE;
   }
 }
 
@@ -1502,6 +1512,7 @@ static void cf_quiche_destroy(struct Curl_cfilter *cf, struct Curl_easy *data)
 {
   (void)data;
   if(cf->ctx) {
+    cf_quiche_ctx_close(cf->ctx);
     cf_quiche_ctx_free(cf->ctx);
     cf->ctx = NULL;
   }

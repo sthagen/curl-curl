@@ -1,3 +1,5 @@
+#ifndef HEADER_CURL_STRERR_H
+#define HEADER_CURL_STRERR_H
 /***************************************************************************
  *                                  _   _ ____  _
  *  Project                     ___| | | |  _ \| |
@@ -21,41 +23,7 @@
  * SPDX-License-Identifier: curl
  *
  ***************************************************************************/
-#include "unitcheck.h"
 
-static CURLcode test_unit1323(const char *arg)
-{
-  UNITTEST_BEGIN_SIMPLE
+const char *curlx_strerror(int err, char *buf, size_t buflen);
 
-  struct a {
-    struct curltime first;
-    struct curltime second;
-    timediff_t result;
-  };
-
-  struct a tests[] = {
-    { {36762, 8345}, {36761, 995926}, 13 },
-    { {36761, 995926}, {36762, 8345}, -13 },
-    { {36761, 995926}, {0, 0}, 36761995 },
-    { {0, 0}, {36761, 995926}, -36761995 },
-  };
-
-  size_t i;
-
-  for(i = 0; i < CURL_ARRAYSIZE(tests); i++) {
-    timediff_t result = curlx_timediff(tests[i].first, tests[i].second);
-    if(result != tests[i].result) {
-      curl_mprintf("%ld.%06u to %ld.%06u got %" FMT_TIMEDIFF_T
-                   ", but expected %" FMT_TIMEDIFF_T "\n",
-                   (long)tests[i].first.tv_sec,
-                   tests[i].first.tv_usec,
-                   (long)tests[i].second.tv_sec,
-                   tests[i].second.tv_usec,
-                   result,
-                   tests[i].result);
-      fail("unexpected result!");
-    }
-  }
-
-  UNITTEST_END_SIMPLE
-}
+#endif /* HEADER_CURL_STRERR_H */
