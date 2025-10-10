@@ -315,9 +315,6 @@
 /* if you have the gssapi libraries */
 #cmakedefine HAVE_GSSAPI 1
 
-/* Define to 1 if you have the <gssapi/gssapi_generic.h> header file. */
-#cmakedefine HAVE_GSSAPI_GSSAPI_GENERIC_H 1
-
 /* Define to 1 if you have the <gssapi/gssapi.h> header file. */
 #cmakedefine HAVE_GSSAPI_GSSAPI_H 1
 
@@ -420,9 +417,6 @@
 
 /* Define to 1 if you have the <net/if.h> header file. */
 #cmakedefine HAVE_NET_IF_H 1
-
-/* if you have an old MIT gssapi library, lacking GSS_C_NT_HOSTBASED_SERVICE */
-#cmakedefine HAVE_OLD_GSSMIT 1
 
 /* Define to 1 if you have the `pipe' function. */
 #cmakedefine HAVE_PIPE 1
