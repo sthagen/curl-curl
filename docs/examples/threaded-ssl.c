@@ -64,7 +64,7 @@ static void *pull_one_url(void *pindex)
      might be downloading stuff from an impostor */
   curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
   curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-  curl_easy_perform(curl); /* ignores error */
+  (void)curl_easy_perform(curl); /* ignores error */
   curl_easy_cleanup(curl);
 
   return NULL;
@@ -96,6 +96,8 @@ int main(int argc, char **argv)
     pthread_join(tid[i], NULL);
     fprintf(stderr, "Thread %d terminated\n", i);
   }
+
+  curl_global_cleanup();
 
   return 0;
 }

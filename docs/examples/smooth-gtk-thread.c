@@ -80,7 +80,7 @@ static void run_one(gchar *http, int j)
     /* Write to the file */
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, outfile);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_file);
-    curl_easy_perform(curl);
+    (void)curl_easy_perform(curl);
 
     fclose(outfile);
     curl_easy_cleanup(curl);
@@ -213,6 +213,8 @@ int main(int argc, char **argv)
   gtk_main();
   gdk_threads_leave();
   printf("gdk_threads_leave\n");
+
+  curl_global_cleanup();
 
   return 0;
 }
