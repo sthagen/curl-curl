@@ -56,9 +56,8 @@ struct transfer {
 
 #define NUM_HANDLES 1000
 
-static
-void dump(const char *text, unsigned int num, unsigned char *ptr, size_t size,
-          char nohex)
+static void dump(const char *text, unsigned int num, unsigned char *ptr,
+                 size_t size, char nohex)
 {
   size_t i;
   size_t c;
@@ -105,10 +104,8 @@ void dump(const char *text, unsigned int num, unsigned char *ptr, size_t size,
   }
 }
 
-static
-int my_trace(CURL *handle, curl_infotype type,
-             char *data, size_t size,
-             void *userp)
+static int my_trace(CURL *handle, curl_infotype type,
+                    char *data, size_t size, void *userp)
 {
   const char *text;
   struct transfer *t = (struct transfer *)userp;
@@ -190,11 +187,13 @@ static int setup(struct transfer *t, int num)
  */
 int main(int argc, char **argv)
 {
+  CURLcode res;
   struct transfer trans[NUM_HANDLES];
   CURLM *multi_handle;
   int i;
   int still_running = 0; /* keep number of running handles */
   int num_transfers;
+
   if(argc > 1) {
     /* if given a number, do that many transfers */
     num_transfers = atoi(argv[1]);
@@ -204,12 +203,20 @@ int main(int argc, char **argv)
   else
     num_transfers = 3; /* suitable default */
 
+  res = curl_global_init(CURL_GLOBAL_ALL);
+  if(res)
+    return (int)res;
+
+  memset(trans, 0, sizeof(trans));
+
   /* init a multi stack */
   multi_handle = curl_multi_init();
 
   for(i = 0; i < num_transfers; i++) {
-    if(setup(&trans[i], i))
+    if(setup(&trans[i], i)) {
+      curl_global_cleanup();
       return 1;
+    }
 
     /* add the individual transfer */
     curl_multi_add_handle(multi_handle, trans[i].easy);
@@ -234,6 +241,7 @@ int main(int argc, char **argv)
   }
 
   curl_multi_cleanup(multi_handle);
+  curl_global_cleanup();
 
   return 0;
 }

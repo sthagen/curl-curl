@@ -56,8 +56,6 @@ static size_t writefunction(void *ptr, size_t size, size_t nmemb, void *stream)
 
 static CURLcode sslctx_function(CURL *curl, void *sslctx, void *pointer)
 {
-  CURLcode rv = CURLE_ABORTED_BY_CALLBACK;
-
   /** This example uses two (fake) certificates **/
   /* replace the XXX with the actual CA certificates */
   static const char mypem[] =
@@ -89,14 +87,14 @@ static CURLcode sslctx_function(CURL *curl, void *sslctx, void *pointer)
   (void)pointer;
 
   if(!cts || !cbio) {
-    return rv;
+    return CURLE_ABORTED_BY_CALLBACK;
   }
 
   inf = PEM_X509_INFO_read_bio(cbio, NULL, NULL, NULL);
 
   if(!inf) {
     BIO_free(cbio);
-    return rv;
+    return CURLE_ABORTED_BY_CALLBACK;
   }
 
   for(i = 0; i < sk_X509_INFO_num(inf); i++) {
@@ -112,67 +110,70 @@ static CURLcode sslctx_function(CURL *curl, void *sslctx, void *pointer)
   sk_X509_INFO_pop_free(inf, X509_INFO_free);
   BIO_free(cbio);
 
-  rv = CURLE_OK;
-  return rv;
+  return CURLE_OK;
 }
 
 int main(void)
 {
   CURL *ch;
-  CURLcode rv;
 
-  curl_global_init(CURL_GLOBAL_ALL);
+  CURLcode res = curl_global_init(CURL_GLOBAL_ALL);
+  if(res)
+    return (int)res;
+
   ch = curl_easy_init();
-  curl_easy_setopt(ch, CURLOPT_VERBOSE, 0L);
-  curl_easy_setopt(ch, CURLOPT_HEADER, 0L);
-  curl_easy_setopt(ch, CURLOPT_NOPROGRESS, 1L);
-  curl_easy_setopt(ch, CURLOPT_NOSIGNAL, 1L);
-  curl_easy_setopt(ch, CURLOPT_WRITEFUNCTION, writefunction);
-  curl_easy_setopt(ch, CURLOPT_WRITEDATA, stdout);
-  curl_easy_setopt(ch, CURLOPT_HEADERFUNCTION, writefunction);
-  curl_easy_setopt(ch, CURLOPT_HEADERDATA, stderr);
-  curl_easy_setopt(ch, CURLOPT_SSLCERTTYPE, "PEM");
-  curl_easy_setopt(ch, CURLOPT_SSL_VERIFYPEER, 1L);
-  curl_easy_setopt(ch, CURLOPT_URL, "https://www.example.com/");
+  if(ch) {
+    curl_easy_setopt(ch, CURLOPT_VERBOSE, 0L);
+    curl_easy_setopt(ch, CURLOPT_HEADER, 0L);
+    curl_easy_setopt(ch, CURLOPT_NOPROGRESS, 1L);
+    curl_easy_setopt(ch, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(ch, CURLOPT_WRITEFUNCTION, writefunction);
+    curl_easy_setopt(ch, CURLOPT_WRITEDATA, stdout);
+    curl_easy_setopt(ch, CURLOPT_HEADERFUNCTION, writefunction);
+    curl_easy_setopt(ch, CURLOPT_HEADERDATA, stderr);
+    curl_easy_setopt(ch, CURLOPT_SSLCERTTYPE, "PEM");
+    curl_easy_setopt(ch, CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_easy_setopt(ch, CURLOPT_URL, "https://www.example.com/");
 
-  /* Turn off the default CA locations, otherwise libcurl loads CA
-   * certificates from the locations that were detected/specified at
-   * build-time
-   */
-  curl_easy_setopt(ch, CURLOPT_CAINFO, NULL);
-  curl_easy_setopt(ch, CURLOPT_CAPATH, NULL);
+    /* Turn off the default CA locations, otherwise libcurl loads CA
+     * certificates from the locations that were detected/specified at
+     * build-time
+     */
+    curl_easy_setopt(ch, CURLOPT_CAINFO, NULL);
+    curl_easy_setopt(ch, CURLOPT_CAPATH, NULL);
 
-  /* first try: retrieve page without ca certificates -> should fail
-   * unless libcurl was built --with-ca-fallback enabled at build-time
-   */
-  rv = curl_easy_perform(ch);
-  if(rv == CURLE_OK)
-    printf("*** transfer succeeded ***\n");
-  else
-    printf("*** transfer failed ***\n");
+    /* first try: retrieve page without ca certificates -> should fail
+     * unless libcurl was built --with-ca-fallback enabled at build-time
+     */
+    res = curl_easy_perform(ch);
+    if(res == CURLE_OK)
+      printf("*** transfer succeeded ***\n");
+    else
+      printf("*** transfer failed ***\n");
 
-  /* use a fresh connection (optional) this option seriously impacts
-   * performance of multiple transfers but it is necessary order to
-   * demonstrate this example. recall that the ssl ctx callback is only called
-   * _before_ an SSL connection is established, therefore it does not affect
-   * existing verified SSL connections already in the connection cache
-   * associated with this handle. normally you would set the ssl ctx function
-   * before making any transfers, and not use this option.
-   */
-  curl_easy_setopt(ch, CURLOPT_FRESH_CONNECT, 1L);
+    /* use a fresh connection (optional) this option seriously impacts
+     * performance of multiple transfers but it is necessary order to
+     * demonstrate this example. recall that the ssl ctx callback is only
+     * called _before_ an SSL connection is established, therefore it does not
+     * affect existing verified SSL connections already in the connection cache
+     * associated with this handle. normally you would set the ssl ctx function
+     * before making any transfers, and not use this option.
+     */
+    curl_easy_setopt(ch, CURLOPT_FRESH_CONNECT, 1L);
 
-  /* second try: retrieve page using cacerts' certificate -> succeeds to load
-   * the certificate by installing a function doing the necessary
-   * "modifications" to the SSL CONTEXT just before link init
-   */
-  curl_easy_setopt(ch, CURLOPT_SSL_CTX_FUNCTION, sslctx_function);
-  rv = curl_easy_perform(ch);
-  if(rv == CURLE_OK)
-    printf("*** transfer succeeded ***\n");
-  else
-    printf("*** transfer failed ***\n");
+    /* second try: retrieve page using cacerts' certificate -> succeeds to load
+     * the certificate by installing a function doing the necessary
+     * "modifications" to the SSL CONTEXT just before link init
+     */
+    curl_easy_setopt(ch, CURLOPT_SSL_CTX_FUNCTION, sslctx_function);
+    res = curl_easy_perform(ch);
+    if(res == CURLE_OK)
+      printf("*** transfer succeeded ***\n");
+    else
+      printf("*** transfer failed ***\n");
 
-  curl_easy_cleanup(ch);
+    curl_easy_cleanup(ch);
+  }
   curl_global_cleanup();
-  return (int)rv;
+  return (int)res;
 }

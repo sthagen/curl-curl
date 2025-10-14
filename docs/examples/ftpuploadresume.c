@@ -154,13 +154,18 @@ int main(void)
 {
   CURL *curlhandle = NULL;
 
-  curl_global_init(CURL_GLOBAL_ALL);
+  CURLcode res = curl_global_init(CURL_GLOBAL_ALL);
+  if(res)
+    return (int)res;
+
   curlhandle = curl_easy_init();
+  if(curlhandle) {
 
-  upload(curlhandle, "ftp://user:pass@example.com/path/file", "C:\\file",
-         0, 3);
+    upload(curlhandle, "ftp://user:pass@example.com/path/file", "C:\\file",
+           0, 3);
 
-  curl_easy_cleanup(curlhandle);
+    curl_easy_cleanup(curlhandle);
+  }
   curl_global_cleanup();
 
   return 0;

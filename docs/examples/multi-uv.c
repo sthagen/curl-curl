@@ -226,32 +226,37 @@ static int cb_socket(CURL *easy, curl_socket_t s, int action,
 
 int main(int argc, char **argv)
 {
+  CURLcode res;
   struct datauv uv = { 0 };
   int running_handles;
 
   if(argc <= 1)
     return 0;
 
-  curl_global_init(CURL_GLOBAL_ALL);
+  res = curl_global_init(CURL_GLOBAL_ALL);
+  if(res)
+    return (int)res;
 
   uv.loop = uv_default_loop();
   uv_timer_init(uv.loop, &uv.timeout);
 
   uv.multi = curl_multi_init();
-  curl_multi_setopt(uv.multi, CURLMOPT_SOCKETFUNCTION, cb_socket);
-  curl_multi_setopt(uv.multi, CURLMOPT_SOCKETDATA, &uv);
-  curl_multi_setopt(uv.multi, CURLMOPT_TIMERFUNCTION, cb_timeout);
-  curl_multi_setopt(uv.multi, CURLMOPT_TIMERDATA, &uv);
+  if(uv.multi) {
+    curl_multi_setopt(uv.multi, CURLMOPT_SOCKETFUNCTION, cb_socket);
+    curl_multi_setopt(uv.multi, CURLMOPT_SOCKETDATA, &uv);
+    curl_multi_setopt(uv.multi, CURLMOPT_TIMERFUNCTION, cb_timeout);
+    curl_multi_setopt(uv.multi, CURLMOPT_TIMERDATA, &uv);
 
-  while(argc-- > 1) {
-    add_download(argv[argc], argc, uv.multi);
+    while(argc-- > 1) {
+      add_download(argv[argc], argc, uv.multi);
+    }
+
+    /* kickstart the thing */
+    curl_multi_socket_action(uv.multi, CURL_SOCKET_TIMEOUT, 0,
+                             &running_handles);
+    uv_run(uv.loop, UV_RUN_DEFAULT);
+    curl_multi_cleanup(uv.multi);
   }
-
-  /* kickstart the thing */
-  curl_multi_socket_action(uv.multi, CURL_SOCKET_TIMEOUT, 0, &running_handles);
-  uv_run(uv.loop, UV_RUN_DEFAULT);
-  curl_multi_cleanup(uv.multi);
-
   curl_global_cleanup();
 
   return 0;

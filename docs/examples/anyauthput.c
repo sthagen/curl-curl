@@ -105,13 +105,20 @@ int main(int argc, char **argv)
 
 #ifdef UNDER_CE
   /* !checksrc! disable BANNEDFUNC 1 */
-  stat(file, &file_info);
+  if(stat(file, &file_info) != 0) {
 #else
-  fstat(fileno(fp), &file_info);
+  if(fstat(fileno(fp), &file_info) != 0) {
 #endif
+    fclose(fp);
+    return 1; /* cannot continue */
+  }
 
   /* In Windows, this inits the Winsock stuff */
-  curl_global_init(CURL_GLOBAL_ALL);
+  res = curl_global_init(CURL_GLOBAL_ALL);
+  if(res) {
+    fclose(fp);
+    return (int)res;
+  }
 
   /* get a curl handle */
   curl = curl_easy_init();
@@ -161,5 +168,5 @@ int main(int argc, char **argv)
   fclose(fp); /* close the local file */
 
   curl_global_cleanup();
-  return 0;
+  return (int)res;
 }

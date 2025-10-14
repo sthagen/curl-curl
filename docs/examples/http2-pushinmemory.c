@@ -37,8 +37,7 @@ struct Memory {
   size_t size;
 };
 
-static size_t
-write_cb(void *contents, size_t size, size_t nmemb, void *userp)
+static size_t write_cb(void *contents, size_t size, size_t nmemb, void *userp)
 {
   size_t realsize = size * nmemb;
   struct Memory *mem = (struct Memory *)userp;
@@ -125,10 +124,12 @@ int main(void)
 {
   CURL *easy;
   CURLM *multi;
-  int still_running; /* keep number of running handles */
   int transfers = 1; /* we start with one */
   int i;
-  struct CURLMsg *m;
+
+  CURLcode res = curl_global_init(CURL_GLOBAL_ALL);
+  if(res)
+    return (int)res;
 
   /* init a multi stack */
   multi = curl_multi_init();
@@ -146,7 +147,10 @@ int main(void)
   curl_multi_setopt(multi, CURLMOPT_PUSHDATA, &transfers);
 
   while(transfers) {
+    struct CURLMsg *m;
+    int still_running; /* keep number of running handles */
     int rc;
+
     CURLMcode mcode = curl_multi_perform(multi, &still_running);
     if(mcode)
       break;
@@ -154,7 +158,6 @@ int main(void)
     mcode = curl_multi_wait(multi, NULL, 0, 1000, &rc);
     if(mcode)
       break;
-
 
     /*
      * When doing server push, libcurl itself created and added one or more
@@ -170,11 +173,10 @@ int main(void)
         curl_easy_cleanup(e);
       }
     } while(m);
-
   }
 
-
   curl_multi_cleanup(multi);
+  curl_global_cleanup();
 
   /* 'pushindex' is now the number of received transfers */
   for(i = 0; i < pushindex; i++) {
