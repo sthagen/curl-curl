@@ -1909,6 +1909,18 @@ if test x"$want_gss" = xyes; then
         fi
       fi
     fi
+    gss_version=""
+    if test -n "$host_alias" -a -f "$GSSAPI_ROOT/bin/$host_alias-krb5-config"; then
+      gss_version=`$GSSAPI_ROOT/bin/$host_alias-krb5-config --version | $SED 's/Kerberos 5 release //'`
+    elif test "$PKGCONFIG" != "no"; then
+      gss_version=`$PKGCONFIG --modversion mit-krb5-gssapi`
+    elif test -f "$KRB5CONFIG"; then
+      gss_version=`$KRB5CONFIG --version | $SED 's/Kerberos 5 release //'`
+    fi
+    if test -n "$gss_version"; then
+      AC_MSG_NOTICE([GSS-API MIT Kerberos version detected: $gss_version])
+      AC_DEFINE_UNQUOTED([CURL_KRB5_VERSION], ["$gss_version"], [MIT Kerberos version])
+    fi
   else
     LDFLAGS="$LDFLAGS $GSSAPI_LIB_DIR"
     LDFLAGSPC="$LDFLAGSPC $GSSAPI_LIB_DIR"
@@ -5302,6 +5314,10 @@ if test "x$OPENSSL_ENABLED" = "x1" -o -n "$SSL_ENABLED"; then
   if test "x$ECH_ENABLED" = "x1"; then
     SUPPORT_FEATURES="$SUPPORT_FEATURES ECH"
   fi
+fi
+
+if test "x$APPLE_SECTRUST_ENABLED" = "x1"; then
+  SUPPORT_FEATURES="$SUPPORT_FEATURES AppleSecTrust"
 fi
 
 if test "x$want_httpsrr" != "xno"; then
