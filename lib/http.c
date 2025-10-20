@@ -3265,20 +3265,28 @@ static CURLcode http_header_l(struct Curl_easy *data,
       data->info.filetime = k->timeofdoc;
     return CURLE_OK;
   }
-  if((k->httpcode >= 300 && k->httpcode < 400) &&
-     HD_IS(hd, hdlen, "Location:") &&
-     !data->req.location) {
+  if(HD_IS(hd, hdlen, "Location:")) {
     /* this is the URL that the server advises us to use instead */
     char *location = Curl_copy_header_value(hd);
     if(!location)
       return CURLE_OUT_OF_MEMORY;
-    if(!*location)
-      /* ignore empty data */
+    if(!*location ||
+       (data->req.location && !strcmp(data->req.location, location))) {
+      /* ignore empty header, or exact repeat of a previous one */
       free(location);
+      return CURLE_OK;
+    }
     else {
+      /* has value and is not an exact repeat */
+      if(data->req.location) {
+        failf(data, "Multiple Location headers");
+        free(location);
+        return CURLE_WEIRD_SERVER_REPLY;
+      }
       data->req.location = location;
 
-      if(data->set.http_follow_mode) {
+      if((k->httpcode >= 300 && k->httpcode < 400) &&
+         data->set.http_follow_mode) {
         CURLcode result;
         DEBUGASSERT(!data->req.newurl);
         data->req.newurl = strdup(data->req.location); /* clone */

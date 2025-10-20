@@ -300,6 +300,7 @@ static CURLcode h3_data_setup(struct Curl_cfilter *cf,
   return CURLE_OK;
 }
 
+#if NGTCP2_VERSION_NUM < 0x011100
 struct cf_ngtcp2_sfind_ctx {
   curl_int64_t stream_id;
   struct h3_stream_ctx *stream;
@@ -328,6 +329,20 @@ cf_ngtcp2_get_stream(struct cf_ngtcp2_ctx *ctx, curl_int64_t stream_id)
   Curl_uint_hash_visit(&ctx->streams, cf_ngtcp2_sfind, &fctx);
   return fctx.stream;
 }
+#else
+static struct h3_stream_ctx *cf_ngtcp2_get_stream(struct cf_ngtcp2_ctx *ctx,
+                                                  curl_int64_t stream_id)
+{
+  struct Curl_easy *data =
+    ngtcp2_conn_get_stream_user_data(ctx->qconn, stream_id);
+
+  if(!data) {
+    return NULL;
+  }
+
+  return H3_STREAM_CTX(ctx, data);
+}
+#endif
 
 static void cf_ngtcp2_stream_close(struct Curl_cfilter *cf,
                                    struct Curl_easy *data,
@@ -1018,8 +1033,12 @@ static void h3_xfer_write_resp_hd(struct Curl_cfilter *cf,
                                   struct h3_stream_ctx *stream,
                                   const char *buf, size_t blen, bool eos)
 {
-
-  /* If we already encountered an error, skip further writes */
+  /* This function returns no error intentionally, but records
+   * the result at the stream, skipping further writes once the
+   * `result` of the transfer is known.
+   * The stream is subsequently cancelled "higher up" in the filter's
+   * send/recv callbacks. Closing the stream here leads to SEND/RECV
+   * errors in other places that then overwrite the transfer's result. */
   if(!stream->xfer_result) {
     stream->xfer_result = Curl_xfer_write_resp_hd(data, buf, blen, eos);
     if(stream->xfer_result)
@@ -1033,8 +1052,12 @@ static void h3_xfer_write_resp(struct Curl_cfilter *cf,
                                struct h3_stream_ctx *stream,
                                const char *buf, size_t blen, bool eos)
 {
-
-  /* If we already encountered an error, skip further writes */
+  /* This function returns no error intentionally, but records
+   * the result at the stream, skipping further writes once the
+   * `result` of the transfer is known.
+   * The stream is subsequently cancelled "higher up" in the filter's
+   * send/recv callbacks. Closing the stream here leads to SEND/RECV
+   * errors in other places that then overwrite the transfer's result. */
   if(!stream->xfer_result) {
     stream->xfer_result = Curl_xfer_write_resp(data, buf, blen, eos);
     /* If the transfer write is errored, we do not want any more data */
@@ -1723,37 +1746,43 @@ denied:
   return result;
 }
 
-static CURLcode recv_pkt(const unsigned char *pkt, size_t pktlen,
-                         struct sockaddr_storage *remote_addr,
-                         socklen_t remote_addrlen, int ecn,
-                         void *userp)
+static CURLcode cf_ngtcp2_recv_pkts(const unsigned char *buf, size_t buflen,
+                                    size_t gso_size,
+                                    struct sockaddr_storage *remote_addr,
+                                    socklen_t remote_addrlen, int ecn,
+                                    void *userp)
 {
   struct pkt_io_ctx *pktx = userp;
   struct cf_ngtcp2_ctx *ctx = pktx->cf->ctx;
   ngtcp2_pkt_info pi;
   ngtcp2_path path;
+  size_t offset, pktlen;
   int rv;
 
   if(ecn)
-    CURL_TRC_CF(pktx->data, pktx->cf, "vquic_recv(len=%zu, ecn=%x)",
-                pktlen, ecn);
+    CURL_TRC_CF(pktx->data, pktx->cf, "vquic_recv(len=%zu, gso=%zu, ecn=%x)",
+                buflen, gso_size, ecn);
   ngtcp2_addr_init(&path.local, (struct sockaddr *)&ctx->q.local_addr,
                    (socklen_t)ctx->q.local_addrlen);
   ngtcp2_addr_init(&path.remote, (struct sockaddr *)remote_addr,
                    remote_addrlen);
   pi.ecn = (uint8_t)ecn;
 
-  rv = ngtcp2_conn_read_pkt(ctx->qconn, &path, &pi, pkt, pktlen, pktx->ts);
-  if(rv) {
-    CURL_TRC_CF(pktx->data, pktx->cf, "ingress, read_pkt -> %s (%d)",
-                ngtcp2_strerror(rv), rv);
-    cf_ngtcp2_err_set(pktx->cf, pktx->data, rv);
+  for(offset = 0; offset < buflen; offset += gso_size) {
+    pktlen = ((offset + gso_size) <= buflen) ? gso_size : (buflen - offset);
+    rv = ngtcp2_conn_read_pkt(ctx->qconn, &path, &pi,
+                              buf + offset, pktlen, pktx->ts);
+    if(rv) {
+      CURL_TRC_CF(pktx->data, pktx->cf, "ingress, read_pkt -> %s (%d)",
+                  ngtcp2_strerror(rv), rv);
+      cf_ngtcp2_err_set(pktx->cf, pktx->data, rv);
 
-    if(rv == NGTCP2_ERR_CRYPTO)
-      /* this is a "TLS problem", but a failed certificate verification
-         is a common reason for this */
-      return CURLE_PEER_FAILED_VERIFICATION;
-    return CURLE_RECV_ERROR;
+      if(rv == NGTCP2_ERR_CRYPTO)
+        /* this is a "TLS problem", but a failed certificate verification
+           is a common reason for this */
+        return CURLE_PEER_FAILED_VERIFICATION;
+      return CURLE_RECV_ERROR;
+    }
   }
   return CURLE_OK;
 }
@@ -1779,7 +1808,8 @@ static CURLcode cf_progress_ingress(struct Curl_cfilter *cf,
   if(result)
     return result;
 
-  return vquic_recv_packets(cf, data, &ctx->q, 1000, recv_pkt, pktx);
+  return vquic_recv_packets(cf, data, &ctx->q, 1000,
+                            cf_ngtcp2_recv_pkts, pktx);
 }
 
 /**
@@ -1873,7 +1903,7 @@ static CURLcode read_pkt_to_send(void *userp,
       /* we add the amount of data bytes to the flow windows */
       int rv = nghttp3_conn_add_write_offset(ctx->h3conn, stream_id, ndatalen);
       if(rv) {
-        failf(x->data, "nghttp3_conn_add_write_offset returned error: %s\n",
+        failf(x->data, "nghttp3_conn_add_write_offset returned error: %s",
               nghttp3_strerror(rv));
         return CURLE_SEND_ERROR;
       }

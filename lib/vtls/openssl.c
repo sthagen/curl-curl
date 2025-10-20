@@ -349,6 +349,8 @@ static CURLcode X509V3_ext(struct Curl_easy *data,
   return result;
 }
 
+#define MAX_ALLOWED_CERT_AMOUNT 100
+
 static CURLcode ossl_certchain(struct Curl_easy *data, SSL *ssl)
 {
   CURLcode result;
@@ -364,6 +366,11 @@ static CURLcode ossl_certchain(struct Curl_easy *data, SSL *ssl)
     return CURLE_SSL_CONNECT_ERROR;
 
   numcerts = sk_X509_num(sk);
+  if(numcerts > MAX_ALLOWED_CERT_AMOUNT) {
+    failf(data, "%d certificates is more than allowed (%u)", (int)numcerts,
+          MAX_ALLOWED_CERT_AMOUNT);
+    return CURLE_SSL_CONNECT_ERROR;
+  }
 
   result = Curl_ssl_init_certinfo(data, (int)numcerts);
   if(result)
@@ -1244,7 +1251,7 @@ static int enginecheck(struct Curl_easy *data,
     UI_METHOD *ui_method =
       UI_create_method(OSSL_UI_METHOD_CAST("curl user interface"));
     if(!ui_method) {
-      failf(data, "unable do create " OSSL_PACKAGE " user-interface method");
+      failf(data, "unable to create " OSSL_PACKAGE " user-interface method");
       return 0;
     }
     UI_method_set_opener(ui_method, UI_method_get_opener(UI_OpenSSL()));
@@ -1306,7 +1313,7 @@ static int providercheck(struct Curl_easy *data,
     UI_METHOD *ui_method =
       UI_create_method(OSSL_UI_METHOD_CAST("curl user interface"));
     if(!ui_method) {
-      failf(data, "unable do create " OSSL_PACKAGE " user-interface method");
+      failf(data, "unable to create " OSSL_PACKAGE " user-interface method");
       return 0;
     }
     UI_method_set_opener(ui_method, UI_method_get_opener(UI_OpenSSL()));
@@ -1321,6 +1328,7 @@ static int providercheck(struct Curl_easy *data,
       failf(data, "Failed to open OpenSSL store: %s",
             ossl_strerror(ERR_get_error(), error_buffer,
                           sizeof(error_buffer)));
+      UI_destroy_method(ui_method);
       return 0;
     }
     if(OSSL_STORE_expect(store, OSSL_STORE_INFO_PKEY) != 1) {
@@ -1466,6 +1474,8 @@ static int providerload(struct Curl_easy *data,
     OSSL_STORE_CTX *store =
       OSSL_STORE_open_ex(cert_file, data->state.libctx,
                          NULL, NULL, NULL, NULL, NULL, NULL);
+    int rc;
+
     if(!store) {
       failf(data, "Failed to open OpenSSL store: %s",
             ossl_strerror(ERR_get_error(), error_buffer,
@@ -1494,13 +1504,15 @@ static int providerload(struct Curl_easy *data,
       return 0;
     }
 
-    if(SSL_CTX_use_certificate(ctx, cert) != 1) {
+    rc = SSL_CTX_use_certificate(ctx, cert);
+    X509_free(cert); /* we do not need the handle any more... */
+
+    if(rc != 1) {
       failf(data, "unable to set client certificate [%s]",
             ossl_strerror(ERR_get_error(), error_buffer,
                           sizeof(error_buffer)));
       return 0;
     }
-    X509_free(cert); /* we do not need the handle any more... */
   }
   else {
     failf(data, "crypto provider not set, cannot load certificate");
@@ -4845,6 +4857,8 @@ static void infof_certstack(struct Curl_easy *data, const SSL *ssl)
     certstack = SSL_get_peer_cert_chain(ssl);
   else
     certstack = SSL_get0_verified_chain(ssl);
+  if(!certstack)
+    return;
   num_cert_levels = sk_X509_num(certstack);
 
   for(cert_level = 0; cert_level < num_cert_levels; cert_level++) {
@@ -4860,12 +4874,17 @@ static void infof_certstack(struct Curl_easy *data, const SSL *ssl)
     const char *type_name;
 
     current_cert = sk_X509_value(certstack, cert_level);
+    if(!current_cert)
+      continue;
+
+    current_pkey = X509_get0_pubkey(current_cert);
+    if(!current_pkey)
+      continue;
 
     X509_get0_signature(NULL, &palg_cert, current_cert);
     X509_ALGOR_get0(&paobj_cert, NULL, NULL, palg_cert);
     OBJ_obj2txt(cert_algorithm, sizeof(cert_algorithm), paobj_cert, 0);
 
-    current_pkey = X509_get0_pubkey(current_cert);
     key_bits = EVP_PKEY_bits(current_pkey);
 #ifndef HAVE_OPENSSL3
 #define EVP_PKEY_get_security_bits EVP_PKEY_security_bits
@@ -4879,7 +4898,7 @@ static void infof_certstack(struct Curl_easy *data, const SSL *ssl)
       curl_msnprintf(group_name_final, sizeof(group_name_final), "/%s",
                      group_name);
     }
-    type_name = current_pkey ? EVP_PKEY_get0_type_name(current_pkey) : NULL;
+    type_name = EVP_PKEY_get0_type_name(current_pkey);
 #else
     get_group_name = 0;
     type_name = NULL;
@@ -5092,12 +5111,6 @@ static CURLcode ossl_apple_verify(struct Curl_cfilter *cf,
 {
   struct ssl_primary_config *conn_config = Curl_ssl_cf_get_primary_config(cf);
   struct ossl_certs_ctx chain;
-  long ocsp_len = 0;
-#ifdef HAVE_BORINGSSL_LIKE
-  const uint8_t *ocsp_data = NULL;
-#else
-  unsigned char *ocsp_data = NULL;
-#endif
   CURLcode result;
 
   memset(&chain, 0, sizeof(chain));
@@ -5109,13 +5122,20 @@ static CURLcode ossl_apple_verify(struct Curl_cfilter *cf,
     failf(data, "SSL: could not get peer certificate");
     result = CURLE_PEER_FAILED_VERIFICATION;
   }
+  else {
+#ifdef HAVE_BORINGSSL_LIKE
+    const uint8_t *ocsp_data = NULL;
+#else
+    unsigned char *ocsp_data = NULL;
+#endif
+    long ocsp_len = 0;
+    if(conn_config->verifystatus && !octx->reused_session)
+      ocsp_len = (long)SSL_get_tlsext_status_ocsp_resp(octx->ssl, &ocsp_data);
 
-  if(conn_config->verifystatus && !octx->reused_session)
-    ocsp_len = (long)SSL_get_tlsext_status_ocsp_resp(octx->ssl, &ocsp_data);
-
-  result = Curl_vtls_apple_verify(cf, data, peer, chain.num_certs,
-                                  ossl_chain_get_der, &chain,
-                                  ocsp_data, ocsp_len);
+    result = Curl_vtls_apple_verify(cf, data, peer, chain.num_certs,
+                                    ossl_chain_get_der, &chain,
+                                    ocsp_data, ocsp_len);
+  }
   *pverified = !result;
   return result;
 }
