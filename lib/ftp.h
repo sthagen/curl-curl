@@ -136,7 +136,6 @@ struct ftp_conn {
   char *prevpath;   /* url-decoded conn->path from the previous transfer */
   char transfertype; /* set by ftp_transfertype for use by Curl_client_write()a
                         and others (A/I or zero) */
-  curl_off_t retr_size_saved; /* Size of retrieved file saved */
   char *server_os;     /* The target server operating system. */
   curl_off_t known_filesize; /* file size is different from -1, if wildcard
                                 LIST parsing was done and wc_statemach set
@@ -150,9 +149,6 @@ struct ftp_conn {
                                < FTP_MAX_DIR_DEPTH */
   unsigned char state; /* (ftpstate enum) always use ftp.c:state() to change
                           state! */
-  unsigned char state_saved; /* (ftpstate enum) transfer type saved to be
-                                reloaded after data connection is
-                                established */
   unsigned char use_ssl;   /* if AUTH TLS is to be attempted etc, for FTP or
                               IMAP or POP3 or others! (type: curl_usessl)*/
   unsigned char ccc;       /* ccc level for this connection */

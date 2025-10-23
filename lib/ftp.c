@@ -533,7 +533,7 @@ static CURLcode ftp_initiate_transfer(struct Curl_easy *data,
   if(result || !connected)
     return result;
 
-  if(ftpc->state_saved == FTP_STOR) {
+  if(data->state.upload) {
     /* When we know we are uploading a specified file, we can get the file
        size prior to the actual upload. */
     Curl_pgrsSetUploadSize(data, data->state.infilesize);
@@ -548,7 +548,7 @@ static CURLcode ftp_initiate_transfer(struct Curl_easy *data,
   }
   else {
     /* FTP download, shutdown, do not ignore errors */
-    Curl_xfer_setup_recv(data, SECONDARYSOCKET, ftpc->retr_size_saved);
+    Curl_xfer_setup_recv(data, SECONDARYSOCKET, data->req.size);
     Curl_xfer_set_shutdown(data, TRUE, FALSE);
   }
 
@@ -2428,7 +2428,7 @@ static CURLcode ftp_state_rest_resp(struct Curl_easy *data,
 
 static CURLcode ftp_state_stor_resp(struct Curl_easy *data,
                                     struct ftp_conn *ftpc,
-                                    int ftpcode, ftpstate instate)
+                                    int ftpcode)
 {
   CURLcode result = CURLE_OK;
 
@@ -2437,8 +2437,6 @@ static CURLcode ftp_state_stor_resp(struct Curl_easy *data,
     ftp_state(data, ftpc, FTP_STOP);
     return CURLE_UPLOAD_FAILED;
   }
-
-  ftpc->state_saved = instate;
 
   /* PORT means we are now awaiting the server to connect to us. */
   if(data->set.ftp_use_port) {
@@ -2488,7 +2486,7 @@ static CURLcode ftp_state_get_resp(struct Curl_easy *data,
       E:
       125 Data connection already open; Transfer starting. */
 
-    curl_off_t size = -1; /* default unknown size */
+    data->req.size = -1; /* default unknown size */
 
 
     /*
@@ -2521,28 +2519,25 @@ static CURLcode ftp_state_get_resp(struct Curl_easy *data,
           if(!curlx_str_number(&c, &what, CURL_OFF_T_MAX) &&
              !curlx_str_single(&c, ' ') &&
              !strncmp(c, "bytes", 5)) {
-            size = what;
+            data->req.size = what;
             break;
           }
         }
       }
     }
     else if(ftp->downloadsize > -1)
-      size = ftp->downloadsize;
+      data->req.size = ftp->downloadsize;
 
-    if(size > data->req.maxdownload && data->req.maxdownload > 0)
-      size = data->req.size = data->req.maxdownload;
+    if(data->req.size > data->req.maxdownload && data->req.maxdownload > 0)
+      data->req.size = data->req.maxdownload;
     else if((instate != FTP_LIST) && (data->state.prefer_ascii))
-      size = -1; /* kludge for servers that understate ASCII mode file size */
+      data->req.size = -1; /* for servers that understate ASCII mode file
+                              size */
 
     infof(data, "Maxdownload = %" FMT_OFF_T, data->req.maxdownload);
 
     if(instate != FTP_LIST)
-      infof(data, "Getting file with size: %" FMT_OFF_T, size);
-
-    /* FTP download: */
-    ftpc->state_saved = instate;
-    ftpc->retr_size_saved = size;
+      infof(data, "Getting file with size: %" FMT_OFF_T, data->req.size);
 
     if(data->set.ftp_use_port) {
       bool connected;
@@ -3142,7 +3137,7 @@ static CURLcode ftp_pp_statemachine(struct Curl_easy *data,
     break;
 
   case FTP_STOR:
-    result = ftp_state_stor_resp(data, ftpc, ftpcode, ftpc->state);
+    result = ftp_state_stor_resp(data, ftpc, ftpcode);
     break;
 
   case FTP_QUIT:
