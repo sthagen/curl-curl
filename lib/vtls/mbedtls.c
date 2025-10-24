@@ -37,6 +37,9 @@
 /* #define MBEDTLS_DEBUG */
 
 #include <mbedtls/version.h>
+#if MBEDTLS_VERSION_NUMBER < 0x03020000
+  #error "mbedTLS 3.2.0 or later required"
+#endif
 #include <psa/crypto_config.h>
 #include <mbedtls/net_sockets.h>
 #include <mbedtls/ssl.h>
@@ -70,6 +73,7 @@
 #include "../multiif.h"
 #include "mbedtls_threadlock.h"
 #include "../strdup.h"
+#include "../curl_sha256.h"
 
 /* The last 2 #include files should be in this order */
 #include "../curl_memory.h"
@@ -779,7 +783,8 @@ mbed_connect_step1(struct Curl_cfilter *cf, struct Curl_easy *data)
     return CURLE_SSL_CONNECT_ERROR;
   }
 
-#if MBEDTLS_VERSION_NUMBER < 0x04000000 && defined(MBEDTLS_SSL_SESSION_TICKETS)
+#if defined(MBEDTLS_SSL_SESSION_TICKETS) && \
+  MBEDTLS_VERSION_NUMBER >= 0x03060100 && MBEDTLS_VERSION_NUMBER < 0x04000000
   /* New in mbedTLS 3.6.1, need to enable, default is now disabled.
      4.0.0 enabled it by default for TLSv1.3. */
   mbedtls_ssl_conf_tls13_enable_signal_new_session_tickets(&backend->config,

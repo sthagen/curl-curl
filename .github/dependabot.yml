@@ -8,6 +8,12 @@ updates:
     directory: '/'
     schedule:
       interval: 'monthly'
+    cooldown:
+      default-days: 7
+    groups:
+      actions-deps:
+        patterns:
+          - '*'
     commit-message:
       prefix: 'GHA:'
 
@@ -17,5 +23,14 @@ updates:
       - '/tests'
     schedule:
       interval: 'monthly'
+    cooldown:
+      default-days: 7
+      semver-major-days: 15
+      semver-minor-days: 7
+      semver-patch-days: 3
+    groups:
+      actions-deps:
+        patterns:
+          - '*'
     commit-message:
       prefix: 'GHA:'
