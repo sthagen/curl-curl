@@ -40,7 +40,6 @@
 #include "../curl_ntlm_core.h"
 #include "../curl_gethostname.h"
 #include "../curlx/multibyte.h"
-#include "../curl_md5.h"
 #include "../curlx/warnless.h"
 #include "../rand.h"
 #include "../vtls/vtls.h"
@@ -843,7 +842,7 @@ CURLcode Curl_auth_create_ntlm_type3_message(struct Curl_easy *data,
   result = Curl_bufref_memdup(out, ntlmbuf, size);
 
 error:
-  free(ntlmv2resp);/* Free the dynamic buffer allocated for NTLMv2 */
+  free(ntlmv2resp);  /* Free the dynamic buffer allocated for NTLMv2 */
 
   Curl_auth_cleanup_ntlm(ntlm);
 

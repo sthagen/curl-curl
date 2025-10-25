@@ -67,7 +67,6 @@
 #include "../multiif.h"
 #include "../curlx/fopen.h"
 #include "../curlx/timeval.h"
-#include "../curl_md5.h"
 #include "../curl_sha256.h"
 #include "../curlx/warnless.h"
 #include "../curlx/base64.h"
@@ -75,7 +74,6 @@
 #include "../connect.h"
 #include "../select.h"
 #include "../setopt.h"
-#include "../strdup.h"
 #include "../rand.h"
 
 #ifdef USE_APPLE_SECTRUST

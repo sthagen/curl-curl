@@ -50,7 +50,6 @@
 #include "../url.h"
 #include "../uint-hash.h"
 #include "../sendf.h"
-#include "../strdup.h"
 #include "../rand.h"
 #include "../multiif.h"
 #include "../cfilters.h"
@@ -526,6 +525,7 @@ static int cf_ngtcp2_handshake_completed(ngtcp2_conn *tconn, void *user_data)
 
   ctx->tls_vrfy_result = Curl_vquic_tls_verify_peer(&ctx->tls, cf,
                                                     data, &ctx->peer);
+#ifndef CURL_DISABLE_VERBOSE_STRINGS
   if(Curl_trc_is_verbose(data)) {
     const ngtcp2_transport_params *rp;
     rp = ngtcp2_conn_get_remote_transport_params(ctx->qconn);
@@ -537,6 +537,7 @@ static int cf_ngtcp2_handshake_completed(ngtcp2_conn *tconn, void *user_data)
                (curl_uint64_t)rp->max_udp_payload_size,
                (curl_uint64_t)rp->initial_max_data);
   }
+#endif
 
   /* In case of earlydata, where we simulate being connected, update
    * the handshake time when we really did connect */
