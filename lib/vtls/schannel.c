@@ -927,7 +927,7 @@ schannel_connect_step1(struct Curl_cfilter *cf, struct Curl_easy *data)
   backend->cred = NULL;
 
   /* check for an existing reusable credential handle */
-  if(ssl_config->primary.cache_session) {
+  if(Curl_ssl_scache_use(cf, data)) {
     struct Curl_schannel_cred *old_cred;
     Curl_ssl_scache_lock(data);
     old_cred = Curl_ssl_scache_get_obj(cf, data, connssl->peer.scache_key);
@@ -1113,6 +1113,41 @@ schannel_connect_step1(struct Curl_cfilter *cf, struct Curl_easy *data)
   return CURLE_OK;
 }
 
+static CURLcode schannel_error(struct Curl_easy *data,
+                               SECURITY_STATUS sspi_status)
+{
+  char buffer[STRERROR_LEN];
+  switch(sspi_status) {
+  case SEC_E_INSUFFICIENT_MEMORY:
+    failf(data, "schannel: next InitializeSecurityContext failed: %s",
+          Curl_sspi_strerror(sspi_status, buffer, sizeof(buffer)));
+    return CURLE_OUT_OF_MEMORY;
+  case SEC_E_WRONG_PRINCIPAL:
+    failf(data, "schannel: SNI or certificate check failed: %s",
+          Curl_sspi_strerror(sspi_status, buffer, sizeof(buffer)));
+    return CURLE_PEER_FAILED_VERIFICATION;
+  case SEC_E_UNTRUSTED_ROOT:
+    failf(data, "schannel: %s",
+          Curl_sspi_strerror(sspi_status, buffer, sizeof(buffer)));
+    return CURLE_PEER_FAILED_VERIFICATION;
+#if 0
+  case SEC_E_INVALID_HANDLE:
+  case SEC_E_INVALID_TOKEN:
+  case SEC_E_LOGON_DENIED:
+  case SEC_E_TARGET_UNKNOWN:
+  case SEC_E_NO_AUTHENTICATING_AUTHORITY:
+  case SEC_E_INTERNAL_ERROR:
+  case SEC_E_NO_CREDENTIALS:
+  case SEC_E_UNSUPPORTED_FUNCTION:
+  case SEC_E_APPLICATION_PROTOCOL_MISMATCH:
+#endif
+  default:
+    failf(data, "schannel: next InitializeSecurityContext failed: %s",
+          Curl_sspi_strerror(sspi_status, buffer, sizeof(buffer)));
+    return CURLE_SSL_CONNECT_ERROR;
+  }
+}
+
 static CURLcode
 schannel_connect_step2(struct Curl_cfilter *cf, struct Curl_easy *data)
 {
@@ -1266,28 +1301,18 @@ schannel_connect_step2(struct Curl_cfilter *cf, struct Curl_easy *data)
     Curl_safefree(inbuf[0].pvBuffer);
 
     /* check if the handshake was incomplete */
-    if(sspi_status == SEC_E_INCOMPLETE_MESSAGE) {
+    switch(sspi_status) {
+    case SEC_E_INCOMPLETE_MESSAGE:
       backend->encdata_is_incomplete = TRUE;
       connssl->io_need = CURL_SSL_IO_NEED_RECV;
       DEBUGF(infof(data,
                    "schannel: received incomplete message, need more data"));
       return CURLE_OK;
-    }
 
-    /* If the server has requested a client certificate, attempt to continue
-       the handshake without one. This will allow connections to servers which
-       request a client certificate but do not require it. */
-    if(sspi_status == SEC_I_INCOMPLETE_CREDENTIALS &&
-       !(backend->req_flags & ISC_REQ_USE_SUPPLIED_CREDS)) {
-      backend->req_flags |= ISC_REQ_USE_SUPPLIED_CREDS;
-      connssl->io_need = CURL_SSL_IO_NEED_SEND;
-      DEBUGF(infof(data,
-                   "schannel: a client certificate has been requested"));
-      return CURLE_OK;
-    }
-
-    /* check if the handshake needs to be continued */
-    if(sspi_status == SEC_I_CONTINUE_NEEDED || sspi_status == SEC_E_OK) {
+    case SEC_I_CONTINUE_NEEDED:
+    case SEC_E_OK:
+      /* check if the handshake needs to be continued */
+      result = CURLE_OK;
       for(i = 0; i < 3; i++) {
         /* search for handshake tokens that need to be send */
         if(outbuf[i].BufferType == SECBUFFER_TOKEN && outbuf[i].cbBuffer > 0) {
@@ -1301,47 +1326,35 @@ schannel_connect_step2(struct Curl_cfilter *cf, struct Curl_easy *data)
           if(result || (outbuf[i].cbBuffer != written)) {
             failf(data, "schannel: failed to send next handshake data: "
                   "sent %zu of %lu bytes", written, outbuf[i].cbBuffer);
-            return CURLE_SSL_CONNECT_ERROR;
+            result = CURLE_SSL_CONNECT_ERROR;
           }
         }
-
+      }
+      for(i = 0; i < 3; i++) {
         /* free obsolete buffer */
-        if(outbuf[i].pvBuffer) {
+        if(outbuf[i].pvBuffer)
           Curl_pSecFn->FreeContextBuffer(outbuf[i].pvBuffer);
-        }
       }
-    }
-    else {
-      char buffer[STRERROR_LEN];
-      switch(sspi_status) {
-      case SEC_E_INSUFFICIENT_MEMORY:
-        failf(data, "schannel: next InitializeSecurityContext failed: %s",
-              Curl_sspi_strerror(sspi_status, buffer, sizeof(buffer)));
-        return CURLE_OUT_OF_MEMORY;
-      case SEC_E_WRONG_PRINCIPAL:
-        failf(data, "schannel: SNI or certificate check failed: %s",
-              Curl_sspi_strerror(sspi_status, buffer, sizeof(buffer)));
-        return CURLE_PEER_FAILED_VERIFICATION;
-      case SEC_E_UNTRUSTED_ROOT:
-        failf(data, "schannel: %s",
-              Curl_sspi_strerror(sspi_status, buffer, sizeof(buffer)));
-        return CURLE_PEER_FAILED_VERIFICATION;
-#if 0
-      case SEC_E_INVALID_HANDLE:
-      case SEC_E_INVALID_TOKEN:
-      case SEC_E_LOGON_DENIED:
-      case SEC_E_TARGET_UNKNOWN:
-      case SEC_E_NO_AUTHENTICATING_AUTHORITY:
-      case SEC_E_INTERNAL_ERROR:
-      case SEC_E_NO_CREDENTIALS:
-      case SEC_E_UNSUPPORTED_FUNCTION:
-      case SEC_E_APPLICATION_PROTOCOL_MISMATCH:
-#endif
-      default:
-        failf(data, "schannel: next InitializeSecurityContext failed: %s",
-              Curl_sspi_strerror(sspi_status, buffer, sizeof(buffer)));
-        return CURLE_SSL_CONNECT_ERROR;
+      if(result)
+        return result;
+      break;
+
+    case SEC_I_INCOMPLETE_CREDENTIALS:
+      if(!(backend->req_flags & ISC_REQ_USE_SUPPLIED_CREDS)) {
+        /* If the server has requested a client certificate, attempt to
+           continue the handshake without one. This will allow connections to
+           servers which request a client certificate but do not require
+           it. */
+        backend->req_flags |= ISC_REQ_USE_SUPPLIED_CREDS;
+        connssl->io_need = CURL_SSL_IO_NEED_SEND;
+        DEBUGF(infof(data,
+                     "schannel: a client certificate has been requested"));
+        return CURLE_OK;
       }
+      FALLTHROUGH();
+
+    default:
+      return schannel_error(data, sspi_status);
     }
 
     /* check if there was additional remaining encrypted data */
@@ -1517,7 +1530,6 @@ schannel_connect_step3(struct Curl_cfilter *cf, struct Curl_easy *data)
   struct ssl_connect_data *connssl = cf->ctx;
   struct schannel_ssl_backend_data *backend =
     (struct schannel_ssl_backend_data *)connssl->backend;
-  struct ssl_config_data *ssl_config = Curl_ssl_cf_get_config(cf, data);
   CURLcode result = CURLE_OK;
   SECURITY_STATUS sspi_status = SEC_E_OK;
   CERT_CONTEXT *ccert_context = NULL;
@@ -1585,7 +1597,7 @@ schannel_connect_step3(struct Curl_cfilter *cf, struct Curl_easy *data)
 #endif
 
   /* save the current session data for possible reuse */
-  if(ssl_config->primary.cache_session) {
+  if(Curl_ssl_scache_use(cf, data)) {
     Curl_ssl_scache_lock(data);
     /* Up ref count since call takes ownership */
     backend->cred->refcount++;

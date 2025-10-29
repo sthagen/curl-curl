@@ -457,17 +457,6 @@ static void quic_settings(struct cf_ngtcp2_ctx *ctx,
                           struct Curl_easy *data,
                           struct pkt_io_ctx *pktx)
 {
-#ifdef NGTCP2_SETTINGS_V2x
-static uint16_t mtu_probes[] = {
-  1472, /* what h2o offers */
-  1452, /* what Caddy offers */
-  1454 - 48, /* The well known MTU used by a domestic optic fiber
-                service in Japan. */
-  1390 - 48, /* Typical Tunneled MTU */
-  1280 - 48, /* IPv6 minimum MTU */
-  1492 - 48, /* PPPoE */
-};
-#endif
   ngtcp2_settings *s = &ctx->settings;
   ngtcp2_transport_params *t = &ctx->transport_params;
 
@@ -485,12 +474,11 @@ static uint16_t mtu_probes[] = {
   s->max_window = 100 * ctx->max_stream_window;
   s->max_stream_window = 10 * ctx->max_stream_window;
   s->no_pmtud = FALSE;
-#ifdef NGTCP2_SETTINGS_V2x
-  s->pmtud_probes = mtu_probes;
-  s->pmtud_probeslen = CURL_ARRAYSIZE(mtu_probes);
-  s->max_tx_udp_payload_size = 64 * 1024; /* mtu_probes[0]; */
+#ifdef NGTCP2_SETTINGS_V3
+  /* try ten times the ngtcp2 defaults here for problems with Caddy */
+  s->glitch_ratelim_burst = 1000 * 10;
+  s->glitch_ratelim_rate = 33 * 10;
 #endif
-
   t->initial_max_data = 10 * ctx->max_stream_window;
   t->initial_max_stream_data_bidi_local = ctx->max_stream_window;
   t->initial_max_stream_data_bidi_remote = ctx->max_stream_window;
@@ -2384,7 +2372,6 @@ static CURLcode cf_ngtcp2_tls_ctx_setup(struct Curl_cfilter *cf,
                                         void *user_data)
 {
   struct curl_tls_ctx *ctx = user_data;
-  struct ssl_config_data *ssl_config = Curl_ssl_cf_get_config(cf, data);
 
 #ifdef USE_OPENSSL
 #if defined(OPENSSL_IS_BORINGSSL) || defined(OPENSSL_IS_AWSLC)
@@ -2401,7 +2388,7 @@ static CURLcode cf_ngtcp2_tls_ctx_setup(struct Curl_cfilter *cf,
     return CURLE_FAILED_INIT;
   }
 #endif /* !OPENSSL_IS_BORINGSSL && !OPENSSL_IS_AWSLC */
-  if(ssl_config->primary.cache_session) {
+  if(Curl_ssl_scache_use(cf, data)) {
     /* Enable the session cache because it is a prerequisite for the
      * "new session" callback. Use the "external storage" mode to prevent
      * OpenSSL from creating an internal session cache.
@@ -2417,7 +2404,7 @@ static CURLcode cf_ngtcp2_tls_ctx_setup(struct Curl_cfilter *cf,
     failf(data, "ngtcp2_crypto_gnutls_configure_client_session failed");
     return CURLE_FAILED_INIT;
   }
-  if(ssl_config->primary.cache_session) {
+  if(Curl_ssl_scache_use(cf, data)) {
     gnutls_handshake_set_hook_function(ctx->gtls.session,
                                        GNUTLS_HANDSHAKE_ANY, GNUTLS_HOOK_POST,
                                        quic_gtls_handshake_cb);
@@ -2428,7 +2415,7 @@ static CURLcode cf_ngtcp2_tls_ctx_setup(struct Curl_cfilter *cf,
     failf(data, "ngtcp2_crypto_wolfssl_configure_client_context failed");
     return CURLE_FAILED_INIT;
   }
-  if(ssl_config->primary.cache_session) {
+  if(Curl_ssl_scache_use(cf, data)) {
     /* Register to get notified when a new session is received */
     wolfSSL_CTX_sess_set_new_cb(ctx->wssl.ssl_ctx, wssl_quic_new_session_cb);
   }
