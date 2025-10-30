@@ -12,19 +12,11 @@ CUSTOMREQUEST
 # Server-side
 <reply>
 <data>
-body
-
-+ Curl did not used to like this line
---
-  yours sincerely
+%repeat[120 x Testing large IMAP literal with custom FETCH. XXXXXXXXXXXXX%0d]%
 </data>
 <datacheck>
-* 123 FETCH (BODY[1] {70}
-body
-
-+ Curl did not used to like this line
---
-  yours sincerely
+* 456 FETCH (BODY[TEXT] {7201}
+%repeat[120 x Testing large IMAP literal with custom FETCH. XXXXXXXXXXXXX%0d]%
 </datacheck>
 </reply>
 
@@ -35,10 +27,10 @@ body
 imap
 </server>
 <name>
-IMAP custom request doesn't check continuation data
+IMAP custom FETCH with larger literal response (~7KB)
 </name>
 <command>
- imap://%HOSTIP:%IMAPPORT/%TESTNUMBER/ -u user:secret -X 'FETCH 123 BODY[1]'
+ imap://%HOSTIP:%IMAPPORT/%TESTNUMBER/ -u user:secret -X 'FETCH 456 BODY[TEXT]'
 </command>
 </client>
 
@@ -49,7 +41,7 @@ IMAP custom request doesn't check continuation data
 A001 CAPABILITY
 A002 LOGIN user secret
 A003 SELECT %TESTNUMBER
-A004 FETCH 123 BODY[1]
+A004 FETCH 456 BODY[TEXT]
 A005 LOGOUT
 </protocol>
 </verify>
