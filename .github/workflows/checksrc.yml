@@ -91,7 +91,7 @@ jobs:
       - name: 'pytype'
         run: |
           source ~/venv/bin/activate
-          find . -name '*.py' -exec pytype -j auto -k {} +
+          find . -name '*.py' -exec pytype -j auto -k -- {} +
 
       - name: 'ruff'
         run: |
@@ -164,7 +164,4 @@ jobs:
 
       # we allow some extra in source code
       - name: 'badwords'
-        run: |
-          # shellcheck disable=SC2046
-          grep -Ev '(\\bwill| url | dir )' .github/scripts/badwords.txt | \
-          .github/scripts/badwords.pl $(git ls-files -- src lib include)
+        run: grep -Ev '(\\bwill| url | dir )' .github/scripts/badwords.txt | .github/scripts/badwords.pl src lib include
