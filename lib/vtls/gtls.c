@@ -346,7 +346,7 @@ gnutls_set_ssl_version_min_max(struct Curl_easy *data,
     if(ssl_version_max < CURL_SSLVERSION_MAX_TLSv1_3) {
       failf(data, "QUIC needs at least TLS version 1.3");
       return CURLE_SSL_CONNECT_ERROR;
-     }
+    }
     *prioritylist = QUIC_PRIORITY;
     return CURLE_OK;
   }
@@ -544,7 +544,7 @@ static bool gtls_shared_creds_expired(const struct Curl_easy *data,
 {
   const struct ssl_general_config *cfg = &data->set.general_ssl;
   struct curltime now = curlx_now();
-  timediff_t elapsed_ms = curlx_timediff(now, sc->time);
+  timediff_t elapsed_ms = curlx_timediff_ms(now, sc->time);
   timediff_t timeout_ms = cfg->ca_cache_timeout * (timediff_t)1000;
 
   if(timeout_ms < 0)

@@ -82,6 +82,7 @@
 #include "hsts.h"
 #include "setopt.h"
 #include "headers.h"
+#include "curlx/warnless.h"
 
 /* The last 2 #include files should be in this order */
 #include "curl_memory.h"
@@ -189,53 +190,44 @@ CURLcode Curl_xfer_send_shutdown(struct Curl_easy *data, bool *done)
  * @param err error    code in case of -1 return
  * @return number of bytes read or -1 for error
  */
-static ssize_t xfer_recv_resp(struct Curl_easy *data,
-                              char *buf, size_t blen,
-                              bool eos_reliable,
-                              CURLcode *err)
+static CURLcode xfer_recv_resp(struct Curl_easy *data,
+                               char *buf, size_t blen,
+                               bool eos_reliable,
+                               size_t *pnread)
 {
-  size_t nread;
+  CURLcode result;
 
   DEBUGASSERT(blen > 0);
+  *pnread = 0;
   /* If we are reading BODY data and the connection does NOT handle EOF
    * and we know the size of the BODY data, limit the read amount */
   if(!eos_reliable && !data->req.header && data->req.size != -1) {
-    curl_off_t totalleft = data->req.size - data->req.bytecount;
-    if(totalleft <= 0)
-      blen = 0;
-    else if(totalleft < (curl_off_t)blen)
-      blen = (size_t)totalleft;
+    blen = curlx_sotouz_range(data->req.size - data->req.bytecount, 0, blen);
   }
   else if(xfer_recv_shutdown_started(data)) {
     /* we already received everything. Do not try more. */
     blen = 0;
   }
 
-  if(!blen) {
-    /* want nothing more */
-    *err = CURLE_OK;
-    nread = 0;
-  }
-  else {
-    *err = Curl_xfer_recv(data, buf, blen, &nread);
+  if(blen) {
+    result = Curl_xfer_recv(data, buf, blen, pnread);
+    if(result)
+      return result;
   }
 
-  if(*err)
-    return -1;
-  if(nread == 0) {
+  if(*pnread == 0) {
     if(data->req.shutdown) {
       bool done;
-      *err = xfer_recv_shutdown(data, &done);
-      if(*err)
-        return -1;
+      result = xfer_recv_shutdown(data, &done);
+      if(result)
+        return result;
       if(!done) {
-        *err = CURLE_AGAIN;
-        return -1;
+        return CURLE_AGAIN;
       }
     }
     DEBUGF(infof(data, "sendrecv_dl: we are done"));
   }
-  return (ssize_t)nread;
+  return CURLE_OK;
 }
 
 /*
@@ -264,7 +256,6 @@ static CURLcode sendrecv_dl(struct Curl_easy *data,
      read or we get a CURLE_AGAIN */
   do {
     size_t bytestoread;
-    ssize_t nread;
 
     if(!is_multiplex) {
       /* Multiplexed connection have inherent handling of EOF and we do not
@@ -288,9 +279,9 @@ static CURLcode sendrecv_dl(struct Curl_easy *data,
     }
 
     rcvd_eagain = FALSE;
-    nread = xfer_recv_resp(data, buf, bytestoread, is_multiplex, &result);
-    if(nread < 0) {
-      if(CURLE_AGAIN != result)
+    result = xfer_recv_resp(data, buf, bytestoread, is_multiplex, &blen);
+    if(result) {
+      if(result != CURLE_AGAIN)
         goto out; /* real error */
       rcvd_eagain = TRUE;
       result = CURLE_OK;
@@ -298,7 +289,7 @@ static CURLcode sendrecv_dl(struct Curl_easy *data,
          !data->req.resp_trailer) {
         DEBUGF(infof(data, "EAGAIN, download done, no trailer announced, "
                "not waiting for EOS"));
-        nread = 0;
+        blen = 0;
         /* continue as if we received the EOS */
       }
       else
@@ -306,7 +297,6 @@ static CURLcode sendrecv_dl(struct Curl_easy *data,
     }
 
     /* We only get a 0-length receive at the end of the response */
-    blen = (size_t)nread;
     is_eos = (blen == 0);
 
     if(!blen && (conn->recv[FIRSTSOCKET] == Curl_cf_recv)) {
@@ -422,18 +412,18 @@ CURLcode Curl_sendrecv(struct Curl_easy *data, struct curltime *nowp)
     goto out;
 
   if(k->keepon) {
-    if(0 > Curl_timeleft(data, nowp, FALSE)) {
+    if(Curl_timeleft_ms(data, nowp, FALSE) < 0) {
       if(k->size != -1) {
         failf(data, "Operation timed out after %" FMT_TIMEDIFF_T
               " milliseconds with %" FMT_OFF_T " out of %"
               FMT_OFF_T " bytes received",
-              curlx_timediff(*nowp, data->progress.t_startsingle),
+              curlx_timediff_ms(*nowp, data->progress.t_startsingle),
               k->bytecount, k->size);
       }
       else {
         failf(data, "Operation timed out after %" FMT_TIMEDIFF_T
               " milliseconds with %" FMT_OFF_T " bytes received",
-              curlx_timediff(*nowp, data->progress.t_startsingle),
+              curlx_timediff_ms(*nowp, data->progress.t_startsingle),
               k->bytecount);
       }
       result = CURLE_OPERATION_TIMEDOUT;
@@ -558,10 +548,12 @@ CURLcode Curl_pretransfer(struct Curl_easy *data)
     data->state.infilesize = 0;
 
   /* If there is a list of cookie files to read, do it now! */
-  Curl_cookie_loadfiles(data);
+  result = Curl_cookie_loadfiles(data);
+  if(!result)
+    Curl_cookie_run(data); /* activate */
 
   /* If there is a list of host pairs to deal with */
-  if(data->state.resolve)
+  if(!result && data->state.resolve)
     result = Curl_loadhostpairs(data);
 
   /* If there is a list of hsts files to read */
@@ -897,8 +889,8 @@ CURLcode Curl_xfer_recv(struct Curl_easy *data,
   DEBUGASSERT(data->conn);
   DEBUGASSERT(data->set.buffer_size > 0);
 
-  if((size_t)data->set.buffer_size < blen)
-    blen = (size_t)data->set.buffer_size;
+  if(curlx_uitouz(data->set.buffer_size) < blen)
+    blen = curlx_uitouz(data->set.buffer_size);
   return Curl_conn_recv(data, data->conn->recv_idx, buf, blen, pnrcvd);
 }
 

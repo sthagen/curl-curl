@@ -957,7 +957,7 @@ static CURLcode sftp_quote(struct Curl_easy *data,
   else if(!strncmp(cmd, "mkdir ", 6)) {
     if(*cp)
       return_quote_error(data, sshc);
-    /* create dir */
+    /* create directory */
     myssh_state(data, sshc, SSH_SFTP_QUOTE_MKDIR);
     return result;
   }
@@ -980,7 +980,7 @@ static CURLcode sftp_quote(struct Curl_easy *data,
   else if(!strncmp(cmd, "rmdir ", 6)) {
     if(*cp)
       return_quote_error(data, sshc);
-    /* delete dir */
+    /* delete directory */
     myssh_state(data, sshc, SSH_SFTP_QUOTE_RMDIR);
     return result;
   }
@@ -2275,9 +2275,9 @@ static CURLcode ssh_state_sftp_create_dirs_mkdir(struct Curl_easy *data,
   ++sshc->slash_pos;
   if(rc < 0) {
     /*
-     * Abort if failure was not that the dir already exists or the
-     * permission was denied (creation might succeed further down the
-     * path) - retry on unspecific FAILURE also
+     * Abort if failure was not that the directory already exists or
+     * the permission was denied (creation might succeed further down
+     * the path) - retry on unspecific FAILURE also
      */
     unsigned long sftperr = libssh2_sftp_last_error(sshc->sftp_session);
     if((sftperr != LIBSSH2_FX_FILE_ALREADY_EXISTS) &&
@@ -3124,7 +3124,7 @@ static CURLcode ssh_block_statemach(struct Curl_easy *data,
 
   while((sshc->state != SSH_STOP) && !result) {
     bool block;
-    timediff_t left = 1000;
+    timediff_t left_ms = 1000;
     struct curltime now = curlx_now();
 
     result = ssh_statemachine(data, sshc, sshp, &block);
@@ -3139,13 +3139,13 @@ static CURLcode ssh_block_statemach(struct Curl_easy *data,
       if(result)
         break;
 
-      left = Curl_timeleft(data, NULL, FALSE);
-      if(left < 0) {
+      left_ms = Curl_timeleft_ms(data, NULL, FALSE);
+      if(left_ms < 0) {
         failf(data, "Operation timed out");
         return CURLE_OPERATION_TIMEDOUT;
       }
     }
-    else if(curlx_timediff(now, dis) > 1000) {
+    else if(curlx_timediff_ms(now, dis) > 1000) {
       /* disconnect timeout */
       failf(data, "Disconnect timed out");
       result = CURLE_OK;
@@ -3163,7 +3163,7 @@ static CURLcode ssh_block_statemach(struct Curl_easy *data,
         fd_write = sock;
       /* wait for the socket to become ready */
       (void)Curl_socket_check(fd_read, CURL_SOCKET_BAD, fd_write,
-                              left > 1000 ? 1000 : left);
+                              left_ms > 1000 ? 1000 : left_ms);
     }
   }
 
@@ -3528,7 +3528,7 @@ static CURLcode ssh_do(struct Curl_easy *data, bool *done)
     return CURLE_FAILED_INIT;
 
   data->req.size = -1; /* make sure this is unknown at this point */
-  sshc->secondCreateDirs = 0;   /* reset the create dir attempt state
+  sshc->secondCreateDirs = 0;   /* reset the create directory attempt state
                                    variable */
 
   Curl_pgrsSetUploadCounter(data, 0);

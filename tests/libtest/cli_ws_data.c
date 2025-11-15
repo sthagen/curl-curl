@@ -411,7 +411,7 @@ static void test_ws_data_usage(const char *msg)
 static CURLcode test_cli_ws_data(const char *URL)
 {
 #ifndef CURL_DISABLE_WEBSOCKETS
-  CURLcode result = CURLE_OK;
+  CURLcode res = CURLE_OK;
   const char *url;
   size_t plen_min = 0, plen_max = 0, count = 1;
   int ch, model = 2;
@@ -419,6 +419,8 @@ static CURLcode test_cli_ws_data(const char *URL)
   (void)URL;
 
   while((ch = cgetopt(test_argc, test_argv, "12c:hm:M:")) != -1) {
+    const char *opt = coptarg;
+    curl_off_t num;
     switch(ch) {
     case '1':
       model = 1;
@@ -430,13 +432,16 @@ static CURLcode test_cli_ws_data(const char *URL)
       test_ws_data_usage(NULL);
       return CURLE_BAD_FUNCTION_ARGUMENT;
     case 'c':
-      count = (size_t)atol(coptarg);
+      if(!curlx_str_number(&opt, &num, LONG_MAX))
+        count = (size_t)num;
       break;
     case 'm':
-      plen_min = (size_t)atol(coptarg);
+      if(!curlx_str_number(&opt, &num, LONG_MAX))
+        plen_min = (size_t)num;
       break;
     case 'M':
-      plen_max = (size_t)atol(coptarg);
+      if(!curlx_str_number(&opt, &num, LONG_MAX))
+        plen_max = (size_t)num;
       break;
     default:
       test_ws_data_usage("invalid option");
@@ -467,13 +472,13 @@ static CURLcode test_cli_ws_data(const char *URL)
   }
 
   if(model == 1)
-    result = test_ws_data_m1_echo(url, plen_min, plen_max);
+    res = test_ws_data_m1_echo(url, plen_min, plen_max);
   else
-    result = test_ws_data_m2_echo(url, count, plen_min, plen_max);
+    res = test_ws_data_m2_echo(url, count, plen_min, plen_max);
 
   curl_global_cleanup();
 
-  return result;
+  return res;
 
 #else /* !CURL_DISABLE_WEBSOCKETS */
   (void)URL;

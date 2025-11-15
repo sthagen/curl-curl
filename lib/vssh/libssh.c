@@ -1677,7 +1677,7 @@ static int myssh_in_SFTP_QUOTE(struct Curl_easy *data,
   else if(!strncmp(cmd, "mkdir ", 6)) {
     if(*cp)
       return return_quote_error(data, sshc);
-    /* create dir */
+    /* create directory */
     myssh_to(data, sshc, SSH_SFTP_QUOTE_MKDIR);
     return SSH_NO_ERROR;
   }
@@ -1703,7 +1703,7 @@ static int myssh_in_SFTP_QUOTE(struct Curl_easy *data,
     return SSH_NO_ERROR;
   }
   else if(!strncmp(cmd, "rmdir ", 6)) {
-    /* delete dir */
+    /* delete directory */
     if(*cp)
       return return_quote_error(data, sshc);
     myssh_to(data, sshc, SSH_SFTP_QUOTE_RMDIR);
@@ -2157,9 +2157,9 @@ static CURLcode myssh_statemach_act(struct Curl_easy *data,
       ++sshc->slash_pos;
       if(rc < 0) {
         /*
-         * Abort if failure was not that the dir already exists or the
-         * permission was denied (creation might succeed further down the
-         * path) - retry on unspecific FAILURE also
+         * Abort if failure was not that the directory already exists or
+         * the permission was denied (creation might succeed further down
+         * the path) - retry on unspecific FAILURE also
          */
         err = sftp_get_error(sshc->sftp_session);
         if((err != SSH_FX_FILE_ALREADY_EXISTS) &&
@@ -2481,7 +2481,7 @@ static CURLcode myssh_block_statemach(struct Curl_easy *data,
 
   while((sshc->state != SSH_STOP) && !result) {
     bool block;
-    timediff_t left = 1000;
+    timediff_t left_ms = 1000;
     struct curltime now = curlx_now();
 
     result = myssh_statemach_act(data, sshc, sshp, &block);
@@ -2496,8 +2496,8 @@ static CURLcode myssh_block_statemach(struct Curl_easy *data,
       if(result)
         break;
 
-      left = Curl_timeleft(data, NULL, FALSE);
-      if(left < 0) {
+      left_ms = Curl_timeleft_ms(data, NULL, FALSE);
+      if(left_ms < 0) {
         failf(data, "Operation timed out");
         return CURLE_OPERATION_TIMEDOUT;
       }
@@ -2506,8 +2506,8 @@ static CURLcode myssh_block_statemach(struct Curl_easy *data,
     if(block) {
       curl_socket_t fd_read = conn->sock[FIRSTSOCKET];
       /* wait for the socket to become ready */
-      (void)Curl_socket_check(fd_read, CURL_SOCKET_BAD,
-                              CURL_SOCKET_BAD, left > 1000 ? 1000 : left);
+      (void)Curl_socket_check(fd_read, CURL_SOCKET_BAD, CURL_SOCKET_BAD,
+                              left_ms > 1000 ? 1000 : left_ms);
     }
 
   }
@@ -2744,7 +2744,7 @@ static CURLcode myssh_do_it(struct Curl_easy *data, bool *done)
   data->req.size = -1;          /* make sure this is unknown at this point */
 
   sshc->actualcode = CURLE_OK;  /* reset error code */
-  sshc->secondCreateDirs = 0;   /* reset the create dir attempt state
+  sshc->secondCreateDirs = 0;   /* reset the create directory attempt state
                                    variable */
 
   Curl_pgrsSetUploadCounter(data, 0);

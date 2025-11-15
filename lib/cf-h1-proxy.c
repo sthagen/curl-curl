@@ -268,7 +268,7 @@ static CURLcode send_CONNECT(struct Curl_cfilter *cf,
 
   DEBUGASSERT(blen >= nwritten);
   ts->nsent += nwritten;
-  Curl_debug(data, CURLINFO_HEADER_OUT, buf, (size_t)nwritten);
+  Curl_debug(data, CURLINFO_HEADER_OUT, buf, nwritten);
 
 out:
   if(result)
@@ -535,10 +535,8 @@ static CURLcode H1_CONNECT(struct Curl_cfilter *cf,
     return CURLE_RECV_ERROR; /* Need a cfilter close and new bootstrap */
 
   do {
-    timediff_t check;
 
-    check = Curl_timeleft(data, NULL, TRUE);
-    if(check <= 0) {
+    if(Curl_timeleft_ms(data, NULL, TRUE) < 0) {
       failf(data, "Proxy CONNECT aborted due to timeout");
       result = CURLE_OPERATION_TIMEDOUT;
       goto out;
