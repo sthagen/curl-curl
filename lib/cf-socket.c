@@ -664,7 +664,7 @@ static CURLcode bindlocal(struct Curl_easy *data, struct connectdata *conn,
           /* Do not fall back to treating it as a hostname */
           char buffer[STRERROR_LEN];
           data->state.os_errno = error = SOCKERRNO;
-          failf(data, "Couldn't bind to interface '%s' with errno %d: %s",
+          failf(data, "Could not bind to interface '%s' with errno %d: %s",
                 iface, error, curlx_strerror(error, buffer, sizeof(buffer)));
           return CURLE_INTERFACE_FAILED;
         }
@@ -768,7 +768,7 @@ static CURLcode bindlocal(struct Curl_easy *data, struct connectdata *conn,
       char buffer[STRERROR_LEN];
       data->state.errorbuf = FALSE;
       data->state.os_errno = error = SOCKERRNO;
-      failf(data, "Couldn't bind to '%s' with errno %d: %s", host,
+      failf(data, "Could not bind to '%s' with errno %d: %s", host,
             error, curlx_strerror(error, buffer, sizeof(buffer)));
       return CURLE_INTERFACE_FAILED;
     }
@@ -853,24 +853,11 @@ static bool verifyconnect(curl_socket_t sockfd, int *error)
    *
    *    Someone got to verify this on Win-NT 4.0, 2000."
    */
-
-#ifdef UNDER_CE
-  Sleep(0);
-#else
   SleepEx(0, FALSE);
-#endif
-
 #endif
 
   if(getsockopt(sockfd, SOL_SOCKET, SO_ERROR, (void *)&err, &errSize))
     err = SOCKERRNO;
-#ifdef UNDER_CE
-  /* Old Windows CE versions do not support SO_ERROR */
-  if(WSAENOPROTOOPT == err) {
-    SET_SOCKERRNO(0);
-    err = 0;
-  }
-#endif
 #if defined(EBADIOCTL) && defined(__minix)
   /* Minix 3.1.x does not support getsockopt on UDP sockets */
   if(EBADIOCTL == err) {
