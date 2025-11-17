@@ -21,7 +21,6 @@
 # SPDX-License-Identifier: curl
 #
 ###########################################################################
-# by Tetetest and Sukender (Benoit Neil)
 
 cmake_minimum_required(VERSION 3.7...3.16 FATAL_ERROR)
 message(STATUS "Using CMake version ${CMAKE_VERSION}")
@@ -1741,9 +1740,9 @@ check_function_exists("eventfd"       HAVE_EVENTFD)
 check_symbol_exists("ftruncate"       "unistd.h" HAVE_FTRUNCATE)
 check_symbol_exists("getpeername"     "${CURL_INCLUDES}" HAVE_GETPEERNAME)  # winsock2.h unistd.h proto/bsdsocket.h
 check_symbol_exists("getsockname"     "${CURL_INCLUDES}" HAVE_GETSOCKNAME)  # winsock2.h unistd.h proto/bsdsocket.h
-check_function_exists("getrlimit"       HAVE_GETRLIMIT)
-check_function_exists("setlocale"       HAVE_SETLOCALE)
-check_function_exists("setrlimit"       HAVE_SETRLIMIT)
+check_function_exists("getrlimit"     HAVE_GETRLIMIT)
+check_function_exists("setlocale"     HAVE_SETLOCALE)
+check_function_exists("setrlimit"     HAVE_SETRLIMIT)
 
 if(WIN32)
   # include wincrypt.h as a workaround for mingw-w64 __MINGW64_VERSION_MAJOR <= 5 header bug */
@@ -1752,9 +1751,9 @@ else()
   check_function_exists("if_nametoindex"  HAVE_IF_NAMETOINDEX)  # net/if.h
   check_function_exists("realpath"        HAVE_REALPATH)
   check_function_exists("sched_yield"     HAVE_SCHED_YIELD)
-  check_symbol_exists("strcasecmp"      "string.h" HAVE_STRCASECMP)
-  check_symbol_exists("stricmp"         "string.h" HAVE_STRICMP)
-  check_symbol_exists("strcmpi"         "string.h" HAVE_STRCMPI)
+  check_symbol_exists("strcasecmp"        "string.h" HAVE_STRCASECMP)
+  check_symbol_exists("stricmp"           "string.h" HAVE_STRICMP)
+  check_symbol_exists("strcmpi"           "string.h" HAVE_STRCMPI)
 endif()
 
 check_function_exists("setmode" HAVE_SETMODE)
@@ -1857,7 +1856,7 @@ check_type_size("off_t" SIZEOF_OFF_T)
 
 if(NOT WIN32)
   # fseeko may not exist with _FILE_OFFSET_BITS=64 but can exist with
-  # _FILE_OFFSET_BITS unset or 32 (e.g. Android ARMv7 with NDK 26b and API level < 24)
+  # _FILE_OFFSET_BITS unset or 32 (as in Android ARMv7 with NDK 26b and API level < 24)
   # so we need to test fseeko after testing for _FILE_OFFSET_BITS
   check_symbol_exists("fseeko" "${CURL_INCLUDES};stdio.h" HAVE_FSEEKO)
 

@@ -1214,6 +1214,7 @@ static int engineload(struct Curl_easy *data,
       failf(data, "unable to set client certificate [%s]",
             ossl_strerror(ERR_get_error(), error_buffer,
                           sizeof(error_buffer)));
+      X509_free(params.cert);
       return 0;
     }
     X509_free(params.cert); /* we do not need the handle any more... */
@@ -1624,8 +1625,8 @@ static CURLcode x509_name_oneline(X509_NAME *a, struct dynbuf *d)
     if(rc != -1) {
       BIO_get_mem_ptr(bio_out, &biomem);
       result = curlx_dyn_addn(d, biomem->data, biomem->length);
-      BIO_free(bio_out);
     }
+    BIO_free(bio_out);
   }
   return result;
 }
