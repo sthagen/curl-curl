@@ -25,9 +25,16 @@
  * HTTP PUT with easy interface and read callback
  * </DESC>
  */
+#ifdef _MSC_VER
+#ifndef _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS  /* for fopen() */
+#endif
+#endif
+
 #include <stdio.h>
 #include <fcntl.h>
 #include <sys/stat.h>
+
 #include <curl/curl.h>
 
 #ifdef _WIN32
