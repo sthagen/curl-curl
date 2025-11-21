@@ -97,15 +97,16 @@ static bool fix_excessive_path(const TCHAR *in, TCHAR **out)
 
 #ifndef _UNICODE
   /* convert multibyte input to unicode */
-  needed = mbstowcs(NULL, in, 0);
-  if(needed == (size_t)-1 || needed >= max_path_len)
+  if(mbstowcs_s(&needed, NULL, 0, in, 0))
     goto cleanup;
-  ++needed; /* for NUL */
+  if(!needed || needed >= max_path_len)
+    goto cleanup;
   ibuf = (malloc)(needed * sizeof(wchar_t));
   if(!ibuf)
     goto cleanup;
-  count = mbstowcs(ibuf, in, needed);
-  if(count == (size_t)-1 || count >= needed)
+  if(mbstowcs_s(&count, ibuf, needed, in, needed - 1))
+    goto cleanup;
+  if(count != needed)
     goto cleanup;
   in_w = ibuf;
 #else
@@ -158,8 +159,14 @@ static bool fix_excessive_path(const TCHAR *in, TCHAR **out)
       if(!temp)
         goto cleanup;
 
-      wcsncpy(temp, L"\\\\?\\UNC\\", 8);
-      wcscpy(temp + 8, fbuf + 2);
+      if(wcsncpy_s(temp, needed, L"\\\\?\\UNC\\", 8)) {
+        (free)(temp);
+        goto cleanup;
+      }
+      if(wcscpy_s(temp + 8, needed, fbuf + 2)) {
+        (free)(temp);
+        goto cleanup;
+      }
     }
     else {
       /* "\\?\" + full path + null */
@@ -171,8 +178,14 @@ static bool fix_excessive_path(const TCHAR *in, TCHAR **out)
       if(!temp)
         goto cleanup;
 
-      wcsncpy(temp, L"\\\\?\\", 4);
-      wcscpy(temp + 4, fbuf);
+      if(wcsncpy_s(temp, needed, L"\\\\?\\", 4)) {
+        (free)(temp);
+        goto cleanup;
+      }
+      if(wcscpy_s(temp + 4, needed, fbuf)) {
+        (free)(temp);
+        goto cleanup;
+      }
     }
 
     (free)(fbuf);
@@ -181,15 +194,16 @@ static bool fix_excessive_path(const TCHAR *in, TCHAR **out)
 
 #ifndef _UNICODE
   /* convert unicode full path to multibyte output */
-  needed = wcstombs(NULL, fbuf, 0);
-  if(needed == (size_t)-1 || needed >= max_path_len)
+  if(wcstombs_s(&needed, NULL, 0, fbuf, 0))
     goto cleanup;
-  ++needed; /* for NUL */
+  if(!needed || needed >= max_path_len)
+    goto cleanup;
   obuf = (malloc)(needed);
   if(!obuf)
     goto cleanup;
-  count = wcstombs(obuf, fbuf, needed);
-  if(count == (size_t)-1 || count >= needed)
+  if(wcstombs_s(&count, obuf, needed, fbuf, needed - 1))
+    goto cleanup;
+  if(count != needed)
     goto cleanup;
   *out = obuf;
   obuf = NULL;

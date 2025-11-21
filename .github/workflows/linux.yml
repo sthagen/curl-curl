@@ -40,7 +40,7 @@ env:
   # renovate: datasource=github-tags depName=libressl/portable versioning=semver registryUrl=https://github.com
   LIBRESSL_VERSION: 4.2.1
   # renovate: datasource=github-tags depName=wolfSSL/wolfssl versioning=semver extractVersion=^v?(?<version>.+)-stable$ registryUrl=https://github.com
-  WOLFSSL_VERSION: 5.8.2
+  WOLFSSL_VERSION: 5.8.4
   # renovate: datasource=github-tags depName=Mbed-TLS/mbedtls versioning=semver registryUrl=https://github.com
   MBEDTLS_VERSION: 4.0.0
   # renovate: datasource=github-tags depName=Mbed-TLS/mbedtls versioning=semver:^3.0.0 registryUrl=https://github.com
@@ -662,7 +662,7 @@ jobs:
           source /opt/intel/oneapi/setvars.sh
           printenv >> "$GITHUB_ENV"
 
-      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # v6.0.0
         with:
           persist-credentials: false
 

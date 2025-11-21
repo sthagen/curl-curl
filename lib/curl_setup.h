@@ -97,8 +97,7 @@
 #ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS  /* for __sys_errlist, __sys_nerr, _open(),
                                     _wfopen(), _wopen(), fopen(), freopen(),
-                                    getenv(), gmtime(), mbstowcs(), sprintf(),
-                                    strcpy(), wcscpy(), wcsncpy(), wcstombs(),
+                                    getenv(), gmtime(), sprintf(), strcpy(),
                                     in tests: localtime(), open(), sscanf() */
 #endif
 #endif /* _MSC_VER */
@@ -627,6 +626,9 @@
 #endif
 #endif
 
+#if SIZEOF_LONG > SIZEOF_SIZE_T
+#error "unexpected: 'long' is larger than 'size_t'"
+#endif
 /*
  * Arg 2 type for gethostname in case it has not been defined in config file.
  */
