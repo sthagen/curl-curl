@@ -1199,7 +1199,7 @@ static CURLcode single_transfer(struct OperationConfig *config,
     if(u->infile) {
       if(!config->globoff && !glob_inuse(&state->inglob))
         result = glob_url(&state->inglob, u->infile, &state->upnum, err);
-      if(!state->uploadfile) {
+      if(!result && !state->uploadfile) {
         if(glob_inuse(&state->inglob))
           result = glob_next_url(&state->uploadfile, &state->inglob);
         else if(!state->upidx) {
@@ -2321,17 +2321,19 @@ CURLcode operate(int argc, argv_item_t argv[])
             operation = operation->next;
           } while(!result && operation);
 
-          /* Set the current operation pointer */
-          global->current = global->first;
+          if(!result) {
+            /* Set the current operation pointer */
+            global->current = global->first;
 
-          /* now run! */
-          result = run_all_transfers(share, result);
+            /* now run! */
+            result = run_all_transfers(share, result);
 
-          if(global->ssl_sessions && feature_ssls_export) {
-            CURLcode r2 = tool_ssls_save(global->first, share,
-                                         global->ssl_sessions);
-            if(r2 && !result)
-              result = r2;
+            if(global->ssl_sessions && feature_ssls_export) {
+              CURLcode r2 = tool_ssls_save(global->first, share,
+                                           global->ssl_sessions);
+              if(r2 && !result)
+                result = r2;
+            }
           }
         }
 
