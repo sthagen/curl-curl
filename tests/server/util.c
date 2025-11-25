@@ -27,6 +27,10 @@
 #include <fcntl.h>
 #endif
 
+#ifdef _WIN32
+#include <share.h>
+#endif
+
 /* This function returns a pointer to STATIC memory. It converts the given
  * binary lump to a hex formatted string usable for output in logs or
  * whatever.
@@ -115,12 +119,12 @@ void logmsg(const char *msg, ...)
   va_end(ap);
 
   do {
-    logfp = fopen(serverlogfile, "ab");
+    logfp = curlx_fopen(serverlogfile, "ab");
     /* !checksrc! disable ERRNOVAR 1 */
   } while(!logfp && (errno == EINTR));
   if(logfp) {
     fprintf(logfp, "%s %s\n", timebuf, buffer);
-    fclose(logfp);
+    curlx_fclose(logfp);
   }
   else {
     char errbuf[STRERROR_LEN];
@@ -193,7 +197,7 @@ FILE *test2fopen(long testno, const char *logdir2)
   char filename[256];
   /* first try the alternative, preprocessed, file */
   snprintf(filename, sizeof(filename), "%s/test%ld", logdir2, testno);
-  stream = fopen(filename, "rb");
+  stream = curlx_fopen(filename, "rb");
 
   return stream;
 }
@@ -224,7 +228,7 @@ int write_pidfile(const char *filename)
   curl_off_t pid;
 
   pid = our_getpid();
-  pidfile = fopen(filename, "wb");
+  pidfile = curlx_fopen(filename, "wb");
   if(!pidfile) {
     char errbuf[STRERROR_LEN];
     logmsg("Could not write pid file: %s (%d) %s", filename,
@@ -232,7 +236,7 @@ int write_pidfile(const char *filename)
     return 0; /* fail */
   }
   fprintf(pidfile, "%ld\n", (long)pid);
-  fclose(pidfile);
+  curlx_fclose(pidfile);
   logmsg("Wrote pid %ld to %s", (long)pid, filename);
   return 1; /* success */
 }
@@ -240,7 +244,7 @@ int write_pidfile(const char *filename)
 /* store the used port number in a file */
 int write_portfile(const char *filename, int port)
 {
-  FILE *portfile = fopen(filename, "wb");
+  FILE *portfile = curlx_fopen(filename, "wb");
   if(!portfile) {
     char errbuf[STRERROR_LEN];
     logmsg("Could not write port file: %s (%d) %s", filename,
@@ -248,7 +252,7 @@ int write_portfile(const char *filename, int port)
     return 0; /* fail */
   }
   fprintf(portfile, "%d\n", port);
-  fclose(portfile);
+  curlx_fclose(portfile);
   logmsg("Wrote port %d to %s", port, filename);
   return 1; /* success */
 }
@@ -261,7 +265,7 @@ void set_advisor_read_lock(const char *filename)
   int res;
 
   do {
-    lockfile = fopen(filename, "wb");
+    lockfile = curlx_fopen(filename, "wb");
     /* !checksrc! disable ERRNOVAR 1 */
   } while(!lockfile && ((error = errno) == EINTR));
   if(!lockfile) {
@@ -270,7 +274,7 @@ void set_advisor_read_lock(const char *filename)
     return;
   }
 
-  res = fclose(lockfile);
+  res = curlx_fclose(lockfile);
   if(res)
     logmsg("Error closing lock file %s error (%d) %s", filename,
            errno, curlx_strerror(errno, errbuf, sizeof(errbuf)));
@@ -359,13 +363,17 @@ static void exit_signal_handler(int signum)
     (void)!write(STDERR_FILENO, msg, sizeof(msg) - 1);
   }
   else {
+    int fd = -1;
 #ifdef _WIN32
-#define OPENMODE S_IREAD | S_IWRITE
+    if(!_sopen_s(&fd, serverlogfile, O_WRONLY | O_CREAT | O_APPEND,
+                 _SH_DENYNO, S_IREAD | S_IWRITE) &&
+       fd != -1) {
 #else
-#define OPENMODE S_IRUSR | S_IWUSR
-#endif
-    int fd = open(serverlogfile, O_WRONLY | O_CREAT | O_APPEND, OPENMODE);
+    /* !checksrc! disable BANNEDFUNC 1 */
+    fd = open(serverlogfile,
+              O_WRONLY | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR);
     if(fd != -1) {
+#endif
       static const char msg[] = "exit_signal_handler: called\n";
       (void)!write(fd, msg, sizeof(msg) - 1);
       close(fd);
