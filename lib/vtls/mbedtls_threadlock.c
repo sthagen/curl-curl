@@ -37,23 +37,15 @@
 
 #include "mbedtls_threadlock.h"
 
-/* The last 2 #include files should be: */
-#include "../curl_memory.h"
-#include "../memdebug.h"
-
 /* number of thread locks */
 #define NUMT                    2
 
-/* This array will store all of the mutexes available to Mbedtls. */
-static MBEDTLS_MUTEX_T *mutex_buf = NULL;
+/* This array stores the mutexes available to Mbedtls */
+static MBEDTLS_MUTEX_T mutex_buf[NUMT];
 
 int Curl_mbedtlsthreadlock_thread_setup(void)
 {
   int i;
-
-  mutex_buf = calloc(1, NUMT * sizeof(MBEDTLS_MUTEX_T));
-  if(!mutex_buf)
-    return 0;     /* error, no number of threads defined */
 
   for(i = 0;  i < NUMT;  i++) {
 #if defined(USE_THREADS_POSIX) && defined(HAVE_PTHREAD_H)
@@ -73,9 +65,6 @@ int Curl_mbedtlsthreadlock_thread_cleanup(void)
 {
   int i;
 
-  if(!mutex_buf)
-    return 0; /* error, no threads locks defined */
-
   for(i = 0; i < NUMT; i++) {
 #if defined(USE_THREADS_POSIX) && defined(HAVE_PTHREAD_H)
     if(pthread_mutex_destroy(&mutex_buf[i]))
@@ -85,8 +74,6 @@ int Curl_mbedtlsthreadlock_thread_cleanup(void)
       return 0; /* CloseHandle failed */
 #endif /* USE_THREADS_POSIX && HAVE_PTHREAD_H */
   }
-  free(mutex_buf);
-  mutex_buf = NULL;
 
   return 1; /* OK */
 }

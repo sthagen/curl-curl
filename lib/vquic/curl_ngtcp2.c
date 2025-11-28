@@ -71,10 +71,6 @@
 
 #include "../curlx/warnless.h"
 
-/* The last 2 #include files should be in this order */
-#include "../curl_memory.h"
-#include "../memdebug.h"
-
 
 #define QUIC_MAX_STREAMS (256*1024)
 #define QUIC_HANDSHAKE_TIMEOUT (10*NGTCP2_SECONDS)
@@ -182,7 +178,7 @@ static void cf_ngtcp2_ctx_free(struct cf_ngtcp2_ctx *ctx)
     Curl_uint32_hash_destroy(&ctx->streams);
     Curl_ssl_peer_cleanup(&ctx->peer);
   }
-  free(ctx);
+  curlx_free(ctx);
 }
 
 static void cf_ngtcp2_setup_keep_alive(struct Curl_cfilter *cf,
@@ -255,7 +251,7 @@ static void h3_stream_ctx_free(struct h3_stream_ctx *stream)
 {
   Curl_bufq_free(&stream->sendbuf);
   Curl_h1_req_parse_free(&stream->h1);
-  free(stream);
+  curlx_free(stream);
 }
 
 static void h3_stream_hash_free(unsigned int id, void *stream)
@@ -277,7 +273,7 @@ static CURLcode h3_data_setup(struct Curl_cfilter *cf,
   if(stream)
     return CURLE_OK;
 
-  stream = calloc(1, sizeof(*stream));
+  stream = curlx_calloc(1, sizeof(*stream));
   if(!stream)
     return CURLE_OUT_OF_MEMORY;
 
@@ -1524,7 +1520,7 @@ cb_h3_read_req_body(nghttp3_conn *conn, int64_t stream_id,
 
 static CURLcode h3_stream_open(struct Curl_cfilter *cf,
                                struct Curl_easy *data,
-                               const void *buf, size_t len,
+                               const uint8_t *buf, size_t len,
                                size_t *pnwritten)
 {
   struct cf_ngtcp2_ctx *ctx = cf->ctx;
@@ -1573,7 +1569,7 @@ static CURLcode h3_stream_open(struct Curl_cfilter *cf,
   Curl_h1_req_parse_free(&stream->h1);
 
   nheader = Curl_dynhds_count(&h2_headers);
-  nva = malloc(sizeof(nghttp3_nv) * nheader);
+  nva = curlx_malloc(sizeof(nghttp3_nv) * nheader);
   if(!nva) {
     result = CURLE_OUT_OF_MEMORY;
     goto out;
@@ -1650,13 +1646,13 @@ static CURLcode h3_stream_open(struct Curl_cfilter *cf,
   }
 
 out:
-  free(nva);
+  curlx_free(nva);
   Curl_dynhds_free(&h2_headers);
   return result;
 }
 
 static CURLcode cf_ngtcp2_send(struct Curl_cfilter *cf, struct Curl_easy *data,
-                               const void *buf, size_t len, bool eos,
+                               const uint8_t *buf, size_t len, bool eos,
                                size_t *pnwritten)
 {
   struct cf_ngtcp2_ctx *ctx = cf->ctx;
@@ -2277,7 +2273,6 @@ static int quic_ossl_new_session_cb(SSL *ssl, SSL_SESSION *ssl_sessionid)
 #endif
     Curl_ossl_add_session(cf, data, ctx->peer.scache_key, ssl_sessionid,
                           SSL_version(ssl), "h3", quic_tp, quic_tp_len);
-    return 1;
   }
   return 0;
 }
@@ -2648,7 +2643,6 @@ static CURLcode cf_ngtcp2_connect(struct Curl_cfilter *cf,
       CURL_TRC_CF(data, cf, "peer verified");
       cf->connected = TRUE;
       *done = TRUE;
-      connkeep(cf->conn, "HTTP/3 default");
     }
   }
 
@@ -2853,7 +2847,7 @@ CURLcode Curl_cf_ngtcp2_create(struct Curl_cfilter **pcf,
   CURLcode result;
 
   (void)data;
-  ctx = calloc(1, sizeof(*ctx));
+  ctx = curlx_calloc(1, sizeof(*ctx));
   if(!ctx) {
     result = CURLE_OUT_OF_MEMORY;
     goto out;
@@ -2880,22 +2874,6 @@ out:
       cf_ngtcp2_ctx_free(ctx);
   }
   return result;
-}
-
-bool Curl_conn_is_ngtcp2(const struct Curl_easy *data,
-                         const struct connectdata *conn,
-                         int sockindex)
-{
-  struct Curl_cfilter *cf = conn ? conn->cfilter[sockindex] : NULL;
-
-  (void)data;
-  for(; cf; cf = cf->next) {
-    if(cf->cft == &Curl_cft_http3)
-      return TRUE;
-    if(cf->cft->flags & CF_TYPE_IP_CONNECT)
-      return FALSE;
-  }
-  return FALSE;
 }
 
 #endif

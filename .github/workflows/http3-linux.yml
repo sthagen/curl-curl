@@ -45,7 +45,7 @@ env:
   # renovate: datasource=github-tags depName=awslabs/aws-lc versioning=semver registryUrl=https://github.com
   AWSLC_VERSION: 1.63.0
   # renovate: datasource=github-tags depName=google/boringssl versioning=semver registryUrl=https://github.com
-  BORINGSSL_VERSION: 0.20251110.0
+  BORINGSSL_VERSION: 0.20251124.0
   # renovate: datasource=github-tags depName=gnutls/nettle versioning=semver registryUrl=https://github.com
   NETTLE_VERSION: 3.10.2
   # renovate: datasource=github-tags depName=gnutls/gnutls versioning=semver extractVersion=^nettle_?(?<version>.+)_release_.+$ registryUrl=https://github.com
@@ -479,14 +479,13 @@ jobs:
           sudo rm -f /var/lib/man-db/auto-update
           sudo apt-get -o Dpkg::Use-Pty=0 install \
             libtool autoconf automake pkgconf \
-            libpsl-dev libbrotli-dev libzstd-dev zlib1g-dev libidn2-0-dev libldap-dev libuv1-dev \
+            libpsl-dev libbrotli-dev libzstd-dev zlib1g-dev libidn2-0-dev libldap-dev libuv1-dev valgrind \
             ${INSTALL_PACKAGES} \
             ${MATRIX_INSTALL_PACKAGES}
           echo 'CC=gcc-12' >> "$GITHUB_ENV"
           echo 'CXX=g++-12' >> "$GITHUB_ENV"
 
       - name: 'cache openssl'
-        if: ${{ matrix.build.name == 'openssl' || matrix.build.name == 'openssl-quic' }}
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         id: cache-openssl-http3-no-deprecated
         env:
@@ -702,6 +701,18 @@ jobs:
       - name: 'run tests'
         if: ${{ !contains(matrix.build.install_steps, 'skipall') && !contains(matrix.build.install_steps, 'skiprun') }}
         run: |
+          export TFLAGS='-n'
+          source ~/venv/bin/activate
+          if [ "${MATRIX_BUILD}" = 'cmake' ]; then
+            cmake --build bld --verbose --target test-ci
+          else
+            make -C bld V=1 test-ci
+          fi
+
+      - name: 'run tests (valgrind)'
+        if: ${{ !contains(matrix.build.install_steps, 'skipall') && !contains(matrix.build.install_steps, 'skiprun') }}
+        run: |
+          export TFLAGS='-j6 HTTP/3'
           source ~/venv/bin/activate
           if [ "${MATRIX_BUILD}" = 'cmake' ]; then
             cmake --build bld --verbose --target test-ci
@@ -715,7 +726,7 @@ jobs:
           [ -d ~/venv ] || python3 -m venv ~/venv
           ~/venv/bin/pip --disable-pip-version-check --no-input --no-cache-dir install --progress-bar off --prefer-binary -r tests/http/requirements.txt
 
-      - name: 'run pytest event based'
+      - name: 'run pytest (event based)'
         if: ${{ !contains(matrix.build.install_steps, 'skipall') && !contains(matrix.build.install_steps, 'skiprun') }}
         env:
           CURL_TEST_EVENT: 1

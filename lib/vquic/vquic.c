@@ -47,10 +47,6 @@
 #include "../curlx/strerr.h"
 #include "../curlx/strparse.h"
 
-/* The last 2 #include files should be in this order */
-#include "../curl_memory.h"
-#include "../memdebug.h"
-
 
 #if !defined(CURL_DISABLE_HTTP) && defined(USE_HTTP3)
 
@@ -145,6 +141,7 @@ static CURLcode do_sendmsg(struct Curl_cfilter *cf,
   if(pktlen > gsolen) {
     /* Only set this, when we need it. macOS, for example,
      * does not seem to like a msg_control of length 0. */
+    memset(msg_ctrl, 0, sizeof(msg_ctrl));
     msg.msg_control = msg_ctrl;
     assert(sizeof(msg_ctrl) >= CMSG_SPACE(sizeof(int)));
     msg.msg_controllen = CMSG_SPACE(sizeof(int));
@@ -674,7 +671,7 @@ CURLcode Curl_qlogdir(struct Curl_easy *data,
         *qlogfdp = qlogfd;
     }
     curlx_dyn_free(&fname);
-    free(qlog_dir);
+    curlx_free(qlog_dir);
     if(result)
       return result;
   }
@@ -686,7 +683,7 @@ CURLcode Curl_cf_quic_create(struct Curl_cfilter **pcf,
                              struct Curl_easy *data,
                              struct connectdata *conn,
                              const struct Curl_addrinfo *ai,
-                             int transport)
+                             uint8_t transport)
 {
   (void)transport;
   DEBUGASSERT(transport == TRNSPRT_QUIC);

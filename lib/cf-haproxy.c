@@ -34,10 +34,6 @@
 #include "multiif.h"
 #include "select.h"
 
-/* The last 2 #include files should be in this order */
-#include "curl_memory.h"
-#include "memdebug.h"
-
 
 typedef enum {
     HAPROXY_INIT,     /* init/default/no tunnel state */
@@ -61,7 +57,7 @@ static void cf_haproxy_ctx_free(struct cf_haproxy_ctx *ctx)
 {
   if(ctx) {
     curlx_dyn_free(&ctx->data_out);
-    free(ctx);
+    curlx_free(ctx);
   }
 }
 
@@ -133,7 +129,7 @@ static CURLcode cf_haproxy_connect(struct Curl_cfilter *cf,
     if(len > 0) {
       size_t nwritten;
       result = Curl_conn_cf_send(cf->next, data,
-                                 curlx_dyn_ptr(&ctx->data_out), len, FALSE,
+                                 curlx_dyn_uptr(&ctx->data_out), len, FALSE,
                                  &nwritten);
       if(result) {
         if(result != CURLE_AGAIN)
@@ -217,7 +213,7 @@ static CURLcode cf_haproxy_create(struct Curl_cfilter **pcf,
   CURLcode result;
 
   (void)data;
-  ctx = calloc(1, sizeof(*ctx));
+  ctx = curlx_calloc(1, sizeof(*ctx));
   if(!ctx) {
     result = CURLE_OUT_OF_MEMORY;
     goto out;

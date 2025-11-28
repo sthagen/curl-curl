@@ -66,10 +66,6 @@
 #include "../curlx/strparse.h"
 #include "../curlx/base64.h" /* for base64 encoding/decoding */
 
-/* The last 2 #include files should be in this order */
-#include "../curl_memory.h"
-#include "../memdebug.h"
-
 /* Local functions: */
 static const char *sftp_libssh2_strerror(unsigned long err);
 static LIBSSH2_ALLOC_FUNC(my_libssh2_malloc);
@@ -123,8 +119,8 @@ const struct Curl_handler Curl_handler_scp = {
   PORT_SSH,                             /* defport */
   CURLPROTO_SCP,                        /* protocol */
   CURLPROTO_SCP,                        /* family */
-  PROTOPT_DIRLOCK | PROTOPT_CLOSEACTION
-  | PROTOPT_NOURLQUERY                  /* flags */
+  PROTOPT_DIRLOCK | PROTOPT_CLOSEACTION | /* flags */
+  PROTOPT_NOURLQUERY | PROTOPT_CONN_REUSE
 };
 
 
@@ -154,8 +150,8 @@ const struct Curl_handler Curl_handler_sftp = {
   PORT_SSH,                             /* defport */
   CURLPROTO_SFTP,                       /* protocol */
   CURLPROTO_SFTP,                       /* family */
-  PROTOPT_DIRLOCK | PROTOPT_CLOSEACTION
-  | PROTOPT_NOURLQUERY                  /* flags */
+  PROTOPT_DIRLOCK | PROTOPT_CLOSEACTION | /* flags */
+  PROTOPT_NOURLQUERY | PROTOPT_CONN_REUSE
 };
 
 static void
@@ -181,7 +177,7 @@ kbd_callback(const char *name, int name_len, const char *instruction,
 #endif  /* CURL_LIBSSH2_DEBUG */
   if(num_prompts == 1) {
     struct connectdata *conn = data->conn;
-    responses[0].text = strdup(conn->passwd);
+    responses[0].text = curlx_strdup(conn->passwd);
     responses[0].length =
       responses[0].text == NULL ? 0 : curlx_uztoui(strlen(conn->passwd));
   }
@@ -284,17 +280,10 @@ static LIBSSH2_FREE_FUNC(my_libssh2_free)
     Curl_cfree(ptr);
 }
 
-/*
- * SSH State machine related code
- */
-/* This is the ONLY way to change SSH state! */
-static void myssh_state(struct Curl_easy *data,
-                        struct ssh_conn *sshc,
-                        sshstate nowstate)
+#if !defined(CURL_DISABLE_VERBOSE_STRINGS)
+static const char *myssh_statename(sshstate state)
 {
-#if defined(DEBUGBUILD) && !defined(CURL_DISABLE_VERBOSE_STRINGS)
-  /* for debug purposes */
-  static const char * const names[] = {
+  static const char *const names[] = {
     "SSH_STOP",
     "SSH_INIT",
     "SSH_S_STARTUP",
@@ -356,16 +345,34 @@ static void myssh_state(struct Curl_easy *data,
     "SSH_SESSION_FREE",
     "QUIT"
   };
-
   /* a precaution to make sure the lists are in sync */
   DEBUGASSERT(CURL_ARRAYSIZE(names) == SSH_LAST);
+  return ((size_t)state < CURL_ARRAYSIZE(names)) ? names[state] : "";
+}
+#else
+#define myssh_statename(x)    ""
+#endif /* !CURL_DISABLE_VERBOSE_STRINGS */
 
+
+#define myssh_state(x,y,z) myssh_set_state(x,y,z)
+
+/*
+ * SSH State machine related code
+ */
+/* This is the ONLY way to change SSH state! */
+static void myssh_set_state(struct Curl_easy *data,
+                            struct ssh_conn *sshc,
+                            sshstate nowstate)
+{
+#if !defined(CURL_DISABLE_VERBOSE_STRINGS)
   if(sshc->state != nowstate) {
-    infof(data, "SFTP %p state change from %s to %s",
-          (void *)sshc, names[sshc->state], names[nowstate]);
+    CURL_TRC_SSH(data, "[%s] -> [%s]",
+                 myssh_statename(sshc->state),
+                 myssh_statename(nowstate));
   }
-#endif
+#else
   (void)data;
+#endif
   sshc->state = nowstate;
 }
 
@@ -602,7 +609,7 @@ static CURLcode ssh_check_fingerprint(struct Curl_easy *data,
 
     /* The length of fingerprint is 32 bytes for SHA256.
      * See libssh2_hostkey_hash documentation. */
-    if(curlx_base64_encode(fingerprint, 32, &fingerprint_b64,
+    if(curlx_base64_encode((const uint8_t *)fingerprint, 32, &fingerprint_b64,
                            &fingerprint_b64_len) != CURLE_OK) {
       myssh_state(data, sshc, SSH_SESSION_FREE);
       return CURLE_PEER_FAILED_VERIFICATION;
@@ -635,12 +642,12 @@ static CURLcode ssh_check_fingerprint(struct Curl_easy *data,
       failf(data,
             "Denied establishing ssh session: mismatch sha256 fingerprint. "
             "Remote %s is not equal to %s", fingerprint_b64, pubkey_sha256);
-      free(fingerprint_b64);
+      curlx_free(fingerprint_b64);
       myssh_state(data, sshc, SSH_SESSION_FREE);
       return CURLE_PEER_FAILED_VERIFICATION;
     }
 
-    free(fingerprint_b64);
+    curlx_free(fingerprint_b64);
 
     infof(data, "SHA256 checksum match");
   }
@@ -881,7 +888,7 @@ static CURLcode sftp_quote(struct Curl_easy *data,
        the current directory can be read similar to how it is read when
        using ordinary FTP. */
     result = Curl_client_write(data, CLIENTWRITE_HEADER, tmp, strlen(tmp));
-    free(tmp);
+    curlx_free(tmp);
     if(!result)
       myssh_state(data, sshc, SSH_SFTP_NEXT_QUOTE);
     return result;
@@ -1176,10 +1183,6 @@ sftp_upload_init(struct Curl_easy *data,
   /* not set by Curl_xfer_setup to preserve keepon bits */
   data->conn->recv_idx = FIRSTSOCKET;
 
-  /* store this original bitmask setup to use later on if we cannot
-     figure out a "real" bitmask */
-  sshc->orig_waitfor = data->req.keepon;
-
   /* since we do not really wait for anything at this point, we want the
      state machine to move on as soon as possible so mark this as dirty */
   Curl_multi_mark_dirty(data);
@@ -1204,7 +1207,7 @@ static CURLcode ssh_state_pkey_init(struct Curl_easy *data,
     sshc->rsa_pub = sshc->rsa = NULL;
 
     if(data->set.str[STRING_SSH_PRIVATE_KEY])
-      sshc->rsa = strdup(data->set.str[STRING_SSH_PRIVATE_KEY]);
+      sshc->rsa = curlx_strdup(data->set.str[STRING_SSH_PRIVATE_KEY]);
     else {
       /* To ponder about: should really the lib be messing about with the
          HOME environment variable etc? */
@@ -1218,7 +1221,7 @@ static CURLcode ssh_state_pkey_init(struct Curl_easy *data,
         if(!sshc->rsa)
           out_of_memory = TRUE;
         else if(curlx_stat(sshc->rsa, &sbuf)) {
-          free(sshc->rsa);
+          curlx_free(sshc->rsa);
           sshc->rsa = curl_maprintf("%s/.ssh/id_dsa", home);
           if(!sshc->rsa)
             out_of_memory = TRUE;
@@ -1226,19 +1229,19 @@ static CURLcode ssh_state_pkey_init(struct Curl_easy *data,
             Curl_safefree(sshc->rsa);
           }
         }
-        free(home);
+        curlx_free(home);
       }
       if(!out_of_memory && !sshc->rsa) {
         /* Nothing found; try the current dir. */
-        sshc->rsa = strdup("id_rsa");
+        sshc->rsa = curlx_strdup("id_rsa");
         if(sshc->rsa && curlx_stat(sshc->rsa, &sbuf)) {
-          free(sshc->rsa);
-          sshc->rsa = strdup("id_dsa");
+          curlx_free(sshc->rsa);
+          sshc->rsa = curlx_strdup("id_dsa");
           if(sshc->rsa && curlx_stat(sshc->rsa, &sbuf)) {
-            free(sshc->rsa);
+            curlx_free(sshc->rsa);
             /* Out of guesses. Set to the empty string to avoid
              * surprising info messages. */
-            sshc->rsa = strdup("");
+            sshc->rsa = curlx_strdup("");
           }
         }
       }
@@ -1252,7 +1255,7 @@ static CURLcode ssh_state_pkey_init(struct Curl_easy *data,
     if(data->set.str[STRING_SSH_PUBLIC_KEY]
        /* treat empty string the same way as NULL */
        && data->set.str[STRING_SSH_PUBLIC_KEY][0]) {
-      sshc->rsa_pub = strdup(data->set.str[STRING_SSH_PUBLIC_KEY]);
+      sshc->rsa_pub = curlx_strdup(data->set.str[STRING_SSH_PUBLIC_KEY]);
       if(!sshc->rsa_pub)
         out_of_memory = TRUE;
     }
@@ -1936,12 +1939,12 @@ static CURLcode ssh_state_sftp_realpath(struct Curl_easy *data,
 
   myssh_state(data, sshc, SSH_STOP);
   if(rc > 0) {
-    free(sshc->homedir);
-    sshc->homedir = strdup(sshp->readdir_filename);
+    curlx_free(sshc->homedir);
+    sshc->homedir = curlx_strdup(sshp->readdir_filename);
     if(!sshc->homedir)
       return CURLE_OUT_OF_MEMORY;
-    free(data->state.most_recent_ftp_entrypath);
-    data->state.most_recent_ftp_entrypath = strdup(sshc->homedir);
+    curlx_free(data->state.most_recent_ftp_entrypath);
+    data->state.most_recent_ftp_entrypath = curlx_strdup(sshc->homedir);
     if(!data->state.most_recent_ftp_entrypath)
       return CURLE_OUT_OF_MEMORY;
   }
@@ -1955,8 +1958,7 @@ static CURLcode ssh_state_sftp_realpath(struct Curl_easy *data,
       /* in this case, the error was not in the SFTP level but for example a
          time-out or similar */
       result = CURLE_SSH;
-    DEBUGF(infof(data, "error = %lu makes libcurl = %d",
-                 sftperr, (int)result));
+    CURL_TRC_SSH(data, "error = %lu makes libcurl = %d", sftperr, (int)result);
     return result;
   }
 
@@ -1964,7 +1966,7 @@ static CURLcode ssh_state_sftp_realpath(struct Curl_easy *data,
      get the homedir here, we get the "workingpath" in the DO action since the
      homedir will remain the same between request but the working path will
      not. */
-  DEBUGF(infof(data, "SSH CONNECT phase done"));
+  CURL_TRC_SSH(data, "CONNECT phase done");
   return CURLE_OK;
 }
 
@@ -2251,7 +2253,7 @@ static CURLcode ssh_state_sftp_quote_statvfs(struct Curl_easy *data,
     }
 
     result = Curl_client_write(data, CLIENTWRITE_HEADER, tmp, strlen(tmp));
-    free(tmp);
+    curlx_free(tmp);
     if(result) {
       myssh_state(data, sshc, SSH_SFTP_CLOSE);
       sshc->nextstate = SSH_NO_STATE;
@@ -2422,7 +2424,7 @@ static CURLcode ssh_state_sftp_close(struct Curl_easy *data,
 
   Curl_safefree(sshp->path);
 
-  DEBUGF(infof(data, "SFTP DONE done"));
+  CURL_TRC_SSH(data, "SFTP DONE done");
 
   /* Check if nextstate is set and move .nextstate could be POSTQUOTE_INIT
      After nextstate is executed, the control should come back to
@@ -2545,10 +2547,6 @@ static CURLcode ssh_state_scp_upload_init(struct Curl_easy *data,
 
   /* not set by Curl_xfer_setup to preserve keepon bits */
   data->conn->recv_idx = FIRSTSOCKET;
-
-  /* store this original bitmask setup to use later on if we cannot
-     figure out a "real" bitmask */
-  sshc->orig_waitfor = data->req.keepon;
 
   myssh_state(data, sshc, SSH_STOP);
 
@@ -3012,7 +3010,7 @@ static CURLcode ssh_statemachine(struct Curl_easy *data,
         }
         sshc->ssh_channel = NULL;
       }
-      DEBUGF(infof(data, "SCP DONE phase complete"));
+      CURL_TRC_SSH(data, "SCP DONE phase complete");
       myssh_state(data, sshc, SSH_STOP);
       break;
 
@@ -3046,6 +3044,8 @@ static CURLcode ssh_statemachine(struct Curl_easy *data,
     *block = TRUE;
     result = CURLE_OK;
   }
+  CURL_TRC_SSH(data, "[%s] statemachine() -> %d, block=%d",
+               myssh_statename(sshc->state), result, *block);
 
   return result;
 }
@@ -3055,15 +3055,29 @@ static CURLcode ssh_statemachine(struct Curl_easy *data,
 static CURLcode ssh_pollset(struct Curl_easy *data,
                             struct easy_pollset *ps)
 {
-  int flags = 0;
   struct connectdata *conn = data->conn;
-  if(conn->waitfor & KEEP_RECV)
-    flags |= CURL_POLL_IN;
-  if(conn->waitfor & KEEP_SEND)
-    flags |= CURL_POLL_OUT;
-  return flags ?
-    Curl_pollset_change(data, ps, conn->sock[FIRSTSOCKET], flags, 0) :
-    CURLE_OK;
+  struct ssh_conn *sshc = Curl_conn_meta_get(conn, CURL_META_SSH_CONN);
+  curl_socket_t sock = conn->sock[FIRSTSOCKET];
+  int waitfor;
+
+  if(!sshc || (sock == CURL_SOCKET_BAD))
+    return CURLE_FAILED_INIT;
+
+  waitfor = sshc->waitfor ? sshc->waitfor : data->req.keepon;
+  if(waitfor) {
+    int flags = 0;
+    if(waitfor & KEEP_RECV)
+      flags |= CURL_POLL_IN;
+    if(waitfor & KEEP_SEND)
+      flags |= CURL_POLL_OUT;
+    DEBUGASSERT(flags);
+    CURL_TRC_SSH(data, "pollset, flags=%x", flags);
+    return Curl_pollset_change(data, ps, sock, flags, 0);
+  }
+  /* While we still have a session, we listen incoming data. */
+  if(sshc->ssh_session)
+    return Curl_pollset_change(data, ps, sock, CURL_POLL_IN, 0);
+  return CURLE_OK;
 }
 
 /*
@@ -3077,20 +3091,18 @@ static void ssh_block2waitfor(struct Curl_easy *data,
                               struct ssh_conn *sshc,
                               bool block)
 {
-  struct connectdata *conn = data->conn;
   int dir = 0;
+  (void)data;
   if(block) {
     dir = libssh2_session_block_directions(sshc->ssh_session);
     if(dir) {
       /* translate the libssh2 define bits into our own bit defines */
-      conn->waitfor = ((dir&LIBSSH2_SESSION_BLOCK_INBOUND) ? KEEP_RECV : 0) |
+      sshc->waitfor = ((dir&LIBSSH2_SESSION_BLOCK_INBOUND) ? KEEP_RECV : 0) |
         ((dir&LIBSSH2_SESSION_BLOCK_OUTBOUND) ? KEEP_SEND : 0);
     }
   }
   if(!dir)
-    /* It did not block or libssh2 did not reveal in which direction, put back
-       the original set */
-    conn->waitfor = sshc->orig_waitfor;
+    sshc->waitfor = 0;
 }
 
 /* called repeatedly until done from multi.c */
@@ -3177,7 +3189,7 @@ static void myssh_easy_dtor(void *key, size_t klen, void *entry)
   Curl_safefree(sshp->path);
   curlx_dyn_free(&sshp->readdir);
   curlx_dyn_free(&sshp->readdir_link);
-  free(sshp);
+  curlx_free(sshp);
 }
 
 static void myssh_conn_dtor(void *key, size_t klen, void *entry)
@@ -3186,7 +3198,7 @@ static void myssh_conn_dtor(void *key, size_t klen, void *entry)
   (void)key;
   (void)klen;
   sshc_cleanup(sshc, NULL, TRUE);
-  free(sshc);
+  curlx_free(sshc);
 }
 
 /*
@@ -3199,14 +3211,14 @@ static CURLcode ssh_setup_connection(struct Curl_easy *data,
   struct SSHPROTO *sshp;
   (void)conn;
 
-  sshc = calloc(1, sizeof(*sshc));
+  sshc = curlx_calloc(1, sizeof(*sshc));
   if(!sshc)
     return CURLE_OUT_OF_MEMORY;
 
   if(Curl_conn_meta_set(conn, CURL_META_SSH_CONN, sshc, myssh_conn_dtor))
     return CURLE_OUT_OF_MEMORY;
 
-  sshp = calloc(1, sizeof(*sshp));
+  sshp = curlx_calloc(1, sizeof(*sshp));
   if(!sshp)
     return CURLE_OUT_OF_MEMORY;
 
@@ -3322,10 +3334,6 @@ static CURLcode ssh_connect(struct Curl_easy *data, bool *done)
 
   if(!sshc)
     return CURLE_FAILED_INIT;
-
-  /* We default to persistent connections. We set this already in this connect
-     function to make the reuse checks properly be able to check this bit. */
-  connkeep(conn, "SSH default");
 
   infof(data, "User: '%s'", conn->user);
 #ifdef CURL_LIBSSH2_DEBUG
@@ -3476,7 +3484,7 @@ CURLcode scp_perform(struct Curl_easy *data,
   struct ssh_conn *sshc = Curl_conn_meta_get(data->conn, CURL_META_SSH_CONN);
   CURLcode result = CURLE_OK;
 
-  DEBUGF(infof(data, "DO phase starts"));
+  CURL_TRC_SSH(data, "DO phase starts");
 
   *dophase_done = FALSE; /* not done yet */
   if(!sshc)
@@ -3491,7 +3499,7 @@ CURLcode scp_perform(struct Curl_easy *data,
   *connected = Curl_conn_is_connected(data->conn, FIRSTSOCKET);
 
   if(*dophase_done) {
-    DEBUGF(infof(data, "DO phase is complete"));
+    CURL_TRC_SSH(data, "DO phase is complete");
   }
 
   return result;
@@ -3505,7 +3513,7 @@ static CURLcode scp_doing(struct Curl_easy *data,
   result = ssh_multi_statemach(data, dophase_done);
 
   if(*dophase_done) {
-    DEBUGF(infof(data, "DO phase is complete"));
+    CURL_TRC_SSH(data, "DO phase is complete");
   }
   return result;
 }
@@ -3707,7 +3715,7 @@ static CURLcode scp_done(struct Curl_easy *data, CURLcode status,
 }
 
 static CURLcode scp_send(struct Curl_easy *data, int sockindex,
-                         const void *mem, size_t len, bool eos,
+                         const uint8_t *mem, size_t len, bool eos,
                          size_t *pnwritten)
 {
   struct connectdata *conn = data->conn;
@@ -3723,7 +3731,8 @@ static CURLcode scp_send(struct Curl_easy *data, int sockindex,
     return CURLE_FAILED_INIT;
 
   /* libssh2_channel_write() returns int! */
-  nwritten = (ssize_t) libssh2_channel_write(sshc->ssh_channel, mem, len);
+  nwritten = (ssize_t) libssh2_channel_write(sshc->ssh_channel,
+                                             (const char *)mem, len);
 
   ssh_block2waitfor(data, sshc, (nwritten == LIBSSH2_ERROR_EAGAIN));
 
@@ -3786,7 +3795,7 @@ CURLcode sftp_perform(struct Curl_easy *data,
   struct ssh_conn *sshc = Curl_conn_meta_get(data->conn, CURL_META_SSH_CONN);
   CURLcode result = CURLE_OK;
 
-  DEBUGF(infof(data, "DO phase starts"));
+  CURL_TRC_SSH(data, "DO phase starts");
 
   *dophase_done = FALSE; /* not done yet */
   if(!sshc)
@@ -3801,7 +3810,7 @@ CURLcode sftp_perform(struct Curl_easy *data,
   *connected = Curl_conn_is_connected(data->conn, FIRSTSOCKET);
 
   if(*dophase_done) {
-    DEBUGF(infof(data, "DO phase is complete"));
+    CURL_TRC_SSH(data, "DO phase is complete");
   }
 
   return result;
@@ -3814,7 +3823,7 @@ static CURLcode sftp_doing(struct Curl_easy *data,
   CURLcode result = ssh_multi_statemach(data, dophase_done);
 
   if(*dophase_done) {
-    DEBUGF(infof(data, "DO phase is complete"));
+    CURL_TRC_SSH(data, "DO phase is complete");
   }
   return result;
 }
@@ -3833,10 +3842,10 @@ static CURLcode sftp_disconnect(struct Curl_easy *data,
   if(sshc) {
     if(sshc->ssh_session) {
       /* only if there is a session still around to use! */
-      DEBUGF(infof(data, "SSH DISCONNECT starts now"));
+      CURL_TRC_SSH(data, "DISCONNECT starts now");
       myssh_state(data, sshc, SSH_SFTP_SHUTDOWN);
       result = ssh_block_statemach(data, sshc, sshp, TRUE);
-      DEBUGF(infof(data, "SSH DISCONNECT is done -> %d", result));
+      CURL_TRC_SSH(data, "DISCONNECT is done -> %d", result);
     }
     sshc_cleanup(sshc, data, TRUE);
   }
@@ -3866,7 +3875,7 @@ static CURLcode sftp_done(struct Curl_easy *data, CURLcode status,
 
 /* return number of sent bytes */
 static CURLcode sftp_send(struct Curl_easy *data, int sockindex,
-                          const void *mem, size_t len, bool eos,
+                          const uint8_t *mem, size_t len, bool eos,
                           size_t *pnwritten)
 {
   struct connectdata *conn = data->conn;
@@ -3880,7 +3889,7 @@ static CURLcode sftp_send(struct Curl_easy *data, int sockindex,
   if(!sshc)
     return CURLE_FAILED_INIT;
 
-  nwrite = libssh2_sftp_write(sshc->sftp_handle, mem, len);
+  nwrite = libssh2_sftp_write(sshc->sftp_handle, (const char *)mem, len);
 
   ssh_block2waitfor(data, sshc, (nwrite == LIBSSH2_ERROR_EAGAIN));
 

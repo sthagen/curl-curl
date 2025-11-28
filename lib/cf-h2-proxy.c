@@ -45,10 +45,6 @@
 #include "curlx/warnless.h"
 #include "cf-h2-proxy.h"
 
-/* The last 2 #include files should be in this order */
-#include "curl_memory.h"
-#include "memdebug.h"
-
 #define PROXY_H2_CHUNK_SIZE  (16*1024)
 
 #define PROXY_HTTP2_HUGE_WINDOW_SIZE (100 * 1024 * 1024)
@@ -209,7 +205,7 @@ static void cf_h2_proxy_ctx_free(struct cf_h2_proxy_ctx *ctx)
 {
   if(ctx) {
     cf_h2_proxy_ctx_clear(ctx);
-    free(ctx);
+    curlx_free(ctx);
   }
 }
 
@@ -225,7 +221,7 @@ static void drain_tunnel(struct Curl_cfilter *cf,
 }
 
 static CURLcode proxy_h2_nw_out_writer(void *writer_ctx,
-                                       const unsigned char *buf, size_t buflen,
+                                       const uint8_t *buf, size_t buflen,
                                        size_t *pnwritten)
 {
   struct Curl_cfilter *cf = writer_ctx;
@@ -233,7 +229,7 @@ static CURLcode proxy_h2_nw_out_writer(void *writer_ctx,
   if(cf) {
     struct Curl_easy *data = CF_DATA_CURRENT(cf);
     CURLcode result;
-    result = Curl_conn_cf_send(cf->next, data, (const char *)buf, buflen,
+    result = Curl_conn_cf_send(cf->next, data, buf, buflen,
                                FALSE, pnwritten);
     CURL_TRC_CF(data, cf, "[0] nw_out_writer(len=%zu) -> %d, %zu",
                 buflen, result, *pnwritten);
@@ -486,10 +482,6 @@ static CURLcode proxy_h2_progress_ingress(struct Curl_cfilter *cf,
     result = proxy_h2_process_pending_input(cf, data);
     if(result)
       return result;
-  }
-
-  if(ctx->conn_closed && Curl_bufq_is_empty(&ctx->inbufq)) {
-    connclose(cf->conn, "GOAWAY received");
   }
 
   return CURLE_OK;
@@ -923,7 +915,7 @@ static CURLcode proxy_h2_submit(int32_t *pstream_id,
   result = CURLE_OK;
 
 out:
-  free(nva);
+  curlx_free(nva);
   Curl_dynhds_free(&h2_headers);
   *pstream_id = stream_id;
   return result;
@@ -1265,7 +1257,7 @@ static CURLcode h2_handle_tunnel_close(struct Curl_cfilter *cf,
   if(ctx->tunnel.error == NGHTTP2_REFUSED_STREAM) {
     CURL_TRC_CF(data, cf, "[%d] REFUSED_STREAM, try again on a new "
                 "connection", ctx->tunnel.stream_id);
-    connclose(cf->conn, "REFUSED_STREAM"); /* do not use this anymore */
+    failf(data, "proxy server refused HTTP/2 stream");
     return CURLE_RECV_ERROR; /* trigger Curl_retry_request() later */
   }
   else if(ctx->tunnel.error != NGHTTP2_NO_ERROR) {
@@ -1360,7 +1352,7 @@ out:
 
 static CURLcode cf_h2_proxy_send(struct Curl_cfilter *cf,
                                  struct Curl_easy *data,
-                                 const void *buf, size_t len, bool eos,
+                                 const uint8_t *buf, size_t len, bool eos,
                                  size_t *pnwritten)
 {
   struct cf_h2_proxy_ctx *ctx = cf->ctx;
@@ -1598,7 +1590,7 @@ CURLcode Curl_cf_h2_proxy_insert_after(struct Curl_cfilter *cf,
   CURLcode result = CURLE_OUT_OF_MEMORY;
 
   (void)data;
-  ctx = calloc(1, sizeof(*ctx));
+  ctx = curlx_calloc(1, sizeof(*ctx));
   if(!ctx)
     goto out;
 

@@ -34,10 +34,6 @@
 #include "progress.h"
 #include "curlx/strparse.h"
 
-/* The last #include files should be: */
-#include "curl_memory.h"
-#include "memdebug.h"
-
 /*
  * Initialize statistical and informational data.
  *
@@ -74,15 +70,13 @@ void Curl_initinfo(struct Curl_easy *data)
   info->httpauthpicked = 0;
   info->numconnects = 0;
 
-  free(info->contenttype);
+  curlx_free(info->contenttype);
   info->contenttype = NULL;
 
-  free(info->wouldredirect);
+  curlx_free(info->wouldredirect);
   info->wouldredirect = NULL;
 
   memset(&info->primary, 0, sizeof(info->primary));
-  info->primary.remote_port = -1;
-  info->primary.local_port = -1;
   info->retry_after = 0;
 
   info->conn_scheme = 0;
@@ -139,7 +133,7 @@ static CURLcode getinfo_char(struct Curl_easy *data, CURLINFO info,
   case CURLINFO_FTP_ENTRY_PATH:
     /* Return the entrypath string from the most recent connection.
        This pointer was copied from the connectdata structure by FTP.
-       The actual string may be free()ed by subsequent libcurl calls so
+       The actual string may be freed by subsequent libcurl calls so
        it must be copied to a safer area before the next libcurl call.
        Callers must never free it themselves. */
     *param_charp = data->state.most_recent_ftp_entrypath;
@@ -304,11 +298,17 @@ static CURLcode getinfo_long(struct Curl_easy *data, CURLINFO info,
     break;
   case CURLINFO_PRIMARY_PORT:
     /* Return the (remote) port of the most recent (primary) connection */
-    *param_longp = data->info.primary.remote_port;
+    if(CUR_IP_QUAD_HAS_PORTS(&data->info.primary))
+      *param_longp = data->info.primary.remote_port;
+    else
+      *param_longp = -1;
     break;
   case CURLINFO_LOCAL_PORT:
     /* Return the local port of the most recent (primary) connection */
-    *param_longp = data->info.primary.local_port;
+    if(CUR_IP_QUAD_HAS_PORTS(&data->info.primary))
+      *param_longp = data->info.primary.local_port;
+    else
+      *param_longp = -1;
     break;
   case CURLINFO_PROXY_ERROR:
     *param_longp = (long)data->info.pxcode;

@@ -51,10 +51,6 @@
 #include "curlx/warnless.h"
 #include "sendf.h"
 
-/* The last 2 #include files should be in this order */
-#include "curl_memory.h"
-#include "memdebug.h"
-
 /* Supported mechanisms */
 static const struct {
   const char    *name;  /* Name */
@@ -267,7 +263,7 @@ static CURLcode build_message(struct SASL *sasl, struct bufref *msg)
       char *base64;
       size_t base64len;
 
-      result = curlx_base64_encode((const char *) Curl_bufref_ptr(msg),
+      result = curlx_base64_encode(Curl_bufref_ptr(msg),
                                    Curl_bufref_len(msg), &base64, &base64len);
       if(!result)
         Curl_bufref_set(msg, base64, base64len, curl_free);

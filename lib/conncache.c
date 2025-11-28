@@ -45,10 +45,6 @@
 #include "curlx/strparse.h"
 #include "uint-table.h"
 
-/* The last 2 #include files should be in this order */
-#include "curl_memory.h"
-#include "memdebug.h"
-
 
 #define CPOOL_IS_LOCKED(c)    ((c) && (c)->locked)
 
@@ -92,7 +88,7 @@ static struct cpool_bundle *cpool_bundle_create(const char *dest)
   struct cpool_bundle *bundle;
   size_t dest_len = strlen(dest) + 1;
 
-  bundle = calloc(1, sizeof(*bundle) + dest_len - 1);
+  bundle = curlx_calloc(1, sizeof(*bundle) + dest_len - 1);
   if(!bundle)
     return NULL;
   Curl_llist_init(&bundle->conns, NULL);
@@ -104,7 +100,7 @@ static struct cpool_bundle *cpool_bundle_create(const char *dest)
 static void cpool_bundle_destroy(struct cpool_bundle *bundle)
 {
   DEBUGASSERT(!Curl_llist_count(&bundle->conns));
-  free(bundle);
+  curlx_free(bundle);
 }
 
 /* Add a connection to a bundle */
@@ -220,7 +216,6 @@ void Curl_cpool_destroy(struct cpool *cpool)
     while(conn) {
       cpool_remove_conn(cpool, conn);
       sigpipe_apply(cpool->idata, &pipe_st);
-      connclose(conn, "kill all");
       cpool_discard_conn(cpool, cpool->idata, conn, FALSE);
       conn = cpool_get_first(cpool);
     }

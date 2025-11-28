@@ -32,10 +32,6 @@
 #include "http1.h"
 #include "urlapi-int.h"
 
-/* The last 2 #include files should be in this order */
-#include "curl_memory.h"
-#include "memdebug.h"
-
 
 #define H1_MAX_URL_LEN   (8*1024)
 
@@ -81,7 +77,7 @@ static CURLcode trim_line(struct h1_req_parser *parser, int options)
 }
 
 static CURLcode detect_line(struct h1_req_parser *parser,
-                            const char *buf, const size_t buflen,
+                            const uint8_t *buf, const size_t buflen,
                             size_t *pnread)
 {
   const char *line_end;
@@ -91,14 +87,14 @@ static CURLcode detect_line(struct h1_req_parser *parser,
   line_end = memchr(buf, '\n', buflen);
   if(!line_end)
     return CURLE_AGAIN;
-  parser->line = buf;
-  parser->line_len = line_end - buf + 1;
+  parser->line = (const char *)buf;
+  parser->line_len = line_end - parser->line + 1;
   *pnread = parser->line_len;
   return CURLE_OK;
 }
 
 static CURLcode next_line(struct h1_req_parser *parser,
-                          const char *buf, const size_t buflen, int options,
+                          const uint8_t *buf, const size_t buflen, int options,
                           size_t *pnread)
 {
   CURLcode result;
@@ -266,7 +262,7 @@ out:
 }
 
 CURLcode Curl_h1_req_parse_read(struct h1_req_parser *parser,
-                                const char *buf, size_t buflen,
+                                const uint8_t *buf, size_t buflen,
                                 const char *scheme_default,
                                 const char *custom_method,
                                 int options, size_t *pnread)

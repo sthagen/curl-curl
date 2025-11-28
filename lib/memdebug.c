@@ -35,10 +35,6 @@
 #include "backtrace.h"
 #endif
 
-/* The last 2 #include files should be in this order */
-#include "curl_memory.h"
-#include "memdebug.h"
-
 struct memdebug {
   size_t size;
   union {
@@ -526,7 +522,7 @@ void curl_dbg_log(const char *format, ...)
     nchars = (int)sizeof(buf) - 1;
 
   if(nchars > 0)
-    (fwrite)(buf, 1, (size_t)nchars, curl_dbg_logfile);
+    fwrite(buf, 1, (size_t)nchars, curl_dbg_logfile);
 }
 
 #endif /* CURLDEBUG */

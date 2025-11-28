@@ -60,13 +60,9 @@
 #include "select.h"
 #include "vquic/vquic.h" /* for quic cfilters */
 
-/* The last 2 #include files should be in this order */
-#include "curl_memory.h"
-#include "memdebug.h"
-
 
 struct transport_provider {
-  int transport;
+  uint8_t transport;
   cf_ip_connect_create *cf_create;
 };
 
@@ -87,7 +83,7 @@ struct transport_provider transport_providers[] = {
 #endif
 };
 
-static cf_ip_connect_create *get_cf_create(int transport)
+static cf_ip_connect_create *get_cf_create(uint8_t transport)
 {
   size_t i;
   for(i = 0; i < CURL_ARRAYSIZE(transport_providers); ++i) {
@@ -99,7 +95,7 @@ static cf_ip_connect_create *get_cf_create(int transport)
 
 #ifdef UNITTESTS
 /* used by unit2600.c */
-void Curl_debug_set_transport_provider(int transport,
+void Curl_debug_set_transport_provider(uint8_t transport,
                                        cf_ip_connect_create *cf_create)
 {
   size_t i;
@@ -172,7 +168,7 @@ struct cf_ip_attempt {
   struct curltime started;           /* start of current attempt */
   CURLcode result;
   int ai_family;
-  int transport;
+  uint8_t transport;
   int error;
   BIT(connected);                    /* cf has connected */
   BIT(shutdown);                     /* cf has shutdown */
@@ -186,7 +182,7 @@ static void cf_ip_attempt_free(struct cf_ip_attempt *a,
   if(a) {
     if(a->cf)
       Curl_conn_cf_discard_chain(&a->cf, data);
-    free(a);
+    curlx_free(a);
   }
 }
 
@@ -195,7 +191,7 @@ static CURLcode cf_ip_attempt_new(struct cf_ip_attempt **pa,
                                   struct Curl_easy *data,
                                   const struct Curl_addrinfo *addr,
                                   int ai_family,
-                                  int transport,
+                                  uint8_t transport,
                                   cf_ip_connect_create *cf_create)
 {
   struct Curl_cfilter *wcf;
@@ -203,7 +199,7 @@ static CURLcode cf_ip_attempt_new(struct cf_ip_attempt **pa,
   CURLcode result = CURLE_OK;
 
   *pa = NULL;
-  a = calloc(1, sizeof(*a));
+  a = curlx_calloc(1, sizeof(*a));
   if(!a)
     return CURLE_OUT_OF_MEMORY;
 
@@ -264,7 +260,7 @@ struct cf_ip_ballers {
   struct curltime last_attempt_started;
   timediff_t attempt_delay_ms;
   int last_attempt_ai_family;
-  int transport;
+  uint8_t transport;
 };
 
 static CURLcode cf_ip_attempt_restart(struct cf_ip_attempt *a,
@@ -315,7 +311,7 @@ static void cf_ip_ballers_clear(struct Curl_cfilter *cf,
 static CURLcode cf_ip_ballers_init(struct cf_ip_ballers *bs, int ip_version,
                                    const struct Curl_addrinfo *addr_list,
                                    cf_ip_connect_create *cf_create,
-                                   int transport,
+                                   uint8_t transport,
                                    timediff_t attempt_delay_ms)
 {
   memset(bs, 0, sizeof(*bs));
@@ -626,7 +622,7 @@ typedef enum {
 } cf_connect_state;
 
 struct cf_ip_happy_ctx {
-  int transport;
+  uint8_t transport;
   cf_ip_connect_create *cf_create;
   cf_connect_state state;
   struct cf_ip_ballers ballers;
@@ -713,7 +709,7 @@ static CURLcode start_connect(struct Curl_cfilter *cf,
     return CURLE_OPERATION_TIMEDOUT;
   }
 
-  CURL_TRC_CF(data, cf, "init ip ballers for transport %d", ctx->transport);
+  CURL_TRC_CF(data, cf, "init ip ballers for transport %u", ctx->transport);
   ctx->started = curlx_now();
   return cf_ip_ballers_init(&ctx->ballers, cf->conn->ip_version,
                             dns->addr, ctx->cf_create, ctx->transport,
@@ -933,7 +929,7 @@ static CURLcode cf_ip_happy_create(struct Curl_cfilter **pcf,
                                    struct Curl_easy *data,
                                    struct connectdata *conn,
                                    cf_ip_connect_create *cf_create,
-                                   int transport)
+                                   uint8_t transport)
 {
   struct cf_ip_happy_ctx *ctx = NULL;
   CURLcode result;
@@ -941,7 +937,7 @@ static CURLcode cf_ip_happy_create(struct Curl_cfilter **pcf,
   (void)data;
   (void)conn;
   *pcf = NULL;
-  ctx = calloc(1, sizeof(*ctx));
+  ctx = curlx_calloc(1, sizeof(*ctx));
   if(!ctx) {
     result = CURLE_OUT_OF_MEMORY;
     goto out;
@@ -954,14 +950,14 @@ static CURLcode cf_ip_happy_create(struct Curl_cfilter **pcf,
 out:
   if(result) {
     Curl_safefree(*pcf);
-    free(ctx);
+    curlx_free(ctx);
   }
   return result;
 }
 
 CURLcode cf_ip_happy_insert_after(struct Curl_cfilter *cf_at,
                                   struct Curl_easy *data,
-                                  int transport)
+                                  uint8_t transport)
 {
   cf_ip_connect_create *cf_create;
   struct Curl_cfilter *cf;
@@ -971,7 +967,7 @@ CURLcode cf_ip_happy_insert_after(struct Curl_cfilter *cf_at,
   DEBUGASSERT(cf_at);
   cf_create = get_cf_create(transport);
   if(!cf_create) {
-    CURL_TRC_CF(data, cf_at, "unsupported transport type %d", transport);
+    CURL_TRC_CF(data, cf_at, "unsupported transport type %u", transport);
     return CURLE_UNSUPPORTED_PROTOCOL;
   }
   result = cf_ip_happy_create(&cf, data, cf_at->conn, cf_create, transport);
