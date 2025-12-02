@@ -29,6 +29,7 @@
 #include <curl/curl.h>
 
 #include "urldata.h"
+#include "curl_threads.h"
 #include "curlx/fopen.h"  /* for CURLX_FOPEN_LOW(), CURLX_FREOPEN_LOW() */
 
 #ifdef USE_BACKTRACE
@@ -62,9 +63,13 @@ static long memsize = 0;  /* set number of mallocs allowed */
 static struct backtrace_state *btstate;
 #endif
 
-#define KEEPSIZE 10000
-static char membuf[KEEPSIZE];
+static char membuf[10000];
 static size_t memwidx = 0; /* write index */
+
+#if defined(USE_THREADS_POSIX) || defined(USE_THREADS_WIN32)
+static bool dbg_mutex_init = 0;
+static curl_mutex_t dbg_mutex;
+#endif
 
 /* LeakSantizier (LSAN) calls _exit() instead of exit() when a leak is detected
    on exit so the logfile must be closed explicitly or data could be lost.
@@ -81,6 +86,12 @@ static void curl_dbg_cleanup(void)
     fclose(curl_dbg_logfile);
   }
   curl_dbg_logfile = NULL;
+#if defined(USE_THREADS_POSIX) || defined(USE_THREADS_WIN32)
+  if(dbg_mutex_init) {
+    Curl_mutex_destroy(&dbg_mutex);
+    dbg_mutex_init = FALSE;
+  }
+#endif
 }
 #ifdef USE_BACKTRACE
 static void error_bt_callback(void *data, const char *message,
@@ -123,6 +134,12 @@ void curl_dbg_memdebug(const char *logname)
       setbuf(curl_dbg_logfile, (char *)NULL);
 #endif
   }
+#if defined(USE_THREADS_POSIX) || defined(USE_THREADS_WIN32)
+  if(!dbg_mutex_init) {
+    dbg_mutex_init = TRUE;
+    Curl_mutex_init(&dbg_mutex);
+  }
+#endif
 #ifdef USE_BACKTRACE
   btstate = backtrace_create_state(NULL, 0, error_bt_callback, NULL);
 #endif
@@ -319,6 +336,9 @@ void curl_dbg_free(void *ptr, int line, const char *source)
   if(ptr) {
     struct memdebug *mem;
 
+  if(source)
+    curl_dbg_log("MEM %s:%d free(%p)\n", source, line, (void *)ptr);
+
 #ifdef __INTEL_COMPILER
 #  pragma warning(push)
 #  pragma warning(disable:1684)
@@ -334,9 +354,6 @@ void curl_dbg_free(void *ptr, int line, const char *source)
     /* free for real */
     (Curl_cfree)(mem);
   }
-
-  if(source && ptr)
-    curl_dbg_log("MEM %s:%d free(%p)\n", source, line, (void *)ptr);
 }
 
 curl_socket_t curl_dbg_socket(int domain, int type, int protocol,
@@ -451,9 +468,8 @@ void curl_dbg_mark_sclose(curl_socket_t sockfd, int line, const char *source)
 /* this is our own defined way to close sockets on *ALL* platforms */
 int curl_dbg_sclose(curl_socket_t sockfd, int line, const char *source)
 {
-  int res = CURL_SCLOSE(sockfd);
   curl_dbg_mark_sclose(sockfd, line, source);
-  return res;
+  return CURL_SCLOSE(sockfd);
 }
 
 ALLOC_FUNC
@@ -526,7 +542,12 @@ void curl_dbg_log(const char *format, ...)
     nchars = (int)sizeof(buf) - 1;
 
   if(nchars > 0) {
-    if(KEEPSIZE - nchars < memwidx) {
+#if defined(USE_THREADS_POSIX) || defined(USE_THREADS_WIN32)
+    bool lock_mutex = dbg_mutex_init;
+    if(lock_mutex)
+      Curl_mutex_acquire(&dbg_mutex);
+#endif
+    if(sizeof(membuf) - nchars < memwidx) {
       /* flush */
       fwrite(membuf, 1, memwidx, curl_dbg_logfile);
       fflush(curl_dbg_logfile);
@@ -538,6 +559,10 @@ void curl_dbg_log(const char *format, ...)
     }
     memcpy(&membuf[memwidx], buf, nchars);
     memwidx += nchars;
+#if defined(USE_THREADS_POSIX) || defined(USE_THREADS_WIN32)
+    if(lock_mutex)
+      Curl_mutex_release(&dbg_mutex);
+#endif
   }
 }
 

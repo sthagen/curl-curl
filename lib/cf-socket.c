@@ -83,22 +83,6 @@
 #include "curlx/strparse.h"
 
 
-#if defined(USE_IPV6) && defined(IPV6_V6ONLY) && defined(_WIN32)
-/* It makes support for IPv4-mapped IPv6 addresses.
- * Linux kernel, NetBSD, FreeBSD and Darwin: default is off;
- * Windows Vista and later: default is on;
- * DragonFly BSD: acts like off, and dummy setting;
- * OpenBSD and earlier Windows: unsupported.
- * Linux: controlled by /proc/sys/net/ipv6/bindv6only.
- */
-static void set_ipv6_v6only(curl_socket_t sockfd, int on)
-{
-  (void)setsockopt(sockfd, IPPROTO_IPV6, IPV6_V6ONLY, (void *)&on, sizeof(on));
-}
-#else
-#define set_ipv6_v6only(x, y)
-#endif
-
 static void tcpnodelay(struct Curl_cfilter *cf,
                        struct Curl_easy *data,
                        curl_socket_t sockfd)
@@ -659,8 +643,8 @@ static CURLcode bindlocal(struct Curl_easy *data, struct connectdata *conn,
       return CURLE_UNSUPPORTED_PROTOCOL;
     case IF2IP_FOUND:
       /*
-        * We now have the numerical IP address in the 'myhost' buffer
-        */
+       * We now have the numerical IP address in the 'myhost' buffer
+       */
       host = myhost;
       infof(data, "Local Interface %s is ip %s using address family %i",
             iface, host, af);
@@ -1114,7 +1098,18 @@ static CURLcode cf_socket_open(struct Curl_cfilter *cf,
 
 #ifdef USE_IPV6
   if(ctx->addr.family == AF_INET6) {
-    set_ipv6_v6only(ctx->sock, 0);
+#ifdef USE_WINSOCK
+    /* Turn on support for IPv4-mapped IPv6 addresses.
+     * Linux kernel, NetBSD, FreeBSD, Darwin, lwIP: default is off;
+     * Windows Vista and later: default is on;
+     * DragonFly BSD: acts like off, and dummy setting;
+     * OpenBSD and earlier Windows: unsupported.
+     * Linux: controlled by /proc/sys/net/ipv6/bindv6only.
+     */
+    int on = 0;
+    (void)setsockopt(ctx->sock, IPPROTO_IPV6, IPV6_V6ONLY,
+                     (void *)&on, sizeof(on));
+#endif
     infof(data, "  Trying [%s]:%d...", ctx->ip.remote_ip, ctx->ip.remote_port);
   }
   else
@@ -2062,7 +2057,7 @@ static CURLcode cf_tcp_accept_connect(struct Curl_cfilter *cf,
 #else
   struct sockaddr_in add;
 #endif
-  curl_socklen_t size = (curl_socklen_t) sizeof(add);
+  curl_socklen_t size = (curl_socklen_t)sizeof(add);
   curl_socket_t s_accepted = CURL_SOCKET_BAD;
   timediff_t timeout_ms;
   int socketstate = 0;
