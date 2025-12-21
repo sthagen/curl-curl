@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="US-ASCII"?>
 <testcase>
 <info>
 <keywords>
@@ -37,7 +38,7 @@ concurrent HTTPS GET using shared ssl session cache
 lib%TESTNUMBER
 </tool>
 # provide URL and ca-cert
-<command option="no-memdebug">
+<command>
 https://localhost:%HTTPSPORT/%TESTNUMBER %CERTDIR/certs/test-ca.crt
 </command>
 </client>

@@ -41,8 +41,7 @@
 #include <nettle/sha2.h>
 
 #include "../urldata.h"
-#include "../sendf.h"
-#include "../curlx/inet_pton.h"
+#include "../curl_trc.h"
 #include "keylog.h"
 #include "gtls.h"
 #include "vtls.h"
@@ -53,12 +52,10 @@
 #include "../parsedate.h"
 #include "../connect.h" /* for the connect timeout */
 #include "../progress.h"
-#include "../select.h"
 #include "../strdup.h"
 #include "../curlx/fopen.h"
-#include "../curlx/warnless.h"
+#include "../curlx/timeval.h"
 #include "x509asn1.h"
-#include "../multiif.h"
 
 /* Enable GnuTLS debugging by defining GTLSDEBUG */
 /*#define GTLSDEBUG */
@@ -148,7 +145,7 @@ static ssize_t gtls_pull(void *s, void *buf, size_t blen)
  * gtls_init()
  *
  * Global GnuTLS init, called from Curl_ssl_init(). This calls functions that
- * are not thread-safe (It is thread safe since GnuTLS 3.3.0) and thus this
+ * are not thread-safe (It is thread-safe since GnuTLS 3.3.0) and thus this
  * function itself is not thread-safe and must only be called from within
  * curl_global_init() to keep the thread situation under control!
  *
@@ -169,6 +166,7 @@ static int gtls_init(void)
 static void gtls_cleanup(void)
 {
   gnutls_global_deinit();
+  Curl_tls_keylog_close();
 }
 
 #ifndef CURL_DISABLE_VERBOSE_STRINGS
@@ -177,7 +175,7 @@ static void showtime(struct Curl_easy *data, const char *text, time_t stamp)
   struct tm buffer;
   const struct tm *tm = &buffer;
   char str[96];
-  CURLcode result = Curl_gmtime(stamp, &buffer);
+  CURLcode result = curlx_gmtime(stamp, &buffer);
   if(result)
     return;
 
@@ -305,16 +303,17 @@ static gnutls_x509_crt_fmt_t gnutls_do_file_type(const char *type)
   return GNUTLS_X509_FMT_PEM; /* default to PEM */
 }
 
-#define GNUTLS_CIPHERS "NORMAL:-ARCFOUR-128:-CTYPE-ALL:+CTYPE-X509"
+#define GNUTLS_CIPHERS "NORMAL:%PROFILE_MEDIUM:-ARCFOUR-128:" \
+  "-CTYPE-ALL:+CTYPE-X509"
 /* If GnuTLS was compiled without support for SRP it will error out if SRP is
    requested in the priority string, so treat it specially
  */
 #define GNUTLS_SRP "+SRP"
 
 #define QUIC_PRIORITY \
-  "NORMAL:-VERS-ALL:+VERS-TLS1.3:-CIPHER-ALL:+AES-128-GCM:+AES-256-GCM:" \
-  "+CHACHA20-POLY1305:+AES-128-CCM:-GROUP-ALL:+GROUP-SECP256R1:" \
-  "+GROUP-X25519:+GROUP-SECP384R1:+GROUP-SECP521R1:" \
+  "NORMAL:%PROFILE_MEDIUM:-VERS-ALL:+VERS-TLS1.3:-CIPHER-ALL:+AES-128-GCM:" \
+  "+AES-256-GCM:+CHACHA20-POLY1305:+AES-128-CCM:-GROUP-ALL:" \
+  "+GROUP-SECP256R1:+GROUP-X25519:+GROUP-SECP384R1:+GROUP-SECP521R1:" \
   "%DISABLE_TLS13_COMPAT_MODE"
 
 static CURLcode
@@ -386,7 +385,7 @@ gnutls_set_ssl_version_min_max(struct Curl_easy *data,
     return CURLE_OK;
   }
 
-  failf(data, "GnuTLS: cannot set ssl protocol");
+  failf(data, "GnuTLS: cannot set TLS protocol");
   return CURLE_SSL_CONNECT_ERROR;
 }
 
@@ -409,7 +408,7 @@ CURLcode Curl_gtls_shared_creds_create(struct Curl_easy *data,
   }
 
   shared->refcount = 1;
-  shared->time = curlx_now();
+  shared->time = *Curl_pgrs_now(data);
   *pcreds = shared;
   return CURLE_OK;
 }
@@ -460,7 +459,7 @@ static CURLcode gtls_populate_creds(struct Curl_cfilter *cf,
 #else
     rc = gnutls_certificate_set_x509_system_trust(creds);
     if(rc < 0)
-      infof(data, "error reading native ca store (%s), continuing anyway",
+      infof(data, "error reading native CA store (%s), continuing anyway",
             gnutls_strerror(rc));
     else {
       infof(data, "  Native: %d certificates from system trust", rc);
@@ -483,7 +482,7 @@ static CURLcode gtls_populate_creds(struct Curl_cfilter *cf,
                                                GNUTLS_X509_FMT_PEM);
     creds_are_empty = creds_are_empty && (rc <= 0);
     if(rc < 0) {
-      infof(data, "error reading ca cert blob (%s)%s", gnutls_strerror(rc),
+      infof(data, "error reading CA cert blob (%s)%s", gnutls_strerror(rc),
             (creds_are_empty ? "" : ", continuing anyway"));
       if(creds_are_empty) {
         ssl_config->certverifyresult = rc;
@@ -504,7 +503,7 @@ static CURLcode gtls_populate_creds(struct Curl_cfilter *cf,
                                                 GNUTLS_X509_FMT_PEM);
     creds_are_empty = creds_are_empty && (rc <= 0);
     if(rc < 0) {
-      infof(data, "error reading ca cert file %s (%s)%s",
+      infof(data, "error reading CA cert file %s (%s)%s",
             config->CAfile, gnutls_strerror(rc),
             (creds_are_empty ? "" : ", continuing anyway"));
       if(creds_are_empty) {
@@ -522,7 +521,7 @@ static CURLcode gtls_populate_creds(struct Curl_cfilter *cf,
                                                GNUTLS_X509_FMT_PEM);
     creds_are_empty = creds_are_empty && (rc <= 0);
     if(rc < 0) {
-      infof(data, "error reading ca cert file %s (%s)%s",
+      infof(data, "error reading CA cert file %s (%s)%s",
             config->CApath, gnutls_strerror(rc),
             (creds_are_empty ? "" : ", continuing anyway"));
       if(creds_are_empty) {
@@ -542,7 +541,7 @@ static CURLcode gtls_populate_creds(struct Curl_cfilter *cf,
     rc = gnutls_certificate_set_x509_crl_file(creds, config->CRLfile,
                                               GNUTLS_X509_FMT_PEM);
     if(rc < 0) {
-      failf(data, "error reading crl file %s (%s)",
+      failf(data, "error reading CRL file %s (%s)",
             config->CRLfile, gnutls_strerror(rc));
       return CURLE_SSL_CRL_BADFILE;
     }
@@ -556,12 +555,11 @@ static CURLcode gtls_populate_creds(struct Curl_cfilter *cf,
 /* key to use at `multi->proto_hash` */
 #define MPROTO_GTLS_X509_KEY   "tls:gtls:x509:share"
 
-static bool gtls_shared_creds_expired(const struct Curl_easy *data,
+static bool gtls_shared_creds_expired(struct Curl_easy *data,
                                       const struct gtls_shared_creds *sc)
 {
   const struct ssl_general_config *cfg = &data->set.general_ssl;
-  struct curltime now = curlx_now();
-  timediff_t elapsed_ms = curlx_timediff_ms(now, sc->time);
+  timediff_t elapsed_ms = curlx_ptimediff_ms(Curl_pgrs_now(data), &sc->time);
   timediff_t timeout_ms = cfg->ca_cache_timeout * (timediff_t)1000;
 
   if(timeout_ms < 0)

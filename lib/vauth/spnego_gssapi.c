@@ -28,13 +28,10 @@
 
 #if defined(HAVE_GSSAPI) && defined(USE_SPNEGO)
 
-#include <curl/curl.h>
-
 #include "vauth.h"
 #include "../curlx/base64.h"
 #include "../curl_gssapi.h"
-#include "../curlx/warnless.h"
-#include "../sendf.h"
+#include "../curl_trc.h"
 
 #if defined(__GNUC__) && defined(__APPLE__)
 #pragma GCC diagnostic push

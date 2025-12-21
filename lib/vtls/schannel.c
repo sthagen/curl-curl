@@ -42,17 +42,14 @@
 #include "vtls.h"
 #include "vtls_int.h"
 #include "vtls_scache.h"
-#include "../sendf.h"
+#include "../curl_trc.h"
 #include "../connect.h" /* for the connect timeout */
 #include "../strdup.h"
 #include "../strerror.h"
 #include "../select.h" /* for the socket readiness */
 #include "../curlx/fopen.h"
-#include "../curlx/inet_pton.h" /* for IP addr SNI check */
 #include "../curlx/multibyte.h"
-#include "../curlx/warnless.h"
 #include "x509asn1.h"
-#include "../multiif.h"
 #include "../system_win32.h"
 #include "../curlx/version_win32.h"
 #include "../rand.h"
@@ -70,8 +67,8 @@
 #define SCH_DEV_SHOWBOOL(x)                                   \
   infof(data, "schannel: " #x " %s", (x) ? "TRUE" : "FALSE");
 #else
-#define SCH_DEV(x) do { } while(0)
-#define SCH_DEV_SHOWBOOL(x) do { } while(0)
+#define SCH_DEV(x) do {} while(0)
+#define SCH_DEV_SHOWBOOL(x) do {} while(0)
 #endif
 
 /* Offered by mingw-w64 v8+. MS SDK 7.0A+. */
@@ -547,7 +544,7 @@ static CURLcode schannel_acquire_credential_handle(struct Curl_cfilter *cf,
         failf(data, "schannel: Failed to get certificate location"
               " or file for %s",
               data->set.ssl.primary.clientcert);
-        curlx_unicodefree(cert_path);
+        curlx_free(cert_path);
         return result;
       }
     }
@@ -558,7 +555,7 @@ static CURLcode schannel_acquire_credential_handle(struct Curl_cfilter *cf,
             " for %s",
             blob ? "(memory blob)" : data->set.ssl.primary.clientcert);
       curlx_free(cert_store_path);
-      curlx_unicodefree(cert_path);
+      curlx_free(cert_path);
       if(fInCert)
         curlx_fclose(fInCert);
       return CURLE_SSL_CERTPROBLEM;
@@ -576,7 +573,7 @@ static CURLcode schannel_acquire_credential_handle(struct Curl_cfilter *cf,
       const char *cert_showfilename_error = blob ?
         "(memory blob)" : data->set.ssl.primary.clientcert;
       curlx_free(cert_store_path);
-      curlx_unicodefree(cert_path);
+      curlx_free(cert_path);
       if(fInCert) {
         long cert_tell = 0;
         bool continue_reading = fseek(fInCert, 0, SEEK_END) == 0;
@@ -588,7 +585,7 @@ static CURLcode schannel_acquire_credential_handle(struct Curl_cfilter *cf,
           certsize = (size_t)cert_tell;
         if(continue_reading)
           continue_reading = fseek(fInCert, 0, SEEK_SET) == 0;
-        if(continue_reading)
+        if(continue_reading && (certsize < CURL_MAX_INPUT_LENGTH))
           certdata = curlx_malloc(certsize + 1);
         if((!certdata) ||
            ((int) fread(certdata, certsize, 1, fInCert) != 1))
@@ -686,8 +683,8 @@ static CURLcode schannel_acquire_credential_handle(struct Curl_cfilter *cf,
               (path_utf8 ? path_utf8 : "(unknown)"),
               GetLastError());
         curlx_free(cert_store_path);
-        curlx_unicodefree(path_utf8);
-        curlx_unicodefree(cert_path);
+        curlx_free(path_utf8);
+        curlx_free(cert_path);
         return CURLE_SSL_CERTPROBLEM;
       }
       curlx_free(cert_store_path);
@@ -701,7 +698,7 @@ static CURLcode schannel_acquire_credential_handle(struct Curl_cfilter *cf,
                               cert_thumbprint_data,
                               &cert_thumbprint.cbData,
                               NULL, NULL)) {
-        curlx_unicodefree(cert_path);
+        curlx_free(cert_path);
         CertCloseStore(cert_store, 0);
         return CURLE_SSL_CERTPROBLEM;
       }
@@ -710,7 +707,7 @@ static CURLcode schannel_acquire_credential_handle(struct Curl_cfilter *cf,
         cert_store, X509_ASN_ENCODING | PKCS_7_ASN_ENCODING, 0,
         CERT_FIND_HASH, &cert_thumbprint, NULL);
 
-      curlx_unicodefree(cert_path);
+      curlx_free(cert_path);
 
       if(!client_certs[0]) {
         /* CRYPT_E_NOT_FOUND / E_INVALIDARG */
@@ -1485,7 +1482,7 @@ static void schannel_session_free(void *sessionid)
     cred->refcount--;
     if(cred->refcount == 0) {
       Curl_pSecFn->FreeCredentialsHandle(&cred->cred_handle);
-      curlx_unicodefree(cred->sni_hostname);
+      curlx_free(cred->sni_hostname);
       if(cred->client_cert_store) {
         CertCloseStore(cred->client_cert_store, 0);
         cred->client_cert_store = NULL;
@@ -1722,7 +1719,7 @@ schannel_recv_renegotiate(struct Curl_cfilter *cf, struct Curl_easy *data,
     connssl->connecting_state = ssl_connect_2;
     memset(rs, 0, sizeof(*rs));
     rs->io_need = CURL_SSL_IO_NEED_SEND;
-    rs->start_time = curlx_now();
+    rs->start_time = *Curl_pgrs_now(data);
     rs->started = TRUE;
   }
 
@@ -1731,7 +1728,7 @@ schannel_recv_renegotiate(struct Curl_cfilter *cf, struct Curl_easy *data,
     curl_socket_t readfd, writefd;
     timediff_t elapsed;
 
-    elapsed = curlx_timediff_ms(curlx_now(), rs->start_time);
+    elapsed = curlx_ptimediff_ms(Curl_pgrs_now(data), &rs->start_time);
     if(elapsed >= MAX_RENEG_BLOCK_TIME) {
       failf(data, "schannel: renegotiation timeout");
       result = CURLE_SSL_CONNECT_ERROR;
@@ -1797,7 +1794,7 @@ schannel_recv_renegotiate(struct Curl_cfilter *cf, struct Curl_easy *data,
       if(result)
         break;
 
-      elapsed = curlx_timediff_ms(curlx_now(), rs->start_time);
+      elapsed = curlx_ptimediff_ms(Curl_pgrs_now(data), &rs->start_time);
       if(elapsed >= MAX_RENEG_BLOCK_TIME) {
         failf(data, "schannel: renegotiation timeout");
         result = CURLE_SSL_CONNECT_ERROR;
@@ -1806,7 +1803,7 @@ schannel_recv_renegotiate(struct Curl_cfilter *cf, struct Curl_easy *data,
       remaining = MAX_RENEG_BLOCK_TIME - elapsed;
 
       if(blocking) {
-        timeout_ms = Curl_timeleft_ms(data, NULL, FALSE);
+        timeout_ms = Curl_timeleft_ms(data, FALSE);
 
         if(timeout_ms < 0) {
           result = CURLE_OPERATION_TIMEDOUT;
@@ -1959,7 +1956,7 @@ static CURLcode schannel_send(struct Curl_cfilter *cf, struct Curl_easy *data,
     while(len > *pnwritten) {
       size_t this_write = 0;
       int what;
-      timediff_t timeout_ms = Curl_timeleft_ms(data, NULL, FALSE);
+      timediff_t timeout_ms = Curl_timeleft_ms(data, FALSE);
       if(timeout_ms < 0) {
         /* we already got the timeout */
         failf(data, "schannel: timed out sending data "
@@ -2723,7 +2720,7 @@ static void *schannel_get_internals(struct ssl_connect_data *connssl,
 }
 
 HCERTSTORE Curl_schannel_get_cached_cert_store(struct Curl_cfilter *cf,
-                                               const struct Curl_easy *data)
+                                               struct Curl_easy *data)
 {
   struct ssl_primary_config *conn_config = Curl_ssl_cf_get_primary_config(cf);
   struct Curl_multi *multi = data->multi;
@@ -2732,7 +2729,6 @@ HCERTSTORE Curl_schannel_get_cached_cert_store(struct Curl_cfilter *cf,
   const struct ssl_general_config *cfg = &data->set.general_ssl;
   timediff_t timeout_ms;
   timediff_t elapsed_ms;
-  struct curltime now;
   unsigned char info_blob_digest[CURL_SHA256_DIGEST_LENGTH];
 
   DEBUGASSERT(multi);
@@ -2758,8 +2754,7 @@ HCERTSTORE Curl_schannel_get_cached_cert_store(struct Curl_cfilter *cf,
      negative timeout means retain forever. */
   timeout_ms = cfg->ca_cache_timeout * (timediff_t)1000;
   if(timeout_ms >= 0) {
-    now = curlx_now();
-    elapsed_ms = curlx_timediff_ms(now, share->time);
+    elapsed_ms = curlx_ptimediff_ms(Curl_pgrs_now(data), &share->time);
     if(elapsed_ms >= timeout_ms) {
       return NULL;
     }
@@ -2803,7 +2798,7 @@ static void schannel_cert_share_free(void *key, size_t key_len, void *p)
 }
 
 bool Curl_schannel_set_cached_cert_store(struct Curl_cfilter *cf,
-                                         const struct Curl_easy *data,
+                                         struct Curl_easy *data,
                                          HCERTSTORE cert_store)
 {
   struct ssl_primary_config *conn_config = Curl_ssl_cf_get_primary_config(cf);

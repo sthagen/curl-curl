@@ -26,7 +26,6 @@
 
 #ifndef CURL_DISABLE_PROXY
 
-#include <curl/curl.h>  /* for curl_strnequal() */
 #include "curlx/inet_pton.h"
 #include "noproxy.h"
 #include "curlx/strparse.h"
@@ -141,8 +140,7 @@ static bool match_host(const char *token, size_t tokenlen,
   else if(tokenlen < namelen) {
     /* case B, tailmatch domain */
     match = (name[namelen - tokenlen - 1] == '.') &&
-      curl_strnequal(token, name + (namelen - tokenlen),
-                     tokenlen);
+            curl_strnequal(token, name + (namelen - tokenlen), tokenlen);
   }
   /* case C passes through, not a match */
   return match;
@@ -180,15 +178,12 @@ static bool match_ip(int type, const char *token, size_t tokenlen,
     return Curl_cidr4_match(name, check, bits);
 }
 
-
 /****************************************************************
-* Checks if the host is in the noproxy list. returns TRUE if it matches and
-* therefore the proxy should NOT be used.
-****************************************************************/
+ * Checks if the host is in the noproxy list. returns TRUE if it matches and
+ * therefore the proxy should NOT be used.
+ ****************************************************************/
 bool Curl_check_noproxy(const char *name, const char *no_proxy)
 {
-  char hostip[128];
-
   /*
    * If we do not have a hostname at all, like for example with a FILE
    * transfer, we have nothing to interrogate the noproxy list with.
@@ -204,37 +199,25 @@ bool Curl_check_noproxy(const char *name, const char *no_proxy)
   if(no_proxy && no_proxy[0]) {
     const char *p = no_proxy;
     size_t namelen;
+    char address[16];
     enum nametype type = TYPE_HOST;
     if(!strcmp("*", no_proxy))
       return TRUE;
 
     /* NO_PROXY was specified and it was not just an asterisk */
 
-    if(name[0] == '[') {
-      char *endptr;
-      /* IPv6 numerical address */
-      endptr = strchr(name, ']');
-      if(!endptr)
-        return FALSE;
-      name++;
-      namelen = endptr - name;
-      if(namelen >= sizeof(hostip))
-        return FALSE;
-      memcpy(hostip, name, namelen);
-      hostip[namelen] = 0;
-      name = hostip;
+    /* Check if name is an IP address; if not, assume it being a hostname. */
+    namelen = strlen(name);
+    if(curlx_inet_pton(AF_INET, name, &address) == 1)
+      type = TYPE_IPV4;
+#ifdef USE_IPV6
+    else if(curlx_inet_pton(AF_INET6, name, &address) == 1)
       type = TYPE_IPV6;
-    }
+#endif
     else {
-      unsigned int address;
-      namelen = strlen(name);
-      if(curlx_inet_pton(AF_INET, name, &address) == 1)
-        type = TYPE_IPV4;
-      else {
-        /* ignore trailing dots in the hostname */
-        if(name[namelen - 1] == '.')
-          namelen--;
-      }
+      /* ignore trailing dots in the hostname */
+      if(name[namelen - 1] == '.')
+        namelen--;
     }
 
     while(*p) {

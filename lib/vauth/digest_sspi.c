@@ -29,13 +29,10 @@
 
 #if defined(USE_WINDOWS_SSPI) && !defined(CURL_DISABLE_DIGEST_AUTH)
 
-#include <curl/curl.h>
-
 #include "vauth.h"
 #include "digest.h"
-#include "../curlx/warnless.h"
 #include "../curlx/multibyte.h"
-#include "../sendf.h"
+#include "../curl_trc.h"
 #include "../strdup.h"
 #include "../strcase.h"
 #include "../strerror.h"
@@ -273,7 +270,7 @@ CURLcode Curl_override_sspi_http_realm(const char *chlg,
 
           dup_domain.tchar_ptr = curlx_tcsdup(domain.tchar_ptr);
           if(!dup_domain.tchar_ptr) {
-            curlx_unicodefree(domain.tchar_ptr);
+            curlx_free(domain.tchar_ptr);
             return CURLE_OUT_OF_MEMORY;
           }
 
@@ -282,7 +279,7 @@ CURLcode Curl_override_sspi_http_realm(const char *chlg,
           identity->DomainLength = curlx_uztoul(_tcslen(dup_domain.tchar_ptr));
           dup_domain.tchar_ptr = NULL;
 
-          curlx_unicodefree(domain.tchar_ptr);
+          curlx_free(domain.tchar_ptr);
         }
         else {
           /* Unknown specifier, ignore it! */
@@ -452,10 +449,10 @@ CURLcode Curl_auth_create_digest_http_message(struct Curl_easy *data,
     chlg_buf[0].cbBuffer   = 0;
     chlg_buf[1].BufferType = SECBUFFER_PKG_PARAMS;
     chlg_buf[1].pvBuffer   = CURL_UNCONST(request);
-    chlg_buf[1].cbBuffer   = curlx_uztoul(strlen((const char *) request));
+    chlg_buf[1].cbBuffer   = curlx_uztoul(strlen((const char *)request));
     chlg_buf[2].BufferType = SECBUFFER_PKG_PARAMS;
     chlg_buf[2].pvBuffer   = CURL_UNCONST(uripath);
-    chlg_buf[2].cbBuffer   = curlx_uztoul(strlen((const char *) uripath));
+    chlg_buf[2].cbBuffer   = curlx_uztoul(strlen((const char *)uripath));
     chlg_buf[3].BufferType = SECBUFFER_PKG_PARAMS;
     chlg_buf[3].pvBuffer   = NULL;
     chlg_buf[3].cbBuffer   = 0;
@@ -495,7 +492,7 @@ CURLcode Curl_auth_create_digest_http_message(struct Curl_easy *data,
       }
 
       /* Populate our identity domain */
-      if(Curl_override_sspi_http_realm((const char *) digest->input_token,
+      if(Curl_override_sspi_http_realm((const char *)digest->input_token,
                                        &identity)) {
         Curl_sspi_free_identity(&identity);
         curlx_free(output_token);
@@ -552,7 +549,7 @@ CURLcode Curl_auth_create_digest_http_message(struct Curl_easy *data,
     chlg_buf[0].cbBuffer   = curlx_uztoul(digest->input_token_len);
     chlg_buf[1].BufferType = SECBUFFER_PKG_PARAMS;
     chlg_buf[1].pvBuffer   = CURL_UNCONST(request);
-    chlg_buf[1].cbBuffer   = curlx_uztoul(strlen((const char *) request));
+    chlg_buf[1].cbBuffer   = curlx_uztoul(strlen((const char *)request));
     chlg_buf[2].BufferType = SECBUFFER_PKG_PARAMS;
     chlg_buf[2].pvBuffer   = NULL;
     chlg_buf[2].cbBuffer   = 0;
@@ -565,7 +562,7 @@ CURLcode Curl_auth_create_digest_http_message(struct Curl_easy *data,
     resp_buf.pvBuffer   = output_token;
     resp_buf.cbBuffer   = curlx_uztoul(token_max);
 
-    spn = curlx_convert_UTF8_to_tchar((const char *) uripath);
+    spn = curlx_convert_UTF8_to_tchar((const char *)uripath);
     if(!spn) {
       Curl_pSecFn->FreeCredentialsHandle(&credentials);
 
@@ -579,7 +576,7 @@ CURLcode Curl_auth_create_digest_http_message(struct Curl_easy *data,
     digest->http_context = curlx_calloc(1, sizeof(CtxtHandle));
     if(!digest->http_context) {
       Curl_pSecFn->FreeCredentialsHandle(&credentials);
-      curlx_unicodefree(spn);
+      curlx_free(spn);
       Curl_sspi_free_identity(p_identity);
       curlx_free(output_token);
       return CURLE_OUT_OF_MEMORY;
@@ -592,7 +589,7 @@ CURLcode Curl_auth_create_digest_http_message(struct Curl_easy *data,
                                                   &chlg_desc, 0,
                                                   digest->http_context,
                                                   &resp_desc, &attrs, NULL);
-    curlx_unicodefree(spn);
+    curlx_free(spn);
 
     if(status == SEC_I_COMPLETE_NEEDED ||
        status == SEC_I_COMPLETE_AND_CONTINUE)

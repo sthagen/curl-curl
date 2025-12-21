@@ -1,18 +1,16 @@
+<?xml version="1.0" encoding="US-ASCII"?>
 <testcase>
 <info>
 <keywords>
 HTTP
 --variable
-notxml
 </keywords>
 </info>
 
-#
 # Server-side
 <reply>
 </reply>
 
-#
 # Client-side
 <client>
 <server>
@@ -22,11 +20,10 @@ http
 --variable with a file byte range, bad range
 </name>
 <command>
-http://%HOSTIP:%HTTPPORT/%TESTNUMBER --variable "name[15-14]@&LOGDIR/fooo" --expand-data '{{name}}'
+http://%HOSTIP:%HTTPPORT/%TESTNUMBER --variable "name[15-14]@%LOGDIR/fooo" --expand-data '{{name}}'
 </command>
 </client>
 
-#
 # Verify data after the test has been "shot"
 <verify>
 <errorcode>

@@ -28,10 +28,10 @@
 #include "cfilters.h"
 #include "curlx/dynbuf.h"
 #include "doh.h"
-#include "multiif.h"
 #include "progress.h"
 #include "request.h"
 #include "sendf.h"
+#include "curl_trc.h"
 #include "transfer.h"
 #include "url.h"
 #include "curlx/strparse.h"
@@ -90,7 +90,7 @@ CURLcode Curl_req_soft_reset(struct SingleRequest *req,
 CURLcode Curl_req_start(struct SingleRequest *req,
                         struct Curl_easy *data)
 {
-  req->start = curlx_now();
+  req->start = *Curl_pgrs_now(data);
   return Curl_req_soft_reset(req, data);
 }
 
@@ -111,7 +111,7 @@ CURLcode Curl_req_done(struct SingleRequest *req,
 
 void Curl_req_hard_reset(struct SingleRequest *req, struct Curl_easy *data)
 {
-  struct curltime t0 = {0, 0};
+  struct curltime t0 = { 0, 0 };
 
   Curl_safefree(req->newurl);
   Curl_client_reset(data);
@@ -219,7 +219,7 @@ static CURLcode xfer_send(struct Curl_easy *data,
         size_t body_len = *pnwritten - hds_len;
         Curl_debug(data, CURLINFO_DATA_OUT, buf + hds_len, body_len);
         data->req.writebytecount += body_len;
-        Curl_pgrsSetUploadCounter(data, data->req.writebytecount);
+        Curl_pgrs_upload_inc(data, body_len);
       }
     }
   }
@@ -473,6 +473,6 @@ CURLcode Curl_req_stop_send_recv(struct Curl_easy *data)
   CURLcode result = CURLE_OK;
   if(data->req.keepon & KEEP_SEND)
     result = Curl_req_abort_sending(data);
-  data->req.keepon &= ~(KEEP_RECV|KEEP_SEND);
+  data->req.keepon &= ~(KEEP_RECV | KEEP_SEND);
   return result;
 }

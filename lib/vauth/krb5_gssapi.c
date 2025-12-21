@@ -29,12 +29,10 @@
 
 #if defined(HAVE_GSSAPI) && defined(USE_KERBEROS5)
 
-#include <curl/curl.h>
-
 #include "vauth.h"
 #include "../curl_sasl.h"
 #include "../curl_gssapi.h"
-#include "../sendf.h"
+#include "../curl_trc.h"
 
 #if defined(__GNUC__) && defined(__APPLE__)
 #pragma GCC diagnostic push
@@ -154,7 +152,7 @@ CURLcode Curl_auth_create_gssapi_user_message(struct Curl_easy *data,
   }
 
   if(output_token.value && output_token.length) {
-    result = Curl_bufref_memdup(out, output_token.value, output_token.length);
+    result = Curl_bufref_memdup0(out, output_token.value, output_token.length);
     gss_release_buffer(&unused_status, &output_token);
   }
   else
@@ -285,7 +283,7 @@ CURLcode Curl_auth_create_gssapi_security_message(struct Curl_easy *data,
   }
 
   /* Return the response. */
-  result = Curl_bufref_memdup(out, output_token.value, output_token.length);
+  result = Curl_bufref_memdup0(out, output_token.value, output_token.length);
   /* Free the output buffer */
   gss_release_buffer(&unused_status, &output_token);
 

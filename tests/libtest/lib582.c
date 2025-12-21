@@ -198,11 +198,11 @@ static void notifyCurl(CURLM *multi, curl_socket_t s, int evBitmask,
                        const char *info)
 {
   int numhandles = 0;
-  CURLMcode result = curl_multi_socket_action(multi, s, evBitmask,
-                                              &numhandles);
-  if(result != CURLM_OK) {
+  CURLMcode mresult = curl_multi_socket_action(multi, s, evBitmask,
+                                               &numhandles);
+  if(mresult != CURLM_OK) {
     curl_mfprintf(stderr, "curl error on %s (%i) %s\n",
-                  info, result, curl_multi_strerror(result));
+                  info, mresult, curl_multi_strerror(mresult));
   }
 }
 
@@ -222,16 +222,16 @@ static void t582_checkFdSet(CURLM *multi, struct t582_Sockets *sockets,
 
 static CURLcode test_lib582(const char *URL)
 {
-  CURLcode res = CURLE_OK;
+  CURLcode result = CURLE_OK;
   CURL *curl = NULL;
   char errbuf[STRERROR_LEN];
   FILE *hd_src = NULL;
   int hd;
   struct_stat file_info;
   CURLM *multi = NULL;
-  struct t582_ReadWriteSockets sockets = {{NULL, 0, 0}, {NULL, 0, 0}};
+  struct t582_ReadWriteSockets sockets = { { NULL, 0, 0 }, { NULL, 0, 0 } };
   int success = 0;
-  struct curltime timeout = {0};
+  struct curltime timeout = { 0 };
   timeout.tv_sec = (time_t)-1;
 
   assert(test_argc >= 5);
@@ -265,9 +265,9 @@ static CURLcode test_lib582(const char *URL)
                 (curl_off_t)file_info.st_size);
 
   res_global_init(CURL_GLOBAL_ALL);
-  if(res != CURLE_OK) {
+  if(result != CURLE_OK) {
     curlx_fclose(hd_src);
-    return res;
+    return result;
   }
 
   easy_init(curl);
@@ -304,7 +304,7 @@ static CURLcode test_lib582(const char *URL)
   while(!t582_checkForCompletion(multi, &success)) {
     fd_set readSet, writeSet;
     curl_socket_t maxFd = 0;
-    struct timeval tv = {0};
+    struct timeval tv = { 0 };
     tv.tv_sec = 10;
 
     FD_ZERO(&readSet);
@@ -341,7 +341,7 @@ static CURLcode test_lib582(const char *URL)
 
   if(!success) {
     curl_mfprintf(stderr, "Error uploading file.\n");
-    res = TEST_ERR_MAJOR_BAD;
+    result = TEST_ERR_MAJOR_BAD;
   }
 
 test_cleanup:
@@ -360,5 +360,5 @@ test_cleanup:
   curlx_free(sockets.read.sockets);
   curlx_free(sockets.write.sockets);
 
-  return res;
+  return result;
 }

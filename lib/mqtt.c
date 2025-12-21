@@ -28,16 +28,14 @@
 #ifndef CURL_DISABLE_MQTT
 
 #include "urldata.h"
-#include <curl/curl.h>
 #include "transfer.h"
 #include "sendf.h"
+#include "curl_trc.h"
 #include "progress.h"
 #include "mqtt.h"
 #include "select.h"
 #include "url.h"
 #include "escape.h"
-#include "curlx/warnless.h"
-#include "multiif.h"
 #include "rand.h"
 
 /* first byte is command.
@@ -51,8 +49,8 @@
 /* #define MQTT_MSG_PINGREQ    0xC0 */
 #define MQTT_MSG_PINGRESP   0xD0
 
-#define MQTT_CONNACK_LEN 2
-#define MQTT_SUBACK_LEN 3
+#define MQTT_CONNACK_LEN  2
+#define MQTT_SUBACK_LEN   3
 #define MQTT_CLIENTID_LEN 12 /* "curl0123abcd" */
 
 /* meta key for storing protocol meta at easy handle */
@@ -91,7 +89,6 @@ struct MQTT {
   unsigned char firstbyte;
   BIT(pingsent); /* 1 while we wait for ping response */
 };
-
 
 /*
  * Forward declarations.
@@ -187,7 +184,7 @@ static CURLcode mqtt_send(struct Curl_easy *data,
   result = Curl_xfer_send(data, buf, len, FALSE, &n);
   if(result)
     return result;
-  mq->lastTime = curlx_now();
+  mq->lastTime = *Curl_pgrs_now(data);
   Curl_debug(data, CURLINFO_HEADER_OUT, buf, n);
   if(len != n) {
     size_t nsend = len - n;
@@ -315,7 +312,7 @@ static CURLcode mqtt_connect(struct Curl_easy *data)
   int rc = 0;
   /* remain length */
   int remain_pos = 0;
-  char remain[4] = {0};
+  char remain[4] = { 0 };
   size_t packetlen = 0;
   size_t start_user = 0;
   size_t start_pwd = 0;
@@ -324,12 +321,10 @@ static CURLcode mqtt_connect(struct Curl_easy *data)
   char *packet = NULL;
 
   /* extracting username from request */
-  const char *username = data->state.aptr.user ?
-    data->state.aptr.user : "";
+  const char *username = data->state.aptr.user ? data->state.aptr.user : "";
   const size_t ulen = strlen(username);
   /* extracting password from request */
-  const char *passwd = data->state.aptr.passwd ?
-    data->state.aptr.passwd : "";
+  const char *passwd = data->state.aptr.passwd ? data->state.aptr.passwd : "";
   const size_t plen = strlen(passwd);
   const size_t payloadlen = ulen + plen + MQTT_CLIENTID_LEN + 2 +
   /* The plus 2s below are for the MSB and LSB describing the length of the
@@ -531,7 +526,7 @@ static CURLcode mqtt_subscribe(struct Curl_easy *data)
   packet[1 + n] = (mqtt->packetid >> 8) & 0xff;
   packet[2 + n] = mqtt->packetid & 0xff;
   packet[3 + n] = (topiclen >> 8) & 0xff;
-  packet[4 + n ] = topiclen & 0xff;
+  packet[4 + n] = topiclen & 0xff;
   memcpy(&packet[5 + n], topic, topiclen);
   packet[5 + n + topiclen] = 0; /* QoS zero */
 
@@ -661,7 +656,7 @@ static size_t mqtt_decode_len(unsigned char *buf,
 }
 
 #ifdef DEBUGBUILD
-static const char *statenames[]={
+static const char *statenames[] = {
   "MQTT_FIRST",
   "MQTT_REMAINING_LENGTH",
   "MQTT_CONNACK",
@@ -694,7 +689,6 @@ static void mqstate(struct Curl_easy *data,
   if(state == MQTT_FIRST)
     mqtt->nextstate = nextstate;
 }
-
 
 static CURLcode mqtt_read_publish(struct Curl_easy *data, bool *done)
 {
@@ -756,7 +750,7 @@ MQTT_SUBACK_COMING:
     FALLTHROUGH();
   case MQTT_PUB_REMAIN: {
     /* read rest of packet, but no more. Cap to buffer size */
-    char buffer[4*1024];
+    char buffer[4 * 1024];
     size_t rest = mq->npacket;
     if(rest > sizeof(buffer))
       rest = sizeof(buffer);
@@ -774,7 +768,7 @@ MQTT_SUBACK_COMING:
     }
 
     /* we received something */
-    mq->lastTime = curlx_now();
+    mq->lastTime = *Curl_pgrs_now(data);
 
     /* if QoS is set, message contains packet id */
     result = Curl_client_write(data, CLIENTWRITE_BODY, buffer, nread);
@@ -804,7 +798,7 @@ static CURLcode mqtt_do(struct Curl_easy *data, bool *done)
 
   if(!mq)
     return CURLE_FAILED_INIT;
-  mq->lastTime = curlx_now();
+  mq->lastTime = *Curl_pgrs_now(data);
   mq->pingsent = FALSE;
 
   result = mqtt_connect(data);
@@ -843,8 +837,8 @@ static CURLcode mqtt_ping(struct Curl_easy *data)
   if(mqtt->state == MQTT_FIRST &&
      !mq->pingsent &&
      data->set.upkeep_interval_ms > 0) {
-    struct curltime t = curlx_now();
-    timediff_t diff = curlx_timediff_ms(t, mq->lastTime);
+    struct curltime t = *Curl_pgrs_now(data);
+    timediff_t diff = curlx_ptimediff_ms(&t, &mq->lastTime);
 
     if(diff > data->set.upkeep_interval_ms) {
       /* 0xC0 is PINGREQ, and 0x00 is remaining length */
@@ -886,7 +880,7 @@ static CURLcode mqtt_doing(struct Curl_easy *data, bool *done)
   if(result)
     return result;
 
-  infof(data, "mqtt_doing: state [%d]", (int) mqtt->state);
+  infof(data, "mqtt_doing: state [%d]", (int)mqtt->state);
   switch(mqtt->state) {
   case MQTT_FIRST:
     /* Read the initial byte only */
@@ -902,7 +896,7 @@ static CURLcode mqtt_doing(struct Curl_easy *data, bool *done)
     Curl_debug(data, CURLINFO_HEADER_IN, (const char *)&mq->firstbyte, 1);
 
     /* we received something */
-    mq->lastTime = curlx_now();
+    mq->lastTime = *Curl_pgrs_now(data);
 
     /* remember the first byte */
     mq->npacket = 0;

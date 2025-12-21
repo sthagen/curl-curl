@@ -33,7 +33,7 @@
 
 /* only acknowledge colon or equals as separators if the option was not
    specified with an initial dash! */
-#define ISSEP(x,dash) (!dash && (((x) == '=') || ((x) == ':')))
+#define ISSEP(x, dash) (!dash && (((x) == '=') || ((x) == ':')))
 
 /*
  * Copies the string from line to the param dynbuf, unquoting backslash-quoted
@@ -76,8 +76,6 @@ static int unslashquote(const char *line, struct dynbuf *param)
   }
   return 0; /* ok */
 }
-
-#define MAX_CONFIG_LINE_LENGTH (10*1024*1024)
 
 /* return 0 on everything-is-fine, and non-zero otherwise */
 ParameterError parseconfig(const char *filename, int max_recursive,
@@ -272,7 +270,6 @@ ParameterError parseconfig(const char *filename, int max_recursive,
   curlx_free(pathalloc);
   return err;
 }
-
 
 static bool get_line(FILE *input, struct dynbuf *buf, bool *error)
 {

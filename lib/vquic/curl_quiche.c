@@ -33,7 +33,7 @@
 #include "../urldata.h"
 #include "../cfilters.h"
 #include "../cf-socket.h"
-#include "../sendf.h"
+#include "../curl_trc.h"
 #include "../rand.h"
 #include "../multiif.h"
 #include "../connect.h"
@@ -46,8 +46,7 @@
 #include "curl_quiche.h"
 #include "../transfer.h"
 #include "../url.h"
-#include "../curlx/inet_pton.h"
-#include "../curlx/warnless.h"
+#include "../bufref.h"
 #include "../vtls/openssl.h"
 #include "../vtls/keylog.h"
 #include "../vtls/vtls.h"
@@ -64,11 +63,11 @@
  * stream buffer to not keep spares. Memory consumption goes down when streams
  * run empty, have a large upload done, etc. */
 #define H3_STREAM_POOL_SPARES \
-          (H3_STREAM_WINDOW_SIZE / H3_STREAM_CHUNK_SIZE ) / 2
+  (H3_STREAM_WINDOW_SIZE / H3_STREAM_CHUNK_SIZE) / 2
 /* Receive and Send max number of chunks just follows from the
  * chunk size and window size */
 #define H3_STREAM_RECV_CHUNKS \
-          (H3_STREAM_WINDOW_SIZE / H3_STREAM_CHUNK_SIZE)
+  (H3_STREAM_WINDOW_SIZE / H3_STREAM_CHUNK_SIZE)
 
 /*
  * Store quiche version info in this buffer.
@@ -864,7 +863,7 @@ static CURLcode cf_quiche_recv(struct Curl_cfilter *cf, struct Curl_easy *data,
   *pnread = 0;
   (void)buf;
   (void)blen;
-  vquic_ctx_update_time(&ctx->q);
+  vquic_ctx_update_time(&ctx->q, Curl_pgrs_now(data));
 
   if(!stream)
     return CURLE_RECV_ERROR;
@@ -1023,8 +1022,8 @@ static CURLcode h3_open_stream(struct Curl_cfilter *cf,
       goto out;
     }
     else {
-      CURL_TRC_CF(data, cf, "send_request(%s) -> %" PRId64,
-                  data->state.url, rv);
+      CURL_TRC_CF(data, cf, "send_request(%s) -> %" PRIu64,
+                  Curl_bufref_ptr(&data->state.url), rv);
     }
     result = CURLE_SEND_ERROR;
     goto out;
@@ -1038,7 +1037,7 @@ static CURLcode h3_open_stream(struct Curl_cfilter *cf,
 
   if(Curl_trc_is_verbose(data)) {
     infof(data, "[HTTP/3] [%" PRIu64 "] OPENED stream for %s",
-          stream->id, data->state.url);
+          stream->id, Curl_bufref_ptr(&data->state.url));
     for(i = 0; i < nheader; ++i) {
       infof(data, "[HTTP/3] [%" PRIu64 "] [%.*s: %.*s]", stream->id,
             (int)nva[i].name_len, nva[i].name,
@@ -1074,7 +1073,7 @@ static CURLcode cf_quiche_send(struct Curl_cfilter *cf, struct Curl_easy *data,
   CURLcode result;
 
   *pnwritten = 0;
-  vquic_ctx_update_time(&ctx->q);
+  vquic_ctx_update_time(&ctx->q, Curl_pgrs_now(data));
 
   result = cf_process_ingress(cf, data);
   if(result)
@@ -1227,12 +1226,12 @@ static CURLcode cf_quiche_ctx_open(struct Curl_cfilter *cf,
   int rv;
   CURLcode result;
   const struct Curl_sockaddr_ex *sockaddr;
-  static const struct alpn_spec ALPN_SPEC_H3 = {{ "h3" }, 1};
+  static const struct alpn_spec ALPN_SPEC_H3 = { { "h3" }, 1 };
 
   DEBUGASSERT(ctx->q.sockfd != CURL_SOCKET_BAD);
   DEBUGASSERT(ctx->initialized);
 
-  result = vquic_ctx_init(&ctx->q);
+  result = vquic_ctx_init(data, &ctx->q);
   if(result)
     return result;
 
@@ -1351,7 +1350,7 @@ static CURLcode cf_quiche_connect(struct Curl_cfilter *cf,
   }
 
   *done = FALSE;
-  vquic_ctx_update_time(&ctx->q);
+  vquic_ctx_update_time(&ctx->q, Curl_pgrs_now(data));
 
   if(!ctx->qconn) {
     result = cf_quiche_ctx_open(cf, data);
@@ -1374,7 +1373,7 @@ static CURLcode cf_quiche_connect(struct Curl_cfilter *cf,
   if(quiche_conn_is_established(ctx->qconn)) {
     ctx->handshake_at = ctx->q.last_op;
     CURL_TRC_CF(data, cf, "handshake complete after %" FMT_TIMEDIFF_T "ms",
-                curlx_timediff_ms(ctx->handshake_at, ctx->started_at));
+                curlx_ptimediff_ms(&ctx->handshake_at, &ctx->started_at));
     result = cf_quiche_verify_peer(cf, data);
     if(!result) {
       CURL_TRC_CF(data, cf, "peer verified");
@@ -1433,7 +1432,7 @@ static CURLcode cf_quiche_shutdown(struct Curl_cfilter *cf,
     int err;
 
     ctx->shutdown_started = TRUE;
-    vquic_ctx_update_time(&ctx->q);
+    vquic_ctx_update_time(&ctx->q, Curl_pgrs_now(data));
     err = quiche_conn_close(ctx->qconn, TRUE, 0, NULL, 0);
     if(err) {
       CURL_TRC_CF(data, cf, "error %d adding shutdown packet, "
@@ -1492,19 +1491,20 @@ static CURLcode cf_quiche_query(struct Curl_cfilter *cf,
 
   switch(query) {
   case CF_QUERY_MAX_CONCURRENT: {
-    uint64_t max_streams = CONN_ATTACHED(cf->conn);
+    uint64_t max_streams = cf->conn->attached_xfers;
     if(!ctx->goaway && ctx->qconn) {
       max_streams += quiche_conn_peer_streams_left_bidi(ctx->qconn);
     }
     *pres1 = (max_streams > INT_MAX) ? INT_MAX : (int)max_streams;
     CURL_TRC_CF(data, cf, "query conn[%" FMT_OFF_T "]: "
                 "MAX_CONCURRENT -> %d (%u in use)",
-                cf->conn->connection_id, *pres1, CONN_ATTACHED(cf->conn));
+                cf->conn->connection_id, *pres1, cf->conn->attached_xfers);
     return CURLE_OK;
   }
   case CF_QUERY_CONNECT_REPLY_MS:
     if(ctx->q.got_first_byte) {
-      timediff_t ms = curlx_timediff_ms(ctx->q.first_byte_at, ctx->started_at);
+      timediff_t ms = curlx_ptimediff_ms(&ctx->q.first_byte_at,
+                                         &ctx->started_at);
       *pres1 = (ms < INT_MAX) ? (int)ms : INT_MAX;
     }
     else

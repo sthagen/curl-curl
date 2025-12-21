@@ -118,7 +118,7 @@ static int t537_test_rlimit(int keep_open)
   /* If the OS allows a HUGE number of open files, we do not run.
    * Modern debian sid reports a limit of 134217724 and this tests
    * takes minutes. */
-#define LIMIT_CAP     (256 * 1024)
+#define LIMIT_CAP (256 * 1024)
   if(rl.rlim_cur > LIMIT_CAP) {
     curl_mfprintf(stderr, "soft limit above %ld, not running\n",
                   (long)LIMIT_CAP);
@@ -439,7 +439,7 @@ static int t537_test_rlimit(int keep_open)
 
 static CURLcode test_lib537(const char *URL)
 {
-  CURLcode res;
+  CURLcode result;
   CURL *curl;
 
   if(!strcmp(URL, "check")) {
@@ -476,7 +476,7 @@ static CURLcode test_lib537(const char *URL)
   test_setopt(curl, CURLOPT_URL, URL);
   test_setopt(curl, CURLOPT_HEADER, 1L);
 
-  res = curl_easy_perform(curl);
+  result = curl_easy_perform(curl);
 
 test_cleanup:
 
@@ -484,7 +484,7 @@ test_cleanup:
   curl_easy_cleanup(curl);
   curl_global_cleanup();
 
-  return res;
+  return result;
 }
 
 #else /* HAVE_GETRLIMIT && HAVE_SETRLIMIT */

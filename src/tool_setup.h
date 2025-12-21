@@ -45,8 +45,6 @@ extern FILE *tool_stderr;
  * curl tool certainly uses libcurl's external interface.
  */
 
-#include <curl/curl.h> /* external interface */
-
 #include <curlx/curlx.h>
 
 /*
@@ -54,7 +52,7 @@ extern FILE *tool_stderr;
  */
 
 #ifdef macintosh
-#  define main(x,y) curl_main(x,y)
+#  define main(x, y) curl_main(x, y)
 #endif
 
 #ifndef CURL_OS
@@ -73,7 +71,7 @@ extern FILE *tool_stderr;
 #endif
 
 #ifndef tool_nop_stmt
-#define tool_nop_stmt do { } while(0)
+#define tool_nop_stmt do {} while(0)
 #endif
 
 #ifdef _WIN32
@@ -100,7 +98,7 @@ extern bool tool_term_has_bold;
 int tool_ftruncate64(int fd, curl_off_t where);
 
 #undef  ftruncate
-#define ftruncate(fd,where) tool_ftruncate64(fd,where)
+#define ftruncate(fd, where) tool_ftruncate64(fd, where)
 
 #define HAVE_FTRUNCATE 1
 #define USE_TOOL_FTRUNCATE 1

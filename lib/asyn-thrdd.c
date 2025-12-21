@@ -56,13 +56,12 @@
 
 #include "urldata.h"
 #include "cfilters.h"
-#include "sendf.h"
+#include "curl_trc.h"
 #include "hostip.h"
-#include "hash.h"
-#include "curl_share.h"
 #include "url.h"
 #include "multiif.h"
 #include "curl_threads.h"
+#include "progress.h"
 #include "select.h"
 
 #ifdef USE_ARES
@@ -442,7 +441,7 @@ static bool async_thrdd_init(struct Curl_easy *data,
 
   /* passing addr_ctx to the thread adds a reference */
   addr_ctx->ref_count = 2;
-  addr_ctx->start = curlx_now();
+  addr_ctx->start = *Curl_pgrs_now(data);
 
 #ifdef HAVE_GETADDRINFO
   addr_ctx->thread_hnd = Curl_thread_create(getaddrinfo_thread, addr_ctx);
@@ -655,8 +654,8 @@ CURLcode Curl_async_is_resolved(struct Curl_easy *data,
   else {
     /* poll for name lookup done with exponential backoff up to 250ms */
     /* should be fine even if this converts to 32-bit */
-    timediff_t elapsed = curlx_timediff_ms(curlx_now(),
-                                           data->progress.t_startsingle);
+    timediff_t elapsed = curlx_ptimediff_ms(Curl_pgrs_now(data),
+                                            &data->progress.t_startsingle);
     if(elapsed < 0)
       elapsed = 0;
 
@@ -706,7 +705,8 @@ CURLcode Curl_async_pollset(struct Curl_easy *data, struct easy_pollset *ps)
     result = Curl_pollset_add_in(data, ps, thrdd->addr->sock_pair[0]);
 #else
     timediff_t milli;
-    timediff_t ms = curlx_timediff_ms(curlx_now(), thrdd->addr->start);
+    timediff_t ms =
+      curlx_ptimediff_ms(Curl_pgrs_now(data), &thrdd->addr->start);
     if(ms < 3)
       milli = 0;
     else if(ms <= 50)
@@ -725,24 +725,18 @@ CURLcode Curl_async_pollset(struct Curl_easy *data, struct easy_pollset *ps)
 /*
  * Curl_async_getaddrinfo() - for platforms without getaddrinfo
  */
-struct Curl_addrinfo *Curl_async_getaddrinfo(struct Curl_easy *data,
-                                             const char *hostname,
-                                             int port,
-                                             int ip_version,
-                                             int *waitp)
+CURLcode Curl_async_getaddrinfo(struct Curl_easy *data, const char *hostname,
+                                int port, int ip_version)
 {
   (void)ip_version;
-  *waitp = 0; /* default to synchronous response */
 
   /* fire up a new resolver thread! */
   if(async_thrdd_init(data, hostname, port, ip_version, NULL)) {
-    *waitp = 1; /* expect asynchronous response */
-    return NULL;
+    return CURLE_OK;
   }
 
   failf(data, "getaddrinfo() thread failed");
-
-  return NULL;
+  return CURLE_FAILED_INIT;
 }
 
 #else /* !HAVE_GETADDRINFO */

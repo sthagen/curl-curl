@@ -25,8 +25,6 @@
  ***************************************************************************/
 #include "curl_setup.h"
 
-#include <curl/curl.h>
-
 #include "llist.h"
 
 struct Cookie {
@@ -34,8 +32,7 @@ struct Cookie {
   struct Curl_llist_node getnode; /* for getlist */
   char *name;                     /* <this> = value */
   char *value;                    /* name = <this> */
-  char *path;                     /* path = <this> which is in Set-Cookie: */
-  char *spath;                    /* sanitized cookie path */
+  char *path;                     /* canonical path */
   char *domain;                   /* domain = <this> */
   curl_off_t expires;             /* expires = <this> */
   unsigned int creationtime;      /* time when the cookie was written */

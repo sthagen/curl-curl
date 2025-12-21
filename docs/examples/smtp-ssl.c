@@ -38,9 +38,9 @@
  * Note that this example requires libcurl 7.20.0 or above.
  */
 
-#define FROM_MAIL     "<sender@example.com>"
-#define TO_MAIL       "<recipient@example.com>"
-#define CC_MAIL       "<info@example.com>"
+#define FROM_MAIL "<sender@example.com>"
+#define TO_MAIL   "<recipient@example.com>"
+#define CC_MAIL   "<info@example.com>"
 
 static const char *payload_text =
   "Date: Mon, 29 Nov 2010 21:54:29 +1100\r\n"
@@ -86,14 +86,14 @@ int main(void)
 {
   CURL *curl;
 
-  CURLcode res = curl_global_init(CURL_GLOBAL_ALL);
-  if(res)
-    return (int)res;
+  CURLcode result = curl_global_init(CURL_GLOBAL_ALL);
+  if(result)
+    return (int)result;
 
   curl = curl_easy_init();
   if(curl) {
     struct curl_slist *recipients = NULL;
-    struct upload_status upload_ctx = {0};
+    struct upload_status upload_ctx = { 0 };
 
     /* Set username and password */
     curl_easy_setopt(curl, CURLOPT_USERNAME, "user");
@@ -152,12 +152,12 @@ int main(void)
     curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
 
     /* Send the message */
-    res = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
 
     /* Check for errors */
-    if(res != CURLE_OK)
+    if(result != CURLE_OK)
       fprintf(stderr, "curl_easy_perform() failed: %s\n",
-              curl_easy_strerror(res));
+              curl_easy_strerror(result));
 
     /* Free the list of recipients */
     curl_slist_free_all(recipients);
@@ -168,5 +168,5 @@ int main(void)
 
   curl_global_cleanup();
 
-  return (int)res;
+  return (int)result;
 }

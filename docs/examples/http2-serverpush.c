@@ -136,7 +136,7 @@ static int setup(CURL *curl, const char *url)
 {
   out_download = fopen(OUTPUTFILE, "wb");
   if(!out_download)
-    return 1;  /* failed */
+    return 1; /* failed */
 
   /* set the same URL */
   curl_easy_setopt(curl, CURLOPT_URL, url);
@@ -215,7 +215,7 @@ static int server_push_callback(CURL *parent,
  */
 int main(int argc, char *argv[])
 {
-  CURLcode res;
+  CURLcode result;
   CURL *curl;
   CURLM *multi;
   int transfers = 1; /* we start with one */
@@ -224,9 +224,9 @@ int main(int argc, char *argv[])
   if(argc == 2)
     url = argv[1];
 
-  res = curl_global_init(CURL_GLOBAL_ALL);
-  if(res)
-    return (int)res;
+  result = curl_global_init(CURL_GLOBAL_ALL);
+  if(result)
+    return (int)result;
 
   /* init a multi stack */
   multi = curl_multi_init();
@@ -251,13 +251,13 @@ int main(int argc, char *argv[])
   do {
     struct CURLMsg *m;
     int still_running; /* keep number of running handles */
-    CURLMcode mc = curl_multi_perform(multi, &still_running);
+    CURLMcode mresult = curl_multi_perform(multi, &still_running);
 
     if(still_running)
       /* wait for activity, timeout or "nothing" */
-      mc = curl_multi_poll(multi, NULL, 0, 1000, NULL);
+      mresult = curl_multi_poll(multi, NULL, 0, 1000, NULL);
 
-    if(mc)
+    if(mresult)
       break;
 
     /*

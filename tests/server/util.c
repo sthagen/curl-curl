@@ -23,6 +23,8 @@
  ***************************************************************************/
 #include "first.h"
 
+#include <toolx/tool_time.h>
+
 #ifdef HAVE_FCNTL_H
 #include <fcntl.h>
 #endif
@@ -83,8 +85,9 @@ void logmsg(const char *msg, ...)
   char buffer[2048 + 1];
   FILE *logfp;
   struct curltime tv;
+  CURLcode result;
   time_t sec;
-  struct tm *now;
+  struct tm now;
   char timebuf[50];
   static time_t epoch_offset;
   static int    known_offset;
@@ -100,12 +103,12 @@ void logmsg(const char *msg, ...)
     known_offset = 1;
   }
   sec = epoch_offset + tv.tv_sec;
-  /* !checksrc! disable BANNEDFUNC 1 */
-  now = localtime(&sec); /* not thread safe but we do not care */
+  result = toolx_localtime(sec, &now);
+  if(result)
+    memset(&now, 0, sizeof(now));
 
   snprintf(timebuf, sizeof(timebuf), "%02d:%02d:%02d.%06ld",
-           (int)now->tm_hour, (int)now->tm_min, (int)now->tm_sec,
-           (long)tv.tv_usec);
+           now.tm_hour, now.tm_min, now.tm_sec, (long)tv.tv_usec);
 
   va_start(ap, msg);
 #ifdef __clang__
@@ -404,7 +407,7 @@ static void exit_signal_handler(int signum)
  * SIGINT is not supported for any Win32 application. When a CTRL+C
  * interrupt occurs, Win32 operating systems generate a new thread
  * to specifically handle that interrupt. This can cause a single-thread
- * application, such as one in UNIX, to become multithreaded and cause
+ * application, such as one in UNIX, to become multi-threaded and cause
  * unexpected behavior.
  * [...]
  * The SIGKILL and SIGTERM signals are not generated under Windows.
@@ -763,42 +766,48 @@ curl_socket_t sockdaemon(curl_socket_t sock,
   (void)unix_socket;
 #endif
 
-  do {
-    attempt++;
-    flag = 1;
-    rc = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
-                    (void *)&flag, sizeof(flag));
-    if(rc) {
-      error = SOCKERRNO;
-      logmsg("setsockopt(SO_REUSEADDR) failed with error (%d) %s",
-             error, curlx_strerror(error, errbuf, sizeof(errbuf)));
-      if(maxretr) {
-        rc = curlx_wait_ms(delay);
-        if(rc) {
-          /* should not happen */
-          error = SOCKERRNO;
-          logmsg("curlx_wait_ms() failed with error (%d) %s",
-                 error, curlx_strerror(error, errbuf, sizeof(errbuf)));
-          sclose(sock);
-          return CURL_SOCKET_BAD;
+#if defined(_WIN32) && defined(USE_UNIX_SOCKETS)
+  if(socket_domain != AF_UNIX) {
+#endif
+    do {
+      attempt++;
+      flag = 1;
+      rc = setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
+                      (void *)&flag, sizeof(flag));
+      if(rc) {
+        error = SOCKERRNO;
+        logmsg("setsockopt(SO_REUSEADDR) failed with error (%d) %s",
+               error, curlx_strerror(error, errbuf, sizeof(errbuf)));
+        if(maxretr) {
+          rc = curlx_wait_ms(delay);
+          if(rc) {
+            /* should not happen */
+            error = SOCKERRNO;
+            logmsg("curlx_wait_ms() failed with error (%d) %s",
+                   error, curlx_strerror(error, errbuf, sizeof(errbuf)));
+            sclose(sock);
+            return CURL_SOCKET_BAD;
+          }
+          if(got_exit_signal) {
+            logmsg("signalled to die, exiting...");
+            sclose(sock);
+            return CURL_SOCKET_BAD;
+          }
+          totdelay += delay;
+          delay *= 2; /* double the sleep for next attempt */
         }
-        if(got_exit_signal) {
-          logmsg("signalled to die, exiting...");
-          sclose(sock);
-          return CURL_SOCKET_BAD;
-        }
-        totdelay += delay;
-        delay *= 2; /* double the sleep for next attempt */
       }
-    }
-  } while(rc && maxretr--);
+    } while(rc && maxretr--);
 
-  if(rc) {
-    logmsg("setsockopt(SO_REUSEADDR) failed %d times in %d ms. Error (%d) %s",
-           attempt, totdelay,
-           error, curlx_strerror(error, errbuf, sizeof(errbuf)));
-    logmsg("Continuing anyway...");
+    if(rc) {
+      logmsg("setsockopt(SO_REUSEADDR) failed %d times in %d ms. "
+             "Error (%d) %s", attempt, totdelay,
+             error, curlx_strerror(error, errbuf, sizeof(errbuf)));
+      logmsg("Continuing anyway...");
+    }
+#if defined(_WIN32) && defined(USE_UNIX_SOCKETS)
   }
+#endif
 
   /* When the specified listener port is zero, it is actually a
      request to let the system choose a non-zero available port. */

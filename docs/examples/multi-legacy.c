@@ -41,9 +41,9 @@
  * Download an HTTP file and upload an FTP file simultaneously.
  */
 
-#define HTTP_HANDLE 0   /* Index for the HTTP transfer */
-#define FTP_HANDLE 1    /* Index for the FTP transfer */
-#define HANDLECOUNT 2   /* Number of simultaneous transfers */
+#define HTTP_HANDLE 0  /* Index for the HTTP transfer */
+#define FTP_HANDLE  1  /* Index for the FTP transfer */
+#define HANDLECOUNT 2  /* Number of simultaneous transfers */
 
 int main(void)
 {
@@ -52,9 +52,9 @@ int main(void)
 
   int i;
 
-  CURLcode res = curl_global_init(CURL_GLOBAL_ALL);
-  if(res)
-    return (int)res;
+  CURLcode result = curl_global_init(CURL_GLOBAL_ALL);
+  if(result)
+    return (int)result;
 
   /* Allocate one curl handle per transfer */
   for(i = 0; i < HANDLECOUNT; i++)
@@ -86,7 +86,7 @@ int main(void)
 
       struct timeval timeout;
       int rc;       /* select() return code */
-      CURLMcode mc; /* curl_multi_fdset() return code */
+      CURLMcode mresult; /* curl_multi_fdset() return code */
 
       fd_set fdread;
       fd_set fdwrite;
@@ -121,10 +121,10 @@ int main(void)
       }
 
       /* get file descriptors from the transfers */
-      mc = curl_multi_fdset(multi, &fdread, &fdwrite, &fdexcep, &maxfd);
+      mresult = curl_multi_fdset(multi, &fdread, &fdwrite, &fdexcep, &maxfd);
 
-      if(mc != CURLM_OK) {
-        fprintf(stderr, "curl_multi_fdset() failed, code %d.\n", mc);
+      if(mresult != CURLM_OK) {
+        fprintf(stderr, "curl_multi_fdset() failed, code %d.\n", mresult);
         break;
       }
 
@@ -140,7 +140,7 @@ int main(void)
         rc = 0;
 #else
         /* Portable sleep for platforms other than Windows. */
-        struct timeval wait = {0};
+        struct timeval wait = { 0 };
         wait.tv_usec = 100 * 1000; /* 100ms */
         rc = select(0, NULL, NULL, NULL, &wait);
 #endif
@@ -155,7 +155,7 @@ int main(void)
       case -1:
         /* select error */
         break;
-      case 0:  /* timeout */
+      case 0: /* timeout */
       default: /* action */
         curl_multi_perform(multi, &still_running);
         break;

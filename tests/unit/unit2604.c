@@ -35,7 +35,7 @@ static CURLcode test_unit2604(const char *arg)
     const char *expect; /* the returned content */
     const char *next;   /* what cp points to after the call */
     const char *home;
-    CURLcode res;
+    CURLcode result;
   };
 
 #if defined(CURL_GNUC_DIAG) || defined(__clang__)
@@ -50,27 +50,27 @@ static CURLcode test_unit2604(const char *arg)
   int i;
   const size_t too_long = 90720;
   struct set list[] = {
-    { "-too-long-", "", "", "", CURLE_TOO_LARGE},
-    { SA540 " c", SA540, "c", "/", CURLE_OK},
-    { "\" " SA540 "\" c", " " SA540, "c", "/", CURLE_OK},
-    { "a a", "a", "a", "/home/", CURLE_OK},
-    { "b a", "b", "a", "/", CURLE_OK},
-    { "a", "a", "", "/home/", CURLE_OK},
-    { "b", "b", "", "/", CURLE_OK},
-    { "\"foo bar\"\tb", "foo bar", "b", "/", CURLE_OK},
-    { "/~/hej", "/home/user/hej", "", "/home/user", CURLE_OK},
-    { "\"foo bar", "", "", "/", CURLE_QUOTE_ERROR},
-    { "\"foo\\\"bar\" a", "foo\"bar", "a", "/", CURLE_OK},
-    { "\"foo\\\'bar\" b", "foo\'bar", "b", "/", CURLE_OK},
-    { "\"foo\\\\bar\" c", "foo\\bar", "c", "/", CURLE_OK},
-    { "\"foo\\pbar\" c", "foo\\bar", "", "/", CURLE_QUOTE_ERROR},
-    { "\"\" c", "", "", "", CURLE_QUOTE_ERROR},
-    { "foo\"", "foo\"", "", "/", CURLE_OK},
-    { "foo \"", "foo", "\"", "/", CURLE_OK},
-    { "   \t\t   \t  ", "", "", "/", CURLE_QUOTE_ERROR},
-    { "              ", "", "", "/", CURLE_QUOTE_ERROR},
-    { "", "", "", "/", CURLE_QUOTE_ERROR},
-    { "       \r \n  ", "\r", "\n  ", "/", CURLE_OK},
+    { "-too-long-", "", "", "", CURLE_TOO_LARGE },
+    { SA540 " c", SA540, "c", "/", CURLE_OK },
+    { "\" " SA540 "\" c", " " SA540, "c", "/", CURLE_OK },
+    { "a a", "a", "a", "/home/", CURLE_OK },
+    { "b a", "b", "a", "/", CURLE_OK },
+    { "a", "a", "", "/home/", CURLE_OK },
+    { "b", "b", "", "/", CURLE_OK },
+    { "\"foo bar\"\tb", "foo bar", "b", "/", CURLE_OK },
+    { "/~/hej", "/home/user/hej", "", "/home/user", CURLE_OK },
+    { "\"foo bar", "", "", "/", CURLE_QUOTE_ERROR },
+    { "\"foo\\\"bar\" a", "foo\"bar", "a", "/", CURLE_OK },
+    { "\"foo\\\'bar\" b", "foo\'bar", "b", "/", CURLE_OK },
+    { "\"foo\\\\bar\" c", "foo\\bar", "c", "/", CURLE_OK },
+    { "\"foo\\pbar\" c", "foo\\bar", "", "/", CURLE_QUOTE_ERROR },
+    { "\"\" c", "", "", "", CURLE_QUOTE_ERROR },
+    { "foo\"", "foo\"", "", "/", CURLE_OK },
+    { "foo \"", "foo", "\"", "/", CURLE_OK },
+    { "   \t\t   \t  ", "", "", "/", CURLE_QUOTE_ERROR },
+    { "              ", "", "", "/", CURLE_QUOTE_ERROR },
+    { "", "", "", "/", CURLE_QUOTE_ERROR },
+    { "       \r \n  ", "\r", "\n  ", "/", CURLE_OK },
     { NULL, NULL, NULL, NULL, CURLE_OK }
   };
 
@@ -85,14 +85,14 @@ static CURLcode test_unit2604(const char *arg)
   for(i = 0; list[i].home; i++) {
     char *path;
     const char *cp = i == 0 ? cp0 : list[i].cp;
-    CURLcode res = Curl_get_pathname(&cp, &path, list[i].home);
+    CURLcode result = Curl_get_pathname(&cp, &path, list[i].home);
     curl_mprintf("%u - Curl_get_pathname(\"%s\", ... \"%s\") == %u\n", i,
-                 list[i].cp, list[i].home, list[i].res);
-    if(res != list[i].res) {
-      curl_mprintf("... returned %d\n", res);
+                 list[i].cp, list[i].home, list[i].result);
+    if(result != list[i].result) {
+      curl_mprintf("... returned %d\n", result);
       unitfail++;
     }
-    if(!res) {
+    if(!result) {
       if(cp && strcmp(cp, list[i].next)) {
         curl_mprintf("... cp points to '%s', not '%s' as expected \n",
                      cp, list[i].next);

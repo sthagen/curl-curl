@@ -34,9 +34,9 @@
  * libcurl's multi interface.
  */
 
-#define FROM_MAIL     "<sender@example.com>"
-#define TO_MAIL       "<recipient@example.com>"
-#define CC_MAIL       "<info@example.com>"
+#define FROM_MAIL "<sender@example.com>"
+#define TO_MAIL   "<recipient@example.com>"
+#define CC_MAIL   "<info@example.com>"
 
 static const char *payload_text =
   "Date: Mon, 29 Nov 2010 21:54:29 +1100\r\n"
@@ -82,9 +82,9 @@ int main(void)
 {
   CURL *curl;
 
-  CURLcode res = curl_global_init(CURL_GLOBAL_ALL);
-  if(res)
-    return (int)res;
+  CURLcode result = curl_global_init(CURL_GLOBAL_ALL);
+  if(result)
+    return (int)result;
 
   curl = curl_easy_init();
   if(curl) {
@@ -94,7 +94,7 @@ int main(void)
     if(multi) {
       int still_running = 1;
       struct curl_slist *recipients = NULL;
-      struct upload_status upload_ctx = {0};
+      struct upload_status upload_ctx = { 0 };
 
       /* This is the URL for your mailserver */
       curl_easy_setopt(curl, CURLOPT_URL, "smtp://mail.example.com");
@@ -126,13 +126,13 @@ int main(void)
       curl_multi_add_handle(multi, curl);
 
       do {
-        CURLMcode mc = curl_multi_perform(multi, &still_running);
+        CURLMcode mresult = curl_multi_perform(multi, &still_running);
 
         if(still_running)
           /* wait for activity, timeout or "nothing" */
-          mc = curl_multi_poll(multi, NULL, 0, 1000, NULL);
+          mresult = curl_multi_poll(multi, NULL, 0, 1000, NULL);
 
-        if(mc)
+        if(mresult)
           break;
 
       } while(still_running);

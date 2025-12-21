@@ -27,7 +27,6 @@
 #if !defined(CURL_DISABLE_DIGEST_AUTH) && !defined(CURL_DISABLE_SHA512_256)
 
 #include "curl_sha512_256.h"
-#include "curlx/warnless.h"
 
 /* The recommended order of the TLS backends:
  * 1. OpenSSL
@@ -65,7 +64,6 @@
             (__NetBSD_Version__ >= 1099000000 &&  \
              __NetBSD_Version__ <  1099001100)
 #          define NEED_NETBSD_SHA512_256_WORKAROUND 1
-#          include <string.h>
 #        endif
 #      endif
 #    endif
@@ -238,8 +236,7 @@ static CURLcode Curl_sha512_256_update(void *context,
  #             bytes
  * @return always CURLE_OK
  */
-static CURLcode Curl_sha512_256_finish(unsigned char *digest,
-                                       void *context)
+static CURLcode Curl_sha512_256_finish(unsigned char *digest, void *context)
 {
   Curl_sha512_256_ctx * const ctx = (Curl_sha512_256_ctx *)context;
 
@@ -453,19 +450,19 @@ static void Curl_sha512_256_transform(uint64_t H[SHA512_256_HASH_SIZE_WORDS],
 
   /* 'Ch' and 'Maj' macro functions are defined with widely-used optimization.
      See FIPS PUB 180-4 formulae 4.8, 4.9. */
-#define Sha512_Ch(x, y, z)    ( (z) ^ ((x) & ((y) ^ (z))) )
-#define Sha512_Maj(x, y, z)   ( ((x) & (y)) ^ ((z) & ((x) ^ (y))) )
+#define Sha512_Ch(x, y, z)    ((z) ^ ((x) & ((y) ^ (z))))
+#define Sha512_Maj(x, y, z)   (((x) & (y)) ^ ((z) & ((x) ^ (y))))
 
   /* Four 'Sigma' macro functions.
      See FIPS PUB 180-4 formulae 4.10, 4.11, 4.12, 4.13. */
 #define SIG0(x)                                                         \
-  ( Curl_rotr64((x), 28) ^ Curl_rotr64((x), 34) ^ Curl_rotr64((x), 39) )
+  (Curl_rotr64((x), 28) ^ Curl_rotr64((x), 34) ^ Curl_rotr64((x), 39))
 #define SIG1(x)                                                         \
-  ( Curl_rotr64((x), 14) ^ Curl_rotr64((x), 18) ^ Curl_rotr64((x), 41) )
+  (Curl_rotr64((x), 14) ^ Curl_rotr64((x), 18) ^ Curl_rotr64((x), 41))
 #define sig0(x)                                                 \
-  ( Curl_rotr64((x), 1) ^ Curl_rotr64((x), 8) ^ ((x) >> 7) )
+  (Curl_rotr64((x), 1) ^ Curl_rotr64((x), 8) ^ ((x) >> 7))
 #define sig1(x)                                                 \
-  ( Curl_rotr64((x), 19) ^ Curl_rotr64((x), 61) ^ ((x) >> 6) )
+  (Curl_rotr64((x), 19) ^ Curl_rotr64((x), 61) ^ ((x) >> 6))
 
   if(1) {
     unsigned int t;
@@ -628,9 +625,7 @@ static CURLcode Curl_sha512_256_update(void *context,
     if(length >= bytes_left) {
       /* Combine new data with data in the buffer and process the full
          block. */
-      memcpy(((unsigned char *)ctx_buf) + bytes_have,
-             data,
-             bytes_left);
+      memcpy(((unsigned char *)ctx_buf) + bytes_have, data, bytes_left);
       data += bytes_left;
       length -= bytes_left;
       Curl_sha512_256_transform(ctx->H, ctx->buffer);

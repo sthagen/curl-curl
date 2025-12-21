@@ -26,11 +26,9 @@
 
 #ifdef _WIN32
 
-#include <curl/curl.h>
 #include "system_win32.h"
 #include "curlx/version_win32.h"
 #include "curl_sspi.h"
-#include "curlx/warnless.h"
 
 #ifndef HAVE_IF_NAMETOINDEX
 /* Handle of iphlpapp.dll */
@@ -70,7 +68,7 @@ CURLcode Curl_win32_init(long flags)
     /* highest supported version. */
 
     if(LOBYTE(wsaData.wVersion) != LOBYTE(wVersionRequested) ||
-       HIBYTE(wsaData.wVersion) != HIBYTE(wVersionRequested) ) {
+       HIBYTE(wsaData.wVersion) != HIBYTE(wVersionRequested)) {
       /* Tell the user that we could not find a usable */
 
       /* winsock.dll. */

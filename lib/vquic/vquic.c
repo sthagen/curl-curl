@@ -34,13 +34,13 @@
 #include "../bufq.h"
 #include "../curlx/dynbuf.h"
 #include "../curlx/fopen.h"
-#include "../curlx/warnless.h"
 #include "../cfilters.h"
 #include "../curl_trc.h"
 #include "curl_ngtcp2.h"
 #include "curl_osslq.h"
 #include "curl_quiche.h"
 #include "../multiif.h"
+#include "../progress.h"
 #include "../rand.h"
 #include "vquic.h"
 #include "vquic_int.h"
@@ -52,7 +52,6 @@
 
 #define NW_CHUNK_SIZE     (64 * 1024)
 #define NW_SEND_CHUNKS    1
-
 
 int Curl_vquic_init(void)
 {
@@ -75,7 +74,8 @@ void Curl_quic_ver(char *p, size_t len)
 #endif
 }
 
-CURLcode vquic_ctx_init(struct cf_quic_ctx *qctx)
+CURLcode vquic_ctx_init(struct Curl_easy *data,
+                        struct cf_quic_ctx *qctx)
 {
   Curl_bufq_init2(&qctx->sendbuf, NW_CHUNK_SIZE, NW_SEND_CHUNKS,
                   BUFQ_OPT_SOFT_LIMIT);
@@ -94,7 +94,7 @@ CURLcode vquic_ctx_init(struct cf_quic_ctx *qctx)
     }
   }
 #endif
-  vquic_ctx_update_time(qctx);
+  vquic_ctx_set_time(qctx, Curl_pgrs_now(data));
 
   return CURLE_OK;
 }
@@ -104,9 +104,16 @@ void vquic_ctx_free(struct cf_quic_ctx *qctx)
   Curl_bufq_free(&qctx->sendbuf);
 }
 
-void vquic_ctx_update_time(struct cf_quic_ctx *qctx)
+void vquic_ctx_set_time(struct cf_quic_ctx *qctx,
+                        const struct curltime *pnow)
 {
-  qctx->last_op = curlx_now();
+  qctx->last_op = *pnow;
+}
+
+void vquic_ctx_update_time(struct cf_quic_ctx *qctx,
+                           const struct curltime *pnow)
+{
+  qctx->last_op = *pnow;
 }
 
 static CURLcode send_packet_no_gso(struct Curl_cfilter *cf,
@@ -124,7 +131,7 @@ static CURLcode do_sendmsg(struct Curl_cfilter *cf,
   CURLcode result = CURLE_OK;
 #ifdef HAVE_SENDMSG
   struct iovec msg_iov;
-  struct msghdr msg = {0};
+  struct msghdr msg = { 0 };
   ssize_t rv;
 #if defined(__linux__) && defined(UDP_SEGMENT)
   uint8_t msg_ctrl[32];
@@ -153,8 +160,7 @@ static CURLcode do_sendmsg(struct Curl_cfilter *cf,
   }
 #endif
 
-  while((rv = sendmsg(qctx->sockfd, &msg, 0)) == -1 &&
-        SOCKERRNO == SOCKEINTR)
+  while((rv = sendmsg(qctx->sockfd, &msg, 0)) == -1 && SOCKERRNO == SOCKEINTR)
     ;
 
   if(!curlx_sztouz(rv, psent)) {
@@ -442,12 +448,14 @@ static CURLcode recvmmsg_packets(struct Curl_cfilter *cf,
 
     ++calls;
     for(i = 0; i < mcount; ++i) {
+      /* A zero-length UDP packet is no QUIC packet. Ignore. */
+      if(!mmsg[i].msg_len)
+        continue;
       total_nread += mmsg[i].msg_len;
 
       gso_size = vquic_msghdr_get_udp_gro(&mmsg[i].msg_hdr);
-      if(gso_size == 0) {
+      if(gso_size == 0)
         gso_size = mmsg[i].msg_len;
-      }
 
       result = recv_cb(bufs[i], mmsg[i].msg_len, gso_size,
                        mmsg[i].msg_hdr.msg_name,
@@ -516,7 +524,7 @@ static CURLcode recvmsg_packets(struct Curl_cfilter *cf,
       }
       curlx_strerror(SOCKERRNO, errstr, sizeof(errstr));
       failf(data, "QUIC: recvmsg() unexpectedly returned %zd (errno=%d; %s)",
-                  rc, SOCKERRNO, errstr);
+            rc, SOCKERRNO, errstr);
       result = CURLE_RECV_ERROR;
       goto out;
     }
@@ -524,10 +532,13 @@ static CURLcode recvmsg_packets(struct Curl_cfilter *cf,
     total_nread += nread;
     ++calls;
 
+    /* A 0-length UDP packet is no QUIC packet */
+    if(!nread)
+      continue;
+
     gso_size = vquic_msghdr_get_udp_gro(&msg);
-    if(gso_size == 0) {
+    if(gso_size == 0)
       gso_size = nread;
-    }
 
     result = recv_cb(buf, nread, gso_size,
                      msg.msg_name, msg.msg_namelen, 0, userp);
@@ -581,13 +592,18 @@ static CURLcode recvfrom_packets(struct Curl_cfilter *cf,
       }
       curlx_strerror(SOCKERRNO, errstr, sizeof(errstr));
       failf(data, "QUIC: recvfrom() unexpectedly returned %zd (errno=%d; %s)",
-                  rv, SOCKERRNO, errstr);
+            rv, SOCKERRNO, errstr);
       result = CURLE_RECV_ERROR;
       goto out;
     }
 
     ++pkts;
     ++calls;
+
+    /* A 0-length UDP packet is no QUIC packet */
+    if(!nread)
+      continue;
+
     total_nread += nread;
     result = recv_cb(buf, nread, nread, &remote_addr, remote_addrlen,
                      0, userp);

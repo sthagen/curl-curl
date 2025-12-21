@@ -34,26 +34,18 @@
 #include <netinet/tcp.h>
 #endif
 
-#include <curl/curl.h>
-
 #include "urldata.h"
 #include "sendf.h"
+#include "curl_trc.h"
 #include "transfer.h"
 #include "cfilters.h"
 #include "connect.h"
-#include "content_encoding.h"
 #include "cw-out.h"
 #include "cw-pause.h"
-#include "vtls/vtls.h"
-#include "vssh/ssh.h"
-#include "easyif.h"
 #include "multiif.h"
 #include "strerror.h"
-#include "select.h"
 #include "http2.h"
 #include "progress.h"
-#include "curlx/warnless.h"
-#include "ws.h"
 
 
 static CURLcode do_init_writer_stack(struct Curl_easy *data);
@@ -69,13 +61,14 @@ CURLcode Curl_client_write(struct Curl_easy *data,
   CURLcode result;
 
   /* it is one of those, at least */
-  DEBUGASSERT(type & (CLIENTWRITE_BODY|CLIENTWRITE_HEADER|CLIENTWRITE_INFO));
+  DEBUGASSERT(type &
+              (CLIENTWRITE_BODY | CLIENTWRITE_HEADER | CLIENTWRITE_INFO));
   /* BODY is only BODY (with optional EOS) */
   DEBUGASSERT(!(type & CLIENTWRITE_BODY) ||
-              ((type & ~(CLIENTWRITE_BODY|CLIENTWRITE_EOS)) == 0));
+              ((type & ~(CLIENTWRITE_BODY | CLIENTWRITE_EOS)) == 0));
   /* INFO is only INFO (with optional EOS) */
   DEBUGASSERT(!(type & CLIENTWRITE_INFO) ||
-              ((type & ~(CLIENTWRITE_INFO|CLIENTWRITE_EOS)) == 0));
+              ((type & ~(CLIENTWRITE_INFO | CLIENTWRITE_EOS)) == 0));
 
   if(!data->req.writer_stack) {
     result = do_init_writer_stack(data);
@@ -227,9 +220,9 @@ static CURLcode cw_download_write(struct Curl_easy *data,
   bool is_connect = !!(type & CLIENTWRITE_CONNECT);
 
   if(!ctx->started_response &&
-     !(type & (CLIENTWRITE_INFO|CLIENTWRITE_CONNECT))) {
+     !(type & (CLIENTWRITE_INFO | CLIENTWRITE_CONNECT))) {
     Curl_pgrsTime(data, TIMER_STARTTRANSFER);
-    Curl_rlimit_start(&data->progress.dl.rlimit, curlx_now());
+    Curl_rlimit_start(&data->progress.dl.rlimit, Curl_pgrs_now(data));
     ctx->started_response = TRUE;
   }
 
@@ -302,9 +295,10 @@ static CURLcode cw_download_write(struct Curl_easy *data,
   }
 
   /* Update stats, write and report progress */
-  Curl_rlimit_drain(&data->progress.dl.rlimit, nwrite, curlx_now());
-  data->req.bytecount += nwrite;
-  Curl_pgrsSetDownloadCounter(data, data->req.bytecount);
+  if(nwrite) {
+    data->req.bytecount += nwrite;
+    Curl_pgrs_download_inc(data, nwrite);
+  }
 
   if(excess_len) {
     if(!data->req.ignorebody) {
@@ -784,7 +778,7 @@ static CURLcode cr_in_resume_from(struct Curl_easy *data,
     }
     /* when seekerr == CURL_SEEKFUNC_CANTSEEK (cannot seek to offset) */
     do {
-      char scratch[4*1024];
+      char scratch[4 * 1024];
       size_t readthisamountnow =
         (offset - passed > (curl_off_t)sizeof(scratch)) ?
         sizeof(scratch) :
@@ -1089,8 +1083,7 @@ static CURLcode cr_lc_add(struct Curl_easy *data)
   struct Curl_creader *reader = NULL;
   CURLcode result;
 
-  result = Curl_creader_create(&reader, data, &cr_lc,
-                               CURL_CR_CONTENT_ENCODE);
+  result = Curl_creader_create(&reader, data, &cr_lc, CURL_CR_CONTENT_ENCODE);
   if(!result)
     result = Curl_creader_add(data, reader);
 
@@ -1201,13 +1194,13 @@ CURLcode Curl_client_read(struct Curl_easy *data, char *buf, size_t blen,
     DEBUGASSERT(data->req.reader_stack);
   }
   if(!data->req.reader_started) {
-    Curl_rlimit_start(&data->progress.ul.rlimit, curlx_now());
+    Curl_rlimit_start(&data->progress.ul.rlimit, Curl_pgrs_now(data));
     data->req.reader_started = TRUE;
   }
 
   if(Curl_rlimit_active(&data->progress.ul.rlimit)) {
-    curl_off_t ul_avail =
-      Curl_rlimit_avail(&data->progress.ul.rlimit, curlx_now());
+    curl_off_t ul_avail = Curl_rlimit_avail(&data->progress.ul.rlimit,
+                                            Curl_pgrs_now(data));
     if(ul_avail <= 0) {
       result = CURLE_OK;
       *eos = FALSE;
@@ -1218,8 +1211,6 @@ CURLcode Curl_client_read(struct Curl_easy *data, char *buf, size_t blen,
   }
   result = Curl_creader_read(data, data->req.reader_stack, buf, blen,
                              nread, eos);
-  if(!result)
-    Curl_rlimit_drain(&data->progress.ul.rlimit, *nread, curlx_now());
 
 out:
   CURL_TRC_READ(data, "client_read(len=%zu) -> %d, nread=%zu, eos=%d",
@@ -1481,5 +1472,4 @@ struct Curl_creader *Curl_creader_get_by_type(struct Curl_easy *data,
       return r;
   }
   return NULL;
-
 }

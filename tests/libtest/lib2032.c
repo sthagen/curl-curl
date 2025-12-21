@@ -75,7 +75,7 @@ static size_t callback(char *ptr, size_t size, size_t nmemb, void *data)
   return size * nmemb;
 }
 
-static CURLcode test_lib2032(const char *URL)  /* libntlmconnect */
+static CURLcode test_lib2032(const char *URL) /* libntlmconnect */
 {
   enum HandleState {
     ReadyForNewHandle,
@@ -83,7 +83,7 @@ static CURLcode test_lib2032(const char *URL)  /* libntlmconnect */
     NoMoreHandles
   };
 
-  CURLcode res = CURLE_OK;
+  CURLcode result = CURLE_OK;
   CURLM *multi = NULL;
   int running;
   int i;
@@ -105,9 +105,9 @@ static CURLcode test_lib2032(const char *URL)  /* libntlmconnect */
   }
 
   res_global_init(CURL_GLOBAL_ALL);
-  if(res) {
+  if(result) {
     curlx_free(full_url);
-    return res;
+    return result;
   }
 
   multi_init(multi);
@@ -147,7 +147,7 @@ static CURLcode test_lib2032(const char *URL)  /* libntlmconnect */
       multi_add_handle(multi, ntlm_curls[num_handles]);
       num_handles += 1;
       state = NeedSocketForNewHandle;
-      res = ntlmcb_res;
+      result = ntlmcb_res;
     }
 
     multi_perform(multi, &running);
@@ -175,10 +175,9 @@ static CURLcode test_lib2032(const char *URL)  /* libntlmconnect */
                       "handle (trying again)\n");
         continue;
       }
-      state = num_handles < MAX_EASY_HANDLES ? ReadyForNewHandle
-                                             : NoMoreHandles;
-      curl_mfprintf(stderr, "%s:%d new state %d\n",
-                    __FILE__, __LINE__, state);
+      state =
+        num_handles < MAX_EASY_HANDLES ? ReadyForNewHandle : NoMoreHandles;
+      curl_mfprintf(stderr, "%s:%d new state %d\n", __FILE__, __LINE__, state);
     }
 
     multi_timeout(multi, &timeout);
@@ -230,5 +229,5 @@ test_cleanup:
 
   curlx_free(full_url);
 
-  return res;
+  return result;
 }

@@ -201,8 +201,8 @@ static int cb_socket(CURL *curl, curl_socket_t s, int action,
   case CURL_POLL_IN:
   case CURL_POLL_OUT:
   case CURL_POLL_INOUT:
-    curl_context = socketp ?
-      (struct curl_context *)socketp : create_curl_context(s, uv);
+    curl_context =
+      socketp ? (struct curl_context *)socketp : create_curl_context(s, uv);
 
     curl_multi_assign(uv->multi, s, (void *)curl_context);
 
@@ -229,16 +229,16 @@ static int cb_socket(CURL *curl, curl_socket_t s, int action,
 
 int main(int argc, char **argv)
 {
-  CURLcode res;
-  struct datauv uv = {0};
+  CURLcode result;
+  struct datauv uv = { 0 };
   int running_handles;
 
   if(argc <= 1)
     return 0;
 
-  res = curl_global_init(CURL_GLOBAL_ALL);
-  if(res)
-    return (int)res;
+  result = curl_global_init(CURL_GLOBAL_ALL);
+  if(result)
+    return (int)result;
 
   uv.loop = uv_default_loop();
   uv_timer_init(uv.loop, &uv.timeout);

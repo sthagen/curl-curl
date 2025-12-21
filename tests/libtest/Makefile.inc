@@ -46,8 +46,12 @@ CURLX_C = \
   ../../lib/curlx/warnless.c \
   ../../lib/curlx/winapi.c
 
+TOOLX_C = \
+  ../../src/toolx/tool_time.c
+
 # All libtest programs
 TESTS_C = \
+  cli_ftp_upload.c \
   cli_h2_pausing.c \
   cli_h2_serverpush.c \
   cli_h2_upgrade_extreme.c \

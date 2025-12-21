@@ -31,8 +31,8 @@
 
 #define T518_SAFETY_MARGIN (16)
 
-#define NUM_OPEN      (FD_SETSIZE + 10)
-#define NUM_NEEDED    (NUM_OPEN + T518_SAFETY_MARGIN)
+#define NUM_OPEN   (FD_SETSIZE + 10)
+#define NUM_NEEDED (NUM_OPEN + T518_SAFETY_MARGIN)
 
 #if defined(_WIN32) || defined(MSDOS)
 #define DEV_NULL "NUL"
@@ -424,7 +424,7 @@ static int t518_test_rlimit(int keep_open)
 
 static CURLcode test_lib518(const char *URL)
 {
-  CURLcode res;
+  CURLcode result;
   CURL *curl;
 
   if(!strcmp(URL, "check")) {
@@ -461,7 +461,7 @@ static CURLcode test_lib518(const char *URL)
   test_setopt(curl, CURLOPT_URL, URL);
   test_setopt(curl, CURLOPT_HEADER, 1L);
 
-  res = curl_easy_perform(curl);
+  result = curl_easy_perform(curl);
 
 test_cleanup:
 
@@ -469,7 +469,7 @@ test_cleanup:
   curl_easy_cleanup(curl);
   curl_global_cleanup();
 
-  return res;
+  return result;
 }
 
 #else /* HAVE_GETRLIMIT && HAVE_SETRLIMIT */

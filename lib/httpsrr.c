@@ -27,10 +27,9 @@
 #ifdef USE_HTTPSRR
 
 #include "urldata.h"
-#include "curl_addrinfo.h"
 #include "httpsrr.h"
 #include "connect.h"
-#include "sendf.h"
+#include "curl_trc.h"
 #include "strdup.h"
 
 static CURLcode httpsrr_decode_alpn(const uint8_t *cp, size_t len,
@@ -150,7 +149,6 @@ void Curl_httpsrr_cleanup(struct Curl_https_rrinfo *rrinfo)
   Curl_safefree(rrinfo->ipv6hints);
   Curl_safefree(rrinfo->rrname);
 }
-
 
 #ifdef USE_ARES
 

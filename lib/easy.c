@@ -45,7 +45,6 @@
 #endif
 
 #include "urldata.h"
-#include <curl/curl.h>
 #include "transfer.h"
 #include "vtls/vtls.h"
 #include "vtls/vtls_scache.h"
@@ -53,20 +52,19 @@
 #include "url.h"
 #include "getinfo.h"
 #include "hostip.h"
-#include "curl_share.h"
 #include "strdup.h"
-#include "progress.h"
 #include "easyif.h"
 #include "multiif.h"
+#include "multi_ev.h"
 #include "select.h"
 #include "cfilters.h"
-#include "sendf.h" /* for failf function prototype */
+#include "sendf.h"
+#include "curl_trc.h"
 #include "connect.h" /* for Curl_getconnectinfo */
 #include "slist.h"
 #include "mime.h"
 #include "amigaos.h"
 #include "macos.h"
-#include "curlx/warnless.h"
 #include "curlx/wait.h"
 #include "sigpipe.h"
 #include "vssh/ssh.h"
@@ -75,6 +73,7 @@
 #include "system_win32.h"
 #include "http2.h"
 #include "curlx/dynbuf.h"
+#include "bufref.h"
 #include "altsvc.h"
 #include "hsts.h"
 
@@ -599,18 +598,18 @@ static CURLcode poll_fds(struct events *ev,
 static CURLcode wait_or_timeout(struct Curl_multi *multi, struct events *ev)
 {
   bool done = FALSE;
-  CURLMcode mcode = CURLM_OK;
+  CURLMcode mresult = CURLM_OK;
   CURLcode result = CURLE_OK;
 
   while(!done) {
     CURLMsg *msg;
     struct pollfd fds[4];
     int pollrc;
-    struct curltime before;
+    struct curltime start;
     const unsigned int numfds = populate_fds(fds, ev);
 
     /* get the time stamp to use to figure out how long poll takes */
-    before = curlx_now();
+    curlx_pnow(&start);
 
     result = poll_fds(ev, fds, numfds, &pollrc);
     if(result)
@@ -622,8 +621,8 @@ static CURLcode wait_or_timeout(struct Curl_multi *multi, struct events *ev)
       /* timeout! */
       ev->ms = 0;
       /* curl_mfprintf(stderr, "call curl_multi_socket_action(TIMEOUT)\n"); */
-      mcode = curl_multi_socket_action(multi, CURL_SOCKET_TIMEOUT, 0,
-                                       &ev->running_handles);
+      mresult = curl_multi_socket_action(multi, CURL_SOCKET_TIMEOUT, 0,
+                                         &ev->running_handles);
     }
     else {
       /* here pollrc is > 0 */
@@ -637,21 +636,20 @@ static CURLcode wait_or_timeout(struct Curl_multi *multi, struct events *ev)
           /* sending infof "randomly" to the first easy handle */
           infof(multi->admin, "call curl_multi_socket_action(socket "
                 "%" FMT_SOCKET_T ")", (curl_socket_t)fds[i].fd);
-          mcode = curl_multi_socket_action(multi, fds[i].fd, act,
-                                           &ev->running_handles);
+          mresult = curl_multi_socket_action(multi, fds[i].fd, act,
+                                             &ev->running_handles);
         }
       }
-
 
       if(!ev->msbump && ev->ms >= 0) {
         /* If nothing updated the timeout, we decrease it by the spent time.
          * If it was updated, it has the new timeout time stored already.
          */
-        timediff_t spent_ms = curlx_timediff_ms(curlx_now(), before);
+        timediff_t spent_ms = curlx_timediff_ms(curlx_now(), start);
         if(spent_ms > 0) {
 #if DEBUG_EV_POLL
         curl_mfprintf(stderr, "poll timeout %ldms not updated, decrease by "
-                      "time spent %ldms\n", ev->ms, (long)timediff);
+                      "time spent %ldms\n", ev->ms, (long)spent_ms);
 #endif
           if(spent_ms > ev->ms)
             ev->ms = 0;
@@ -661,7 +659,7 @@ static CURLcode wait_or_timeout(struct Curl_multi *multi, struct events *ev)
       }
     }
 
-    if(mcode)
+    if(mresult)
       return CURLE_URL_MALFORMAT;
 
     /* we do not really care about the "msgs_in_queue" value returned in the
@@ -699,19 +697,19 @@ static CURLcode easy_events(struct Curl_multi *multi)
 static CURLcode easy_transfer(struct Curl_multi *multi)
 {
   bool done = FALSE;
-  CURLMcode mcode = CURLM_OK;
+  CURLMcode mresult = CURLM_OK;
   CURLcode result = CURLE_OK;
 
-  while(!done && !mcode) {
+  while(!done && !mresult) {
     int still_running = 0;
 
-    mcode = curl_multi_poll(multi, NULL, 0, 1000, NULL);
+    mresult = curl_multi_poll(multi, NULL, 0, 1000, NULL);
 
-    if(!mcode)
-      mcode = curl_multi_perform(multi, &still_running);
+    if(!mresult)
+      mresult = curl_multi_perform(multi, &still_running);
 
     /* only read 'still_running' if curl_multi_perform() return OK */
-    if(!mcode && !still_running) {
+    if(!mresult && !still_running) {
       int rc;
       CURLMsg *msg = curl_multi_info_read(multi, &rc);
       if(msg) {
@@ -722,8 +720,8 @@ static CURLcode easy_transfer(struct Curl_multi *multi)
   }
 
   /* Make sure to return some kind of error if there was a multi problem */
-  if(mcode) {
-    result = (mcode == CURLM_OUT_OF_MEMORY) ? CURLE_OUT_OF_MEMORY :
+  if(mresult) {
+    result = (mresult == CURLM_OUT_OF_MEMORY) ? CURLE_OUT_OF_MEMORY :
       /* The other multi errors should never happen, so return
          something suitably generic */
       CURLE_BAD_FUNCTION_ARGUMENT;
@@ -752,7 +750,7 @@ static CURLcode easy_transfer(struct Curl_multi *multi)
 static CURLcode easy_perform(struct Curl_easy *data, bool events)
 {
   struct Curl_multi *multi;
-  CURLMcode mcode;
+  CURLMcode mresult;
   CURLcode result = CURLE_OK;
   SIGPIPE_VARIABLE(pipe_st);
 
@@ -800,10 +798,10 @@ static CURLcode easy_perform(struct Curl_easy *data, bool events)
   curl_multi_setopt(multi, CURLMOPT_MAXCONNECTS, (long)data->set.maxconnects);
 
   data->multi_easy = NULL; /* pretend it does not exist */
-  mcode = curl_multi_add_handle(multi, data);
-  if(mcode) {
+  mresult = curl_multi_add_handle(multi, data);
+  if(mresult) {
     curl_multi_cleanup(multi);
-    if(mcode == CURLM_OUT_OF_MEMORY)
+    if(mresult == CURLM_OUT_OF_MEMORY)
       return CURLE_OUT_OF_MEMORY;
     return CURLE_FAILED_INIT;
   }
@@ -975,6 +973,8 @@ CURL *curl_easy_duphandle(CURL *d)
   Curl_hash_init(&outcurl->meta_hash, 23,
                  Curl_hash_str, curlx_str_key_compare, dupeasy_meta_freeentry);
   curlx_dyn_init(&outcurl->state.headerb, CURL_MAX_HTTP_HEADER);
+  Curl_bufref_init(&outcurl->state.url);
+  Curl_bufref_init(&outcurl->state.referer);
   Curl_netrc_init(&outcurl->state.netrc);
 
   /* the connection pool is setup on demand */
@@ -1014,18 +1014,19 @@ CURL *curl_easy_duphandle(CURL *d)
   }
 #endif
 
-  if(data->state.url) {
-    outcurl->state.url = curlx_strdup(data->state.url);
-    if(!outcurl->state.url)
+  if(Curl_bufref_ptr(&data->state.url)) {
+    Curl_bufref_set(&outcurl->state.url,
+                    Curl_bufref_dup(&data->state.url), 0,
+                    curl_free);
+    if(!Curl_bufref_ptr(&outcurl->state.url))
       goto fail;
-    outcurl->state.url_alloc = TRUE;
   }
-
-  if(data->state.referer) {
-    outcurl->state.referer = curlx_strdup(data->state.referer);
-    if(!outcurl->state.referer)
+  if(Curl_bufref_ptr(&data->state.referer)) {
+    Curl_bufref_set(&outcurl->state.referer,
+                    Curl_bufref_dup(&data->state.referer), 0,
+                    curl_free);
+    if(!Curl_bufref_ptr(&outcurl->state.referer))
       goto fail;
-    outcurl->state.referer_alloc = TRUE;
   }
 
   /* Reinitialize an SSL engine for the new handle

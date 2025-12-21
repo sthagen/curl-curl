@@ -59,8 +59,8 @@ static int qname(const unsigned char **pkt, size_t *size)
   return 0;
 }
 
-#define QTYPE_A 1
-#define QTYPE_AAAA 28
+#define QTYPE_A     1
+#define QTYPE_AAAA  28
 #define QTYPE_HTTPS 0x41
 
 static const char *type2string(unsigned short qtype)
@@ -474,11 +474,6 @@ static int test_dnsd(int argc, char **argv)
   snprintf(loglockfile, sizeof(loglockfile), "%s/%s/dnsd-%s.lock",
            logdir, SERVERLOGS_LOCKDIR, ipv_inuse);
 
-#ifdef _WIN32
-  if(win32_init())
-    return 2;
-#endif
-
 #ifdef USE_IPV6
   if(!use_ipv6)
 #endif
@@ -497,8 +492,7 @@ static int test_dnsd(int argc, char **argv)
   }
 
   flag = 1;
-  if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
-                (void *)&flag, sizeof(flag))) {
+  if(setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, (void *)&flag, sizeof(flag))) {
     error = SOCKERRNO;
     logmsg("setsockopt(SO_REUSEADDR) failed with error (%d) %s",
            error, curlx_strerror(error, errbuf, sizeof(errbuf)));

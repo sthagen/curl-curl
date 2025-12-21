@@ -117,7 +117,6 @@ use testutil qw(
     exerunner
     );
 
-
 my %serverpidfile; # all server pid filenames, identified by server id
 my %serverportfile;# all server port filenames, identified by server id
 my $sshdvernum;  # for socks server, ssh daemon version number
@@ -149,7 +148,6 @@ our $SOCKSIN="socksd-request.log"; # what curl sent to the SOCKS proxy
 our $err_unexpected; # error instead of warning on server unexpectedly alive
 our $debugprotocol;  # nonzero for verbose server logs
 our $stunnel;        # path to stunnel command
-
 
 #######################################################################
 # Check for a command in the PATH of the test server.
@@ -195,14 +193,8 @@ use File::Temp qw/ tempfile/;
 #######################################################################
 # Initialize configuration variables
 sub initserverconfig {
-    my ($fh, $socks) = tempfile("curl-socksd-XXXXXXXX", TMPDIR => 1);
-    close($fh);
-    unlink($socks);
-    my ($f2, $http) = tempfile("curl-http-XXXXXXXX", TMPDIR => 1);
-    close($f2);
-    unlink($http);
-    $SOCKSUNIXPATH = $socks; # SOCKS Unix domain socket
-    $HTTPUNIXPATH = $http;   # HTTP Unix domain socket
+    $SOCKSUNIXPATH = "$pwd/$LOGDIR/$PIDDIR/socks-uds"; # SOCKS Unix domain socket
+    $HTTPUNIXPATH = "$pwd/$LOGDIR/$PIDDIR/http-uds";   # HTTP Unix domain socket
     $stunnel = checkcmd("stunnel4") || checkcmd("tstunnel") || checkcmd("stunnel");
 
     # get the name of the current user
@@ -272,7 +264,6 @@ sub init_serverpidfile_hash {
     }
 }
 
-
 #######################################################################
 # Check if a given child process has just died. Reaps it if so.
 #
@@ -285,7 +276,6 @@ sub checkdied {
     my $rc = pidwait($pid, &WNOHANG);
     return ($rc == $pid)?1:0;
 }
-
 
 ##############################################################################
 # This function makes sure the right set of server is running for the
@@ -336,7 +326,6 @@ sub serverfortest {
 
     return &startservers(@what);
 }
-
 
 #######################################################################
 # Start a new thread/process and run the given command line in there.
@@ -416,7 +405,6 @@ sub startnew {
     return ($child, $pid2);
 }
 
-
 #######################################################################
 # Return the port to use for the given protocol.
 #
@@ -424,7 +412,6 @@ sub protoport {
     my ($proto) = @_;
     return $PORT{$proto} || "[not running]";
 }
-
 
 #######################################################################
 # Stop a test server along with pids which are not in the %run hash yet.
@@ -511,7 +498,6 @@ sub stopserver {
 
     return $result;
 }
-
 
 #######################################################################
 # Return flags to let curl use an external HTTP proxy
@@ -1078,7 +1064,6 @@ sub responsiveserver {
     return 0;
 }
 
-
 #######################################################################
 # start the http server
 #
@@ -1172,7 +1157,6 @@ sub runhttpserver {
 
     return (0, $httppid, $pid2, $port);
 }
-
 
 #######################################################################
 # start the http2 server
@@ -1796,7 +1780,6 @@ sub runrtspserver {
     return (0, $rtsppid, $pid2, $port);
 }
 
-
 #######################################################################
 # Start the ssh (scp/sftp) server
 #
@@ -2242,7 +2225,6 @@ sub runnegtelnetserver {
 
     return (0+!$ntelpid, $ntelpid, $pid2, $port);
 }
-
 
 #######################################################################
 # Single shot http and gopher server responsiveness test. This should only
@@ -3089,7 +3071,6 @@ sub stopservers {
 
     return $result;
 }
-
 
 #######################################################################
 # substitute the variable stuff into either a joined up file or

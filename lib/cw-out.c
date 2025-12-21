@@ -24,13 +24,11 @@
 
 #include "curl_setup.h"
 
-#include <curl/curl.h>
-
 #include "urldata.h"
 #include "cfilters.h"
-#include "headers.h"
 #include "multiif.h"
 #include "sendf.h"
+#include "curl_trc.h"
 #include "transfer.h"
 #include "cw-out.h"
 #include "cw-pause.h"

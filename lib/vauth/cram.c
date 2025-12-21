@@ -28,12 +28,9 @@
 
 #ifndef CURL_DISABLE_DIGEST_AUTH
 
-#include <curl/curl.h>
-
 #include "vauth.h"
 #include "../curl_hmac.h"
 #include "../curl_md5.h"
-#include "../curlx/warnless.h"
 
 
 /*
@@ -69,7 +66,7 @@ CURLcode Curl_auth_create_cram_md5_message(const struct bufref *chlg,
 
   /* Update the digest with the given challenge */
   if(Curl_bufref_len(chlg))
-    Curl_HMAC_update(ctxt, Curl_bufref_ptr(chlg),
+    Curl_HMAC_update(ctxt, Curl_bufref_uptr(chlg),
                      curlx_uztoui(Curl_bufref_len(chlg)));
 
   /* Finalise the digest */

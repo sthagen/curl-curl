@@ -37,14 +37,9 @@
 #define WANT_EXTRACT_CERTINFO /* uses Curl_extract_certinfo() */
 #endif
 
-#include <curl/curl.h>
 #include "../urldata.h"
-#include "../curl_ctype.h"
-#include "hostcheck.h"
 #include "vtls.h"
-#include "vtls_int.h"
-#include "../sendf.h"
-#include "../curlx/inet_pton.h"
+#include "../curl_trc.h"
 #include "../curlx/base64.h"
 #include "x509asn1.h"
 #include "../curlx/dynbuf.h"
@@ -54,7 +49,7 @@
  */
 
 /* Largest supported ASN.1 structure. */
-#define CURL_ASN1_MAX                   ((size_t) 0x40000)      /* 256K */
+#define CURL_ASN1_MAX                   ((size_t)0x40000)      /* 256K */
 
 /* ASN.1 classes. */
 /* #define CURL_ASN1_UNIVERSAL             0 */
@@ -91,7 +86,6 @@
 #define CURL_ASN1_UNIVERSAL_STRING      28
 /* #define CURL_ASN1_CHARACTER_STRING      29 */
 #define CURL_ASN1_BMP_STRING            30
-
 
 #ifdef WANT_EXTRACT_CERTINFO
 /* ASN.1 OID table entry. */
@@ -153,7 +147,7 @@ static const struct Curl_OID OIDtable[] = {
   { "2.16.840.1.101.3.4.2.2",   "sha384" },
   { "2.16.840.1.101.3.4.2.3",   "sha512" },
   { "1.2.840.113549.1.9.2",     "unstructuredName" },
-  { (const char *) NULL,        (const char *) NULL }
+  { (const char *)NULL,         (const char *)NULL }
 };
 
 #endif /* WANT_EXTRACT_CERTINFO */

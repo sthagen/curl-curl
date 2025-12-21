@@ -35,13 +35,12 @@
 
 #include "urldata.h"
 #include "bufq.h"
-#include "sendf.h"
+#include "curl_trc.h"
 #include "select.h"
 #include "cfilters.h"
 #include "connect.h"
 #include "curlx/timeval.h"
 #include "socks.h"
-#include "multiif.h" /* for getsock macros */
 #include "curlx/inet_pton.h"
 #include "url.h"
 
@@ -133,7 +132,7 @@ CURLcode Curl_blockread_all(struct Curl_cfilter *cf,
 
   *pnread = 0;
   for(;;) {
-    timediff_t timeout_ms = Curl_timeleft_ms(data, NULL, TRUE);
+    timediff_t timeout_ms = Curl_timeleft_ms(data, TRUE);
     if(timeout_ms < 0) {
       /* we already got the timeout */
       return CURLE_OPERATION_TIMEDOUT;
@@ -164,9 +163,9 @@ CURLcode Curl_blockread_all(struct Curl_cfilter *cf,
 
 #if defined(DEBUGBUILD) && !defined(CURL_DISABLE_VERBOSE_STRINGS)
 #define DEBUG_AND_VERBOSE
-#define sxstate(x,c,d,y) socksstate(x,c,d,y, __LINE__)
+#define sxstate(x, c, d, y) socksstate(x, c, d, y, __LINE__)
 #else
-#define sxstate(x,c,d,y) socksstate(x,c,d,y)
+#define sxstate(x, c, d, y) socksstate(x, c, d, y)
 #endif
 
 /* always use this function to change state, to make debugging easier */
@@ -206,9 +205,9 @@ static CURLproxycode socks_failed(struct socks_state *sx,
 }
 
 static CURLproxycode socks_flush(struct socks_state *sx,
-                                  struct Curl_cfilter *cf,
-                                  struct Curl_easy *data,
-                                  bool *done)
+                                 struct Curl_cfilter *cf,
+                                 struct Curl_easy *data,
+                                 bool *done)
 {
   CURLcode result;
   size_t nwritten;
@@ -332,8 +331,7 @@ static CURLproxycode socks4_resolving(struct socks_state *sx,
     result = Curl_resolv(data, sx->hostname, sx->remote_port,
                          cf->conn->ip_version, TRUE, &dns);
     if(result == CURLE_AGAIN) {
-      CURL_TRC_CF(data, cf, "SOCKS4 non-blocking resolve of %s",
-                  sx->hostname);
+      CURL_TRC_CF(data, cf, "SOCKS4 non-blocking resolve of %s", sx->hostname);
       return CURLPX_OK;
     }
     else if(result)
@@ -347,8 +345,7 @@ static CURLproxycode socks4_resolving(struct socks_state *sx,
   }
 
   if(result || !dns) {
-    failf(data, "Failed to resolve \"%s\" for SOCKS4 connect.",
-          sx->hostname);
+    failf(data, "Failed to resolve \"%s\" for SOCKS4 connect.", sx->hostname);
     return CURLPX_RESOLVE_HOST;
   }
 
@@ -465,16 +462,16 @@ static CURLproxycode socks4_check_resp(struct socks_state *sx,
 }
 
 /*
-* This function logs in to a SOCKS4 proxy and sends the specifics to the final
-* destination server.
-*
-* Reference :
-*   https://www.openssh.com/txt/socks4.protocol
-*
-* Note :
-*   Set protocol4a=true for  "SOCKS 4A (Simple Extension to SOCKS 4 Protocol)"
-*   Nonsupport "Identification Protocol (RFC1413)"
-*/
+ * This function logs in to a SOCKS4 proxy and sends the specifics to the final
+ * destination server.
+ *
+ * Reference :
+ *   https://www.openssh.com/txt/socks4.protocol
+ *
+ * Note :
+ *   Set protocol4a=true for  "SOCKS 4A (Simple Extension to SOCKS 4 Protocol)"
+ *   Nonsupport "Identification Protocol (RFC1413)"
+ */
 static CURLproxycode socks4_connect(struct Curl_cfilter *cf,
                                     struct socks_state *sx,
                                     struct Curl_easy *data)
@@ -733,7 +730,7 @@ static CURLproxycode socks5_auth_init(struct Curl_cfilter *cf,
     if(result || (nwritten != ulen))
       return CURLPX_SEND_REQUEST;
   }
-  buf[0] = (unsigned char) plen;
+  buf[0] = (unsigned char)plen;
   result = Curl_bufq_write(&sx->iobuf, buf, 1, &nwritten);
   if(result || (nwritten != 1))
     return CURLPX_SEND_REQUEST;
@@ -813,7 +810,7 @@ static CURLproxycode socks5_req1_init(struct socks_state *sx,
     const size_t hostname_len = strlen(sx->hostname);
     desttype = 3;
     destination = (const unsigned char *)sx->hostname;
-    destlen = (unsigned char) hostname_len; /* one byte length */
+    destlen = (unsigned char)hostname_len; /* one byte length */
   }
 
   req[3] = desttype;
@@ -860,8 +857,7 @@ static CURLproxycode socks5_resolving(struct socks_state *sx,
     result = Curl_resolv(data, sx->hostname, sx->remote_port,
                          cf->conn->ip_version, TRUE, &dns);
     if(result == CURLE_AGAIN) {
-      CURL_TRC_CF(data, cf, "SOCKS5 non-blocking resolve of %s",
-                  sx->hostname);
+      CURL_TRC_CF(data, cf, "SOCKS5 non-blocking resolve of %s", sx->hostname);
       return CURLPX_OK;
     }
     else if(result)
@@ -875,8 +871,7 @@ static CURLproxycode socks5_resolving(struct socks_state *sx,
   }
 
   if(result || !dns) {
-    failf(data, "Failed to resolve \"%s\" for SOCKS5 connect.",
-          sx->hostname);
+    failf(data, "Failed to resolve \"%s\" for SOCKS5 connect.", sx->hostname);
     presult = CURLPX_RESOLVE_HOST;
     goto out;
   }
@@ -893,8 +888,7 @@ static CURLproxycode socks5_resolving(struct socks_state *sx,
   }
 #endif
   if(!hp) {
-    failf(data, "Failed to resolve \"%s\" for SOCKS5 connect.",
-          sx->hostname);
+    failf(data, "Failed to resolve \"%s\" for SOCKS5 connect.", sx->hostname);
     presult = CURLPX_RESOLVE_HOST;
     goto out;
   }
@@ -1394,7 +1388,7 @@ static CURLcode socks_cf_query(struct Curl_cfilter *cf,
 
 struct Curl_cftype Curl_cft_socks_proxy = {
   "SOCKS",
-  CF_TYPE_IP_CONNECT|CF_TYPE_PROXY,
+  CF_TYPE_IP_CONNECT | CF_TYPE_PROXY,
   0,
   socks_proxy_cf_destroy,
   socks_proxy_cf_connect,

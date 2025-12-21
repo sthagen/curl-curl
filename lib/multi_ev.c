@@ -24,8 +24,6 @@
 
 #include "curl_setup.h"
 
-#include <curl/curl.h>
-
 #include "urldata.h"
 #include "url.h"
 #include "cfilters.h"
@@ -36,10 +34,7 @@
 #include "select.h"
 #include "uint-bset.h"
 #include "uint-spbset.h"
-#include "uint-table.h"
-#include "curlx/warnless.h"
 #include "multihandle.h"
-#include "socks.h"
 
 
 static void mev_in_callback(struct Curl_multi *multi, bool value)
@@ -64,7 +59,7 @@ struct mev_sh_entry {
 
 static size_t mev_sh_entry_hash(void *key, size_t key_length, size_t slots_num)
 {
-  curl_socket_t fd = *((curl_socket_t *) key);
+  curl_socket_t fd = *((curl_socket_t *)key);
   (void)key_length;
   return (fd % (curl_socket_t)slots_num);
 }
@@ -72,8 +67,9 @@ static size_t mev_sh_entry_hash(void *key, size_t key_length, size_t slots_num)
 static size_t mev_sh_entry_compare(void *k1, size_t k1_len,
                                    void *k2, size_t k2_len)
 {
-  (void)k1_len; (void)k2_len;
-  return (*((curl_socket_t *) k1)) == (*((curl_socket_t *) k2));
+  (void)k1_len;
+  (void)k2_len;
+  return (*((curl_socket_t *)k1)) == (*((curl_socket_t *)k2));
 }
 
 /* sockhash entry destructor callback */
@@ -85,8 +81,8 @@ static void mev_sh_entry_dtor(void *freethis)
 }
 
 /* look up a given socket in the socket hash, skip invalid sockets */
-static struct mev_sh_entry *
-mev_sh_entry_get(struct Curl_hash *sh, curl_socket_t s)
+static struct mev_sh_entry *mev_sh_entry_get(struct Curl_hash *sh,
+                                             curl_socket_t s)
 {
   if(s != CURL_SOCKET_BAD) {
     /* only look for proper sockets */
@@ -96,8 +92,8 @@ mev_sh_entry_get(struct Curl_hash *sh, curl_socket_t s)
 }
 
 /* make sure this socket is present in the hash for this handle */
-static struct mev_sh_entry *
-mev_sh_entry_add(struct Curl_hash *sh, curl_socket_t s)
+static struct mev_sh_entry *mev_sh_entry_add(struct Curl_hash *sh,
+                                             curl_socket_t s)
 {
   struct mev_sh_entry *there = mev_sh_entry_get(sh, s);
   struct mev_sh_entry *check;
@@ -166,7 +162,6 @@ static bool mev_sh_entry_conn_add(struct mev_sh_entry *e,
   return TRUE;
 }
 
-
 static bool mev_sh_entry_xfer_remove(struct mev_sh_entry *e,
                                      struct Curl_easy *data)
 {
@@ -202,8 +197,7 @@ static CURLMcode mev_forget_socket(struct Curl_multi *multi,
 
   /* We managed this socket before, tell the socket callback to forget it. */
   if(entry->announced && multi->socket_cb) {
-    CURL_TRC_M(data, "ev %s, call(fd=%" FMT_SOCKET_T ", ev=REMOVE)",
-               cause, s);
+    CURL_TRC_M(data, "ev %s, call(fd=%" FMT_SOCKET_T ", ev=REMOVE)", cause, s);
     mev_in_callback(multi, TRUE);
     rc = multi->socket_cb(data, s, CURL_POLL_REMOVE,
                           multi->socket_userp, entry->user_data);
@@ -446,8 +440,7 @@ static void mev_pollset_dtor(void *key, size_t klen, void *entry)
   }
 }
 
-static struct easy_pollset*
-mev_add_new_conn_pollset(struct connectdata *conn)
+static struct easy_pollset *mev_add_new_conn_pollset(struct connectdata *conn)
 {
   struct easy_pollset *ps;
 
@@ -459,8 +452,7 @@ mev_add_new_conn_pollset(struct connectdata *conn)
   return ps;
 }
 
-static struct easy_pollset*
-mev_add_new_xfer_pollset(struct Curl_easy *data)
+static struct easy_pollset *mev_add_new_xfer_pollset(struct Curl_easy *data)
 {
   struct easy_pollset *ps;
 
@@ -472,9 +464,8 @@ mev_add_new_xfer_pollset(struct Curl_easy *data)
   return ps;
 }
 
-static struct easy_pollset *
-mev_get_last_pollset(struct Curl_easy *data,
-                     struct connectdata *conn)
+static struct easy_pollset *mev_get_last_pollset(struct Curl_easy *data,
+                                                 struct connectdata *conn)
 {
   if(data) {
     if(conn)
@@ -489,7 +480,7 @@ static CURLMcode mev_assess(struct Curl_multi *multi,
                             struct connectdata *conn)
 {
   struct easy_pollset ps, *last_ps;
-  CURLMcode res = CURLM_OK;
+  CURLMcode mresult = CURLM_OK;
 
   if(!multi || !multi->socket_cb)
     return CURLM_OK;
@@ -498,8 +489,8 @@ static CURLMcode mev_assess(struct Curl_multi *multi,
   if(conn) {
     CURLcode r = Curl_conn_adjust_pollset(data, conn, &ps);
     if(r) {
-      res = (r == CURLE_OUT_OF_MEMORY) ?
-            CURLM_OUT_OF_MEMORY : CURLM_INTERNAL_ERROR;
+      mresult = (r == CURLE_OUT_OF_MEMORY) ?
+        CURLM_OUT_OF_MEMORY : CURLM_INTERNAL_ERROR;
       goto out;
     }
   }
@@ -513,18 +504,18 @@ static CURLMcode mev_assess(struct Curl_multi *multi,
     else
       last_ps = mev_add_new_xfer_pollset(data);
     if(!last_ps) {
-      res = CURLM_OUT_OF_MEMORY;
+      mresult = CURLM_OUT_OF_MEMORY;
       goto out;
     }
   }
 
   if(last_ps)
-    res = mev_pollset_diff(multi, data, conn, &ps, last_ps);
+    mresult = mev_pollset_diff(multi, data, conn, &ps, last_ps);
   else
     DEBUGASSERT(!ps.n);
 out:
   Curl_pollset_cleanup(&ps);
-  return res;
+  return mresult;
 }
 
 CURLMcode Curl_multi_ev_assess_xfer(struct Curl_multi *multi,
@@ -544,19 +535,18 @@ CURLMcode Curl_multi_ev_assess_xfer_bset(struct Curl_multi *multi,
                                          struct uint32_bset *set)
 {
   uint32_t mid;
-  CURLMcode result = CURLM_OK;
+  CURLMcode mresult = CURLM_OK;
 
   if(multi && multi->socket_cb && Curl_uint32_bset_first(set, &mid)) {
     do {
       struct Curl_easy *data = Curl_multi_get_easy(multi, mid);
-      if(data)
-        result = Curl_multi_ev_assess_xfer(multi, data);
-    }
-    while(!result && Curl_uint32_bset_next(set, mid, &mid));
+      if(data) {
+        mresult = Curl_multi_ev_assess_xfer(multi, data);
+      }
+    } while(!mresult && Curl_uint32_bset_next(set, mid, &mid));
   }
-  return result;
+  return mresult;
 }
-
 
 CURLMcode Curl_multi_ev_assign(struct Curl_multi *multi,
                                curl_socket_t s,
@@ -596,8 +586,7 @@ void Curl_multi_ev_dirty_xfers(struct Curl_multi *multi,
           CURL_TRC_M(multi->admin, "socket transfer %u no longer found", mid);
           Curl_uint32_spbset_remove(&entry->xfers, mid);
         }
-      }
-      while(Curl_uint32_spbset_next(&entry->xfers, mid, &mid));
+      } while(Curl_uint32_spbset_next(&entry->xfers, mid, &mid));
     }
 
     if(entry->conn)

@@ -26,13 +26,14 @@
 static CURLcode test_lib544(const char *URL)
 {
   CURL *curl;
-  CURLcode res = CURLE_OK;
+  CURLcode result = CURLE_OK;
 
   static const char teststring_init[] = {
     'T', 'h', 'i', 's', '\0', ' ', 'i', 's', ' ', 't', 'e', 's', 't', ' ',
     'b', 'i', 'n', 'a', 'r', 'y', ' ', 'd', 'a', 't', 'a', ' ',
     'w', 'i', 't', 'h', ' ', 'a', 'n', ' ',
-    'e', 'm', 'b', 'e', 'd', 'd', 'e', 'd', ' ', 'N', 'U', 'L'};
+    'e', 'm', 'b', 'e', 'd', 'd', 'e', 'd', ' ', 'N', 'U', 'L'
+  };
 
   char teststring[sizeof(teststring_init)];
 
@@ -73,7 +74,7 @@ static CURLcode test_lib544(const char *URL)
   }
 
   /* Now, this is a POST request with binary 0 embedded in POST data. */
-  res = curl_easy_perform(curl);
+  result = curl_easy_perform(curl);
 
 test_cleanup:
 
@@ -81,5 +82,5 @@ test_cleanup:
   curl_easy_cleanup(curl);
   curl_global_cleanup();
 
-  return res;
+  return result;
 }

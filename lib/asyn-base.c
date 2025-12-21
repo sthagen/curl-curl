@@ -46,12 +46,9 @@
 
 #include "urldata.h"
 #include "asyn.h"
-#include "sendf.h"
 #include "hostip.h"
-#include "hash.h"
 #include "multiif.h"
 #include "select.h"
-#include "curl_share.h"
 #include "url.h"
 
 /***********************************************************************

@@ -28,7 +28,6 @@
  * Inclusion of common header files.
  */
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
@@ -160,7 +159,6 @@ struct timeval {
 #endif
 #endif /* HAVE_RECV */
 
-
 #ifdef __minix
 /* Minix does not support send on TCP sockets */
 #define swrite(x, y, z) (ssize_t)write((SEND_TYPE_ARG1)(x), \
@@ -181,15 +179,15 @@ struct timeval {
  * Function-like macro definition used to close a socket.
  */
 #ifdef HAVE_CLOSESOCKET
-#  define CURL_SCLOSE(x)  closesocket((x))
+#  define CURL_SCLOSE(x)  closesocket(x)
 #elif defined(HAVE_CLOSESOCKET_CAMEL)
-#  define CURL_SCLOSE(x)  CloseSocket((x))
+#  define CURL_SCLOSE(x)  CloseSocket(x)
 #elif defined(MSDOS)  /* Watt-32 */
-#  define CURL_SCLOSE(x)  close_s((x))
+#  define CURL_SCLOSE(x)  close_s(x)
 #elif defined(USE_LWIPSOCK)
-#  define CURL_SCLOSE(x)  lwip_close((x))
+#  define CURL_SCLOSE(x)  lwip_close(x)
 #else
-#  define CURL_SCLOSE(x)  close((x))
+#  define CURL_SCLOSE(x)  close(x)
 #endif
 
 /*
@@ -264,7 +262,7 @@ typedef unsigned int bit;
 #ifdef DEBUGBUILD
 #define DEBUGF(x) x
 #else
-#define DEBUGF(x) do { } while(0)
+#define DEBUGF(x) do {} while(0)
 #endif
 
 /*
@@ -274,7 +272,7 @@ typedef unsigned int bit;
 #ifdef DEBUGBUILD
 #define DEBUGASSERT(x) assert(x)
 #else
-#define DEBUGASSERT(x) do { } while(0)
+#define DEBUGASSERT(x) do {} while(0)
 #endif
 
 /*

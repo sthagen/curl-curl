@@ -37,9 +37,9 @@
 /* The libcurl options want plain addresses, the viewable headers in the mail
  * can get a full name as well.
  */
-#define FROM_ADDR    "<sender@example.org>"
-#define TO_ADDR      "<addressee@example.net>"
-#define CC_ADDR      "<info@example.org>"
+#define FROM_ADDR "<sender@example.org>"
+#define TO_ADDR   "<addressee@example.net>"
+#define CC_ADDR   "<info@example.org>"
 
 #define FROM_MAIL "Sender Person " FROM_ADDR
 #define TO_MAIL   "A Receiver " TO_ADDR
@@ -89,14 +89,14 @@ int main(void)
 {
   CURL *curl;
 
-  CURLcode res = curl_global_init(CURL_GLOBAL_ALL);
-  if(res)
-    return (int)res;
+  CURLcode result = curl_global_init(CURL_GLOBAL_ALL);
+  if(result)
+    return (int)result;
 
   curl = curl_easy_init();
   if(curl) {
     struct curl_slist *recipients = NULL;
-    struct upload_status upload_ctx = {0};
+    struct upload_status upload_ctx = { 0 };
 
     /* This is the URL for your mailserver */
     curl_easy_setopt(curl, CURLOPT_URL, "smtp://mail.example.com");
@@ -125,12 +125,12 @@ int main(void)
     curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
 
     /* Send the message */
-    res = curl_easy_perform(curl);
+    result = curl_easy_perform(curl);
 
     /* Check for errors */
-    if(res != CURLE_OK)
+    if(result != CURLE_OK)
       fprintf(stderr, "curl_easy_perform() failed: %s\n",
-              curl_easy_strerror(res));
+              curl_easy_strerror(result));
 
     /* Free the list of recipients */
     curl_slist_free_all(recipients);
@@ -148,5 +148,5 @@ int main(void)
 
   curl_global_cleanup();
 
-  return (int)res;
+  return (int)result;
 }

@@ -25,8 +25,6 @@
  ***************************************************************************/
 #include "curl_setup.h"
 
-#include <curl/curl.h>
-
 /* A "sparse" bitset for uint32_t values.
  * It can hold any uint32_t value.
  *
@@ -60,9 +58,6 @@ void Curl_uint32_spbset_destroy(struct uint32_spbset *bset);
 
 /* Get the cardinality of the bitset, e.g. numbers present in the set. */
 uint32_t Curl_uint32_spbset_count(struct uint32_spbset *bset);
-
-/* TRUE of bitset is empty */
-bool Curl_uint32_spbset_empty(struct uint32_spbset *bset);
 
 /* Add the number `i` to the bitset.
  * Numbers can be added more than once, without making a difference.

@@ -30,11 +30,9 @@
 #include "curl_trc.h"
 #include "sendf.h"   /* for the client write stuff */
 #include "curlx/dynbuf.h"
-#include "content_encoding.h"
 #include "http.h"
 #include "multiif.h"
 #include "curlx/strparse.h"
-#include "curlx/warnless.h"
 
 /*
  * Chunk format (simplified):
@@ -357,7 +355,6 @@ static CURLcode httpchunk_readwrite(struct Curl_easy *data,
     case CHUNK_FAILED:
       return CURLE_RECV_ERROR;
     }
-
   }
   return CURLE_OK;
 }
@@ -528,8 +525,7 @@ static CURLcode add_last_chunk(struct Curl_easy *data,
       continue;
     }
 
-    result = Curl_bufq_cwrite(&ctx->chunkbuf, tr->data,
-                              strlen(tr->data), &n);
+    result = Curl_bufq_cwrite(&ctx->chunkbuf, tr->data, strlen(tr->data), &n);
     if(!result)
       result = Curl_bufq_cwrite(&ctx->chunkbuf, STRCONST("\r\n"), &n);
     if(result)
