@@ -17,7 +17,6 @@
  *
  * SPDX-License-Identifier: ISC
  */
-
 #include "../curl_setup.h"
 
 #include "strparse.h"
@@ -169,7 +168,7 @@ static int inet_pton6(const char *src, unsigned char *dst)
   while((ch = *src++) != '\0') {
     if(ISXDIGIT(ch)) {
       val <<= 4;
-      val |= Curl_hexval(ch);
+      val |= curlx_hexval(ch);
       if(++saw_xdigit > 4)
         return 0;
       continue;

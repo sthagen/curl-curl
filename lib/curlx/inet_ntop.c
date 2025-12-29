@@ -16,7 +16,6 @@
  *
  * SPDX-License-Identifier: ISC
  */
-
 #include "../curl_setup.h"
 
 #ifndef HAVE_INET_NTOP
@@ -33,6 +32,7 @@
 
 #include "inet_ntop.h"
 #include "snprintf.h"
+#include "strcopy.h"
 
 #define IN6ADDRSZ       16
 /* #define INADDRSZ         4 */
@@ -78,7 +78,7 @@ static char *inet_ntop4(const unsigned char *src, char *dst, size_t size)
 #endif
     return NULL;
   }
-  strcpy(dst, tmp);
+  curlx_strcopy(dst, size, tmp, len);
   return dst;
 }
 
@@ -183,8 +183,7 @@ static char *inet_ntop6(const unsigned char *src, char *dst, size_t size)
     *tp++ = ':';
   *tp++ = '\0';
 
-  /* Check for overflow, copy, and we are done.
-   */
+  /* Check for overflow, copy, and we are done. */
   if((size_t)(tp - tmp) > size) {
 #ifdef USE_WINSOCK
     errno = WSAEINVAL;
@@ -193,7 +192,8 @@ static char *inet_ntop6(const unsigned char *src, char *dst, size_t size)
 #endif
     return NULL;
   }
-  strcpy(dst, tmp);
+
+  curlx_strcopy(dst, size, tmp, strlen(tmp));
   return dst;
 }
 

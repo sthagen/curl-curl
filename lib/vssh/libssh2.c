@@ -21,12 +21,11 @@
  * SPDX-License-Identifier: curl
  *
  ***************************************************************************/
-
-/* #define CURL_LIBSSH2_DEBUG */
-
 #include "../curl_setup.h"
 
 #ifdef USE_LIBSSH2
+
+/* #define CURL_LIBSSH2_DEBUG */
 
 #ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h>
@@ -48,7 +47,6 @@
 #include "../hostip.h"
 #include "../progress.h"
 #include "../transfer.h"
-#include "../http.h" /* for HTTP proxy tunnel stuff */
 #include "ssh.h"
 #include "../url.h"
 #include "../cfilters.h"
@@ -168,7 +166,7 @@ static void kbd_callback(const char *name, int name_len,
   (void)name_len;
   (void)instruction;
   (void)instruction_len;
-#endif  /* CURL_LIBSSH2_DEBUG */
+#endif /* CURL_LIBSSH2_DEBUG */
   if(num_prompts == 1) {
     struct connectdata *conn = data->conn;
     responses[0].text = curlx_strdup(conn->passwd);
@@ -274,7 +272,7 @@ static LIBSSH2_FREE_FUNC(my_libssh2_free)
     Curl_cfree(ptr);
 }
 
-#if !defined(CURL_DISABLE_VERBOSE_STRINGS)
+#ifndef CURL_DISABLE_VERBOSE_STRINGS
 static const char *myssh_statename(sshstate state)
 {
   static const char * const names[] = {
@@ -357,7 +355,7 @@ static void myssh_set_state(struct Curl_easy *data,
                             struct ssh_conn *sshc,
                             sshstate nowstate)
 {
-#if !defined(CURL_DISABLE_VERBOSE_STRINGS)
+#ifndef CURL_DISABLE_VERBOSE_STRINGS
   if(sshc->state != nowstate) {
     CURL_TRC_SSH(data, "[%s] -> [%s]",
                  myssh_statename(sshc->state),

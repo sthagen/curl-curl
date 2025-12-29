@@ -21,12 +21,10 @@
  * SPDX-License-Identifier: curl
  *
  ***************************************************************************/
-
 /*
  * Source file for all OpenSSL-specific code for the TLS/SSL layer. No code
  * but vtls.c should ever call or use these functions.
  */
-
 #include "../curl_setup.h"
 
 #if defined(USE_QUICHE) || defined(USE_OPENSSL)
@@ -61,6 +59,7 @@
 #include "../multiif.h"
 #include "../curlx/strerr.h"
 #include "../curlx/strparse.h"
+#include "../curlx/strcopy.h"
 #include "../strdup.h"
 #include "apple.h"
 
@@ -517,7 +516,7 @@ static CURLcode ossl_certchain(struct Curl_easy *data, SSL *ssl)
   return result;
 }
 
-#endif /* quiche or OpenSSL */
+#endif /* USE_QUICHE || USE_OPENSSL */
 
 #ifdef USE_OPENSSL
 
@@ -773,8 +772,7 @@ static char *ossl_strerror(unsigned long error, char *buf, size_t size)
 
   if(!*buf) {
     const char *msg = error ? "Unknown error" : "No error";
-    if(strlen(msg) < size)
-      strcpy(buf, msg);
+    curlx_strcopy(buf, size, msg, strlen(msg));
   }
 
   return buf;
@@ -4656,7 +4654,7 @@ out:
   curlx_dyn_free(&dname);
   return result;
 }
-#endif /* ! CURL_DISABLE_VERBOSE_STRINGS */
+#endif /* !CURL_DISABLE_VERBOSE_STRINGS */
 
 #ifdef USE_APPLE_SECTRUST
 struct ossl_certs_ctx {
