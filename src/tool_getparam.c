@@ -36,6 +36,7 @@
 #include "tool_main.h"
 #include "tool_stderr.h"
 #include "tool_help.h"
+#include "tool_strdup.h"
 #include "var.h"
 
 #define ALLOW_BLANK TRUE
@@ -69,12 +70,9 @@ static ParameterError getstrn(char **str, const char *val,
   if(!allowblank && !val[0])
     return PARAM_BLANK_STRING;
 
-  *str = curlx_malloc(len + 1);
+  *str = memdup0(val, len);
   if(!*str)
     return PARAM_NO_MEM;
-
-  memcpy(*str, val, len);
-  (*str)[len] = 0; /* null-terminate */
 
   return PARAM_OK;
 }
@@ -1496,7 +1494,7 @@ static ParameterError parse_verbose(bool toggle)
     return err;
   }
   else if(!verbose_nopts) {
-    /* fist `-v` in an argument resets to base verbosity */
+    /* first `-v` in an argument resets to base verbosity */
     global->verbosity = 0;
     if(!global->trace_set && set_trace_config("-all"))
       return PARAM_NO_MEM;
