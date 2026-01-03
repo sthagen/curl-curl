@@ -259,7 +259,7 @@ jobs:
               --enable-debug
               --disable-alt-svc --disable-dict --disable-file --disable-ftp --disable-gopher --disable-imap
               --disable-ldap --disable-pop3 --without-librtmp --disable-rtsp
-              --disable-shared --disable-smb --disable-smtp --disable-telnet --disable-tftp --disable-unix-sockets
+              --enable-static --disable-shared --disable-smb --disable-smtp --disable-telnet --disable-tftp --disable-unix-sockets
               --without-brotli --without-gssapi --without-libidn2 --without-libpsl --without-librtmp
               --without-libssh2 --without-libssh
               --without-nghttp2 --disable-ntlm --without-ssl --without-zlib --without-zstd
@@ -341,13 +341,19 @@ jobs:
             install: libnghttp3
             install_steps: torture
             generate: -DENABLE_DEBUG=ON -DBUILD_SHARED_LIBS=OFF -DENABLE_THREADED_RESOLVER=OFF -DOPENSSL_ROOT_DIR=/opt/homebrew/opt/openssl -DUSE_OPENSSL_QUIC=ON
-            tflags: '-t --shallow=25 --min=920 1 to 950'
+            tflags: '-t --shallow=25 --min=480 1 to 500'
           - name: 'OpenSSL torture 2'
             compiler: clang
             install: libnghttp3
             install_steps: torture
             generate: -DENABLE_DEBUG=ON -DBUILD_SHARED_LIBS=OFF -DENABLE_THREADED_RESOLVER=OFF -DOPENSSL_ROOT_DIR=/opt/homebrew/opt/openssl -DUSE_OPENSSL_QUIC=ON
-            tflags: '-t --shallow=20 --min=910 951 to 9999'
+            tflags: '-t --shallow=25 --min=730 501 to 1250'
+          - name: 'OpenSSL torture 3'
+            compiler: clang
+            install: libnghttp3
+            install_steps: torture
+            generate: -DENABLE_DEBUG=ON -DBUILD_SHARED_LIBS=OFF -DENABLE_THREADED_RESOLVER=OFF -DOPENSSL_ROOT_DIR=/opt/homebrew/opt/openssl -DUSE_OPENSSL_QUIC=ON
+            tflags: '-t --shallow=25 --min=628 1251 to 9999'
         exclude:
           # opt out jobs from combinations that have the compiler set manually
           - { compiler: llvm@18, build: { compiler: 'clang' } }
@@ -447,7 +453,7 @@ jobs:
             fi
             [ -n "${MATRIX_MACOS_VERSION_MIN}" ] && CFLAGS+=" -mmacosx-version-min=${MATRIX_MACOS_VERSION_MIN}"
             [[ "${MATRIX_INSTALL_STEPS}" = *'pytest'* ]] && options+=' --with-test-vsftpd=no'  # Skip ~20 tests that stretch run time by 7x on macOS
-            mkdir bld && cd bld && ../configure --prefix="$PWD"/curl-install --enable-unity --enable-warnings --enable-werror \
+            mkdir bld && cd bld && ../configure --prefix="$PWD"/curl-install --enable-unity --enable-warnings --enable-werror --disable-static \
               --disable-dependency-tracking --enable-option-checking=fatal \
               --with-libpsl=/opt/homebrew/opt/libpsl \
               ${MATRIX_CONFIGURE} ${options}
@@ -667,7 +673,7 @@ jobs:
             fi
             [ -n "${MATRIX_MACOS_VERSION_MIN}" ] && CFLAGS+=" -mmacosx-version-min=${MATRIX_MACOS_VERSION_MIN}"
             # would pick up nghttp2, libidn2, but libssh2 is disabled by default
-            mkdir bld && cd bld && ../configure --enable-unity --enable-warnings --enable-werror \
+            mkdir bld && cd bld && ../configure --enable-unity --enable-warnings --enable-werror --disable-static \
               --disable-dependency-tracking --enable-option-checking=fatal \
               --disable-docs --disable-manual \
               --with-openssl="$(brew --prefix openssl)" \
