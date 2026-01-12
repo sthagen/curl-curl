@@ -963,7 +963,9 @@ static CURLcode setopt_long(struct Curl_easy *data, CURLoption option,
       /* no return error on too high numbers since the bitmask could be
          extended in a future */
       return CURLE_BAD_FUNCTION_ARGUMENT;
-    s->keep_post = arg & CURL_REDIR_POST_ALL;
+    s->post301 = !!(arg & CURL_REDIR_POST_301);
+    s->post302 = !!(arg & CURL_REDIR_POST_302);
+    s->post303 = !!(arg & CURL_REDIR_POST_303);
     break;
 
   case CURLOPT_HEADEROPT:
@@ -1381,6 +1383,38 @@ static CURLcode setopt_slist(struct Curl_easy *data, CURLoption option,
   return result;
 }
 
+#if !defined(CURL_DISABLE_HTTP) || !defined(CURL_DISABLE_SMTP) ||       \
+  !defined(CURL_DISABLE_IMAP)
+# ifndef CURL_DISABLE_MIME
+static CURLcode setopt_mimepost(struct Curl_easy *data, curl_mime *mimep)
+{
+  /*
+   * Set to make us do MIME POST
+   */
+  CURLcode result;
+  struct UserDefined *s = &data->set;
+  if(!s->mimepostp) {
+    s->mimepostp = curlx_malloc(sizeof(*s->mimepostp));
+    if(!s->mimepostp)
+      return CURLE_OUT_OF_MEMORY;
+    Curl_mime_initpart(s->mimepostp);
+  }
+
+  result = Curl_mime_set_subparts(s->mimepostp, mimep, FALSE);
+  if(!result) {
+    s->method = HTTPREQ_POST_MIME;
+    s->opt_no_body = FALSE; /* this is implied */
+#ifndef CURL_DISABLE_FORM_API
+    Curl_mime_cleanpart(data->state.formp);
+    Curl_safefree(data->state.formp);
+    data->state.mimepost = NULL;
+#endif
+  }
+  return result;
+}
+#endif /* !CURL_DISABLE_MIME */
+#endif /* !CURL_DISABLE_HTTP || !CURL_DISABLE_SMTP || !CURL_DISABLE_IMAP */
+
 /* assorted pointer type arguments */
 static CURLcode setopt_pointers(struct Curl_easy *data, CURLoption option,
                                 va_list param)
@@ -1403,25 +1437,11 @@ static CURLcode setopt_pointers(struct Curl_easy *data, CURLoption option,
     break;
 #endif /* !CURL_DISABLE_FORM_API */
 #endif /* !CURL_DISABLE_HTTP */
-#if !defined(CURL_DISABLE_HTTP) || !defined(CURL_DISABLE_SMTP) || \
+#if !defined(CURL_DISABLE_HTTP) || !defined(CURL_DISABLE_SMTP) ||       \
   !defined(CURL_DISABLE_IMAP)
 # ifndef CURL_DISABLE_MIME
   case CURLOPT_MIMEPOST:
-    /*
-     * Set to make us do MIME POST
-     */
-    result = Curl_mime_set_subparts(&s->mimepost,
-                                    va_arg(param, curl_mime *),
-                                    FALSE);
-    if(!result) {
-      s->method = HTTPREQ_POST_MIME;
-      s->opt_no_body = FALSE; /* this is implied */
-#ifndef CURL_DISABLE_FORM_API
-      Curl_mime_cleanpart(data->state.formp);
-      Curl_safefree(data->state.formp);
-      data->state.mimepost = NULL;
-#endif
-    }
+    result = setopt_mimepost(data, va_arg(param, curl_mime *));
     break;
 #endif /* !CURL_DISABLE_MIME */
 #endif /* !CURL_DISABLE_HTTP || !CURL_DISABLE_SMTP || !CURL_DISABLE_IMAP */

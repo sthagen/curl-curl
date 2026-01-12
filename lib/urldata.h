@@ -1341,7 +1341,7 @@ struct UserDefined {
   struct curl_slist *headers; /* linked list of extra headers */
   struct curl_httppost *httppost;  /* linked list of old POST data */
 #if !defined(CURL_DISABLE_MIME) || !defined(CURL_DISABLE_FORM_API)
-  curl_mimepart mimepost;  /* MIME/POST data. */
+  curl_mimepart *mimepostp;  /* MIME/POST data. */
 #endif
 #ifndef CURL_DISABLE_TELNET
   struct curl_slist *telnet_options; /* linked list of telnet options */
@@ -1469,10 +1469,8 @@ struct UserDefined {
   */
   uint8_t ftp_create_missing_dirs;
 #endif
-  uint8_t use_ssl;   /* if AUTH TLS is to be attempted etc, for FTP or
-                              IMAP or POP3 or others! (type: curl_usessl)*/
-  char keep_post;     /* keep POSTs as POSTs after a 30x request; each
-                         bit represents a request, from 301 to 303 */
+  uint8_t use_ssl;   /* if AUTH TLS is to be attempted etc, for FTP or IMAP or
+                        POP3 or others! (type: curl_usessl)*/
   uint8_t timecondition; /* kind of time comparison: curl_TimeCond */
   uint8_t method;   /* what kind of HTTP request: Curl_HttpReq */
   uint8_t httpwant; /* when non-zero, a specific HTTP version requested
@@ -1587,10 +1585,14 @@ struct UserDefined {
   BIT(ws_raw_mode);
   BIT(ws_no_auto_pong);
 #endif
+  BIT(post301); /* keep POSTs as POSTs after a 301 request */
+  BIT(post302); /* keep POSTs as POSTs after a 302 request */
+  BIT(post303); /* keep POSTs as POSTs after a 303 request */
 };
 
 #ifndef CURL_DISABLE_MIME
-#define IS_MIME_POST(a) ((a)->set.mimepost.kind != MIMEKIND_NONE)
+#define IS_MIME_POST(a)                                                 \
+  ((a)->set.mimepostp && ((a)->set.mimepostp->kind != MIMEKIND_NONE))
 #else
 #define IS_MIME_POST(a) FALSE
 #endif
