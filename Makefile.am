@@ -64,17 +64,14 @@ CMAKE_DIST =                                    \
  tests/cmake/test.c                             \
  tests/cmake/test.sh
 
-VC_DIST = projects/README.md projects/generate.bat
-
-EXTRA_DIST = CHANGES.md COPYING RELEASE-NOTES Dockerfile .editorconfig \
- $(CMAKE_DIST) $(VC_DIST)
+EXTRA_DIST = CHANGES.md COPYING RELEASE-NOTES Dockerfile .editorconfig $(CMAKE_DIST)
 
 DISTCLEANFILES = buildinfo.txt
 
 bin_SCRIPTS = curl-config
 
 SUBDIRS = lib docs src scripts
-DIST_SUBDIRS = $(SUBDIRS) tests packages include docs
+DIST_SUBDIRS = $(SUBDIRS) tests projects include docs
 
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = libcurl.pc
@@ -140,32 +137,6 @@ examples:
 check-docs:
 	@(cd docs/libcurl; $(MAKE) check)
 
-# Build source and binary rpms. For rpm-3.0 and above, the ~/.rpmmacros
-# must contain the following line:
-# %_topdir /home/loic/local/rpm
-# and that /home/loic/local/rpm contains the directory SOURCES, BUILD etc.
-#
-# cd /home/loic/local/rpm ; mkdir -p SOURCES BUILD RPMS/i386 SPECS SRPMS
-#
-# If additional configure flags are needed to build the package, add the
-# following in ~/.rpmmacros
-# %configure CFLAGS="%{optflags}" ./configure %{_target_platform} --prefix=%{_prefix} ${AM_CONFIGFLAGS}
-# and run make rpm in the following way:
-# AM_CONFIGFLAGS='--with-uri=/home/users/loic/local/RedHat-6.2' make rpm
-#
-
-rpms:
-	$(MAKE) RPMDIST=curl rpm
-	$(MAKE) RPMDIST=curl-ssl rpm
-
-rpm:
-	RPM_TOPDIR=`rpm --showrc | @PERL@ -n -e 'print if(s/.*_topdir\s+(.*)/$$1/)'` ; \
-	cp $(srcdir)/packages/Linux/RPM/$(RPMDIST).spec $$RPM_TOPDIR/SPECS ; \
-	cp $(PACKAGE)-$(VERSION).tar.gz $$RPM_TOPDIR/SOURCES ; \
-	rpm -ba --clean --rmsource $$RPM_TOPDIR/SPECS/$(RPMDIST).spec ; \
-	mv $$RPM_TOPDIR/RPMS/i386/$(RPMDIST)-*.rpm . ; \
-	mv $$RPM_TOPDIR/SRPMS/$(RPMDIST)-*.src.rpm .
-
 # We extend the standard install with a custom hook:
 if BUILD_DOCS
 install-data-hook:
@@ -198,7 +169,7 @@ checksrc:
 	(cd tests && $(MAKE) checksrc)
 	(cd include/curl && $(MAKE) checksrc)
 	(cd docs/examples && $(MAKE) checksrc)
-	(cd packages && $(MAKE) checksrc)
+	(cd projects && $(MAKE) checksrc)
 
 lint: checksrc
 	@PERL@ $(top_srcdir)/scripts/spacecheck.pl
