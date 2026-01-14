@@ -48,12 +48,6 @@ struct Curl_easy;
 #include "slist.h"
 #include "curlx/dynbuf.h"
 
-#ifdef _WIN32
-#  ifndef R_OK
-#  define R_OK 4
-#  endif
-#endif
-
 #define READ_ERROR   ((size_t)-1)
 #define STOP_FILLING ((size_t)-2)
 
@@ -363,7 +357,7 @@ static void cleanup_encoder_state(struct mime_encoder_state *p)
   p->bufend = 0;
 }
 
-/* Dummy encoder. This is used for 8bit and binary content encodings. */
+/* Dummy encoder. This is used for 8-bit and binary content encodings. */
 static size_t encoder_nop_read(char *buffer, size_t size, bool ateof,
                                struct curl_mimepart *part)
 {
@@ -390,7 +384,7 @@ static curl_off_t encoder_nop_size(curl_mimepart *part)
   return part->datasize;
 }
 
-/* 7bit encoder: the encoder is just a data validity check. */
+/* 7-bit encoder: the encoder is just a data validity check. */
 static size_t encoder_7bit_read(char *buffer, size_t size, bool ateof,
                                 curl_mimepart *part)
 {

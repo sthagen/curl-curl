@@ -445,7 +445,7 @@ static CURLcode ws_dec_read_head(struct ws_decoder *dec,
       break;
     case 10:
       if(dec->head[2] > 127) {
-        failf(data, "[WS] frame length longer than 63 bit not supported");
+        failf(data, "[WS] frame length longer than 63 bits not supported");
         return CURLE_RECV_ERROR;
       }
       dec->payload_len =
@@ -486,7 +486,6 @@ static CURLcode ws_dec_pass_payload(struct ws_decoder *dec,
   size_t remain = curlx_sotouz_range(dec->payload_len - dec->payload_offset,
                                      0, SIZE_MAX);
 
-  (void)data;
   while(remain && Curl_bufq_peek(inraw, &inbuf, &inlen)) {
     if(inlen > remain)
       inlen = remain;
