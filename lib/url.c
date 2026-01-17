@@ -73,6 +73,7 @@
 #include "vtls/vtls.h"
 #include "hostip.h"
 #include "transfer.h"
+#include "curl_addrinfo.h"
 #include "curl_trc.h"
 #include "progress.h"
 #include "cookie.h"
@@ -1308,8 +1309,8 @@ static bool ConnectionExists(struct Curl_easy *data,
   /* wait_pipe is TRUE if we encounter a bundle that is undecided. There
    * is no matching connection then, yet. */
   *usethis = match.found;
-  *force_reuse = match.force_reuse;
-  *waitpipe = match.wait_pipe;
+  *force_reuse = (bool)match.force_reuse;
+  *waitpipe = (bool)match.wait_pipe;
   return result;
 }
 
@@ -1366,7 +1367,7 @@ static struct connectdata *allocate_conn(struct Curl_easy *data)
   conn->bits.ftp_use_eprt = data->set.ftp_use_eprt;
 #endif
   conn->ip_version = data->set.ipver;
-  conn->connect_only = data->set.connect_only;
+  conn->connect_only = (bool)data->set.connect_only;
   conn->transport_wanted = TRNSPRT_TCP; /* most of them are TCP streams */
 
   /* Store the local bind parameters that will be used for this connection */
@@ -1675,7 +1676,7 @@ static void zonefrom_url(CURLU *uh, struct Curl_easy *data,
 {
   char *zoneid;
   CURLUcode uc = curl_url_get(uh, CURLUPART_ZONEID, &zoneid, 0);
-#ifdef CURL_DISABLE_VERBOSE_STRINGS
+#if !defined(HAVE_IF_NAMETOINDEX) || defined(CURL_DISABLE_VERBOSE_STRINGS)
   (void)data;
 #endif
 
@@ -1687,18 +1688,9 @@ static void zonefrom_url(CURLU *uh, struct Curl_easy *data,
       conn->scope_id = (unsigned int)scope;
 #ifdef HAVE_IF_NAMETOINDEX
     else {
-#elif defined(_WIN32)
-    else if(Curl_if_nametoindex) {
-#endif
-
-#if defined(HAVE_IF_NAMETOINDEX) || defined(_WIN32)
       /* Zone identifier is not numeric */
       unsigned int scopeidx = 0;
-#ifdef HAVE_IF_NAMETOINDEX
       scopeidx = if_nametoindex(zoneid);
-#else
-      scopeidx = Curl_if_nametoindex(zoneid);
-#endif
       if(!scopeidx) {
 #ifndef CURL_DISABLE_VERBOSE_STRINGS
         char buffer[STRERROR_LEN];
@@ -1709,7 +1701,7 @@ static void zonefrom_url(CURLU *uh, struct Curl_easy *data,
       else
         conn->scope_id = scopeidx;
     }
-#endif /* HAVE_IF_NAMETOINDEX || _WIN32 */
+#endif /* HAVE_IF_NAMETOINDEX */
 
     curlx_free(zoneid);
   }
@@ -3165,7 +3157,7 @@ static CURLcode resolve_unix(struct Curl_easy *data,
     return CURLE_OUT_OF_MEMORY;
 
   hostaddr->addr = Curl_unix2addr(unix_path, &longpath,
-                                  conn->bits.abstract_unix_socket);
+                                  (bool)conn->bits.abstract_unix_socket);
   if(!hostaddr->addr) {
     if(longpath)
       /* Long paths are not supported for now */

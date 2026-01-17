@@ -34,6 +34,7 @@
 
 #include "urldata.h"
 #include "bufq.h"
+#include "curl_addrinfo.h"
 #include "curl_trc.h"
 #include "select.h"
 #include "cfilters.h"
@@ -1307,7 +1308,7 @@ static CURLcode socks_proxy_cf_connect(struct Curl_cfilter *cf,
   cf->connected = TRUE;
 
 out:
-  *done = cf->connected;
+  *done = (bool)cf->connected;
   return result;
 }
 

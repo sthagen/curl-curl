@@ -56,8 +56,10 @@
 
 #include "urldata.h"
 #include "cfilters.h"
+#include "curl_addrinfo.h"
 #include "curl_trc.h"
 #include "hostip.h"
+#include "httpsrr.h"
 #include "url.h"
 #include "multiif.h"
 #include "curl_threads.h"
@@ -197,7 +199,7 @@ err_exit:
 static CURL_THREAD_RETURN_T CURL_STDCALL getaddrinfo_thread(void *arg)
 {
   struct async_thrdd_addr_ctx *addr_ctx = arg;
-  bool do_abort;
+  curl_bit do_abort;
 
   Curl_mutex_acquire(&addr_ctx->mutx);
   do_abort = addr_ctx->do_abort;
@@ -299,7 +301,7 @@ static void async_thrdd_destroy(struct Curl_easy *data)
 #endif
 
   if(thrdd->addr && (thrdd->addr->thread_hnd != curl_thread_t_null)) {
-    bool done;
+    curl_bit done;
 
     Curl_mutex_acquire(&addr->mutx);
 #ifndef CURL_DISABLE_SOCKETPAIR
@@ -460,7 +462,7 @@ static void async_thrdd_shutdown(struct Curl_easy *data)
 {
   struct async_thrdd_ctx *thrdd = &data->state.async.thrdd;
   struct async_thrdd_addr_ctx *addr_ctx = thrdd->addr;
-  bool done;
+  curl_bit done;
 
   if(!addr_ctx)
     return;
@@ -567,7 +569,7 @@ CURLcode Curl_async_is_resolved(struct Curl_easy *data,
                                 struct Curl_dns_entry **dns)
 {
   struct async_thrdd_ctx *thrdd = &data->state.async.thrdd;
-  bool done = FALSE;
+  curl_bit done = FALSE;
 
   DEBUGASSERT(dns);
   *dns = NULL;
@@ -664,7 +666,7 @@ CURLcode Curl_async_pollset(struct Curl_easy *data, struct easy_pollset *ps)
 {
   struct async_thrdd_ctx *thrdd = &data->state.async.thrdd;
   CURLcode result = CURLE_OK;
-  bool thrd_done;
+  curl_bit thrd_done;
 
 #if !defined(USE_HTTPSRR_ARES) && defined(CURL_DISABLE_SOCKETPAIR)
   (void)ps;
