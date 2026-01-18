@@ -170,7 +170,7 @@ curl_unix_sockets_msg="no       (--enable-unix-sockets)"
          ssl_backends=
           curl_h1_msg="enabled  (internal)"
           curl_h2_msg="no       (--with-nghttp2)"
-          curl_h3_msg="no       (--with-ngtcp2 --with-nghttp3, --with-quiche, --with-openssl-quic)"
+          curl_h3_msg="no       (--with-ngtcp2 --with-nghttp3, --with-quiche)"
 
 enable_altsvc="yes"
 hsts="yes"
@@ -2093,6 +2093,28 @@ elif test "$VALID_DEFAULT_SSL_BACKEND" = "yes"; then
   AC_DEFINE_UNQUOTED([CURL_DEFAULT_SSL_BACKEND], ["$DEFAULT_SSL_BACKEND"], [Default SSL backend])
 fi
 
+dnl ---------------------
+dnl check native CA store
+dnl ---------------------
+
+ca_native_opt=0
+AC_MSG_CHECKING([whether to use native CA store])
+AC_ARG_ENABLE(ca-native,
+AS_HELP_STRING([--enable-ca-native],[Enable native CA store])
+AS_HELP_STRING([--disable-ca-native],[Disable native CA store (default)]),
+[ case "$enableval" in
+  yes)
+    AC_MSG_RESULT([yes])
+    AC_DEFINE(CURL_CA_NATIVE, 1, [If native CA store is enabled])
+    ca_native_opt=1
+    ;;
+  *)
+    AC_MSG_RESULT([no])
+    ;;
+  esac ],
+    AC_MSG_RESULT([no])
+)
+
 dnl **********************************************************************
 dnl Check for the CA bundle
 dnl **********************************************************************
@@ -2109,21 +2131,38 @@ dnl check unsafe CA search
 dnl ----------------------
 
 if test "$curl_cv_native_windows" = "yes"; then
+  ca_search=1
   AC_MSG_CHECKING([whether to enable unsafe CA bundle search in PATH on Windows])
   AC_ARG_ENABLE(ca-search,
-AS_HELP_STRING([--enable-ca-search],[Enable unsafe CA bundle search in PATH on Windows (default)])
+AS_HELP_STRING([--enable-ca-search],[Enable unsafe CA bundle search in PATH on Windows])
 AS_HELP_STRING([--disable-ca-search],[Disable unsafe CA bundle search in PATH on Windows]),
   [ case "$enableval" in
     no)
       AC_MSG_RESULT([no])
-      AC_DEFINE(CURL_DISABLE_CA_SEARCH, 1, [If unsafe CA bundle search in PATH on Windows is disabled])
+      ca_search=0
+      ;;
+    yes)
+      AC_MSG_RESULT([yes])
       ;;
     *)
-      AC_MSG_RESULT([yes])
+      if test "$ca_native_opt" = "1"; then
+        AC_MSG_RESULT([no])
+        ca_search=0
+      else
+        AC_MSG_RESULT([yes])
+      fi
       ;;
     esac ],
-      AC_MSG_RESULT([yes])
+      if test "$ca_native_opt" = "1"; then
+        AC_MSG_RESULT([no])
+        ca_search=0
+      else
+        AC_MSG_RESULT([yes])
+      fi
   )
+  if test "$ca_search" = "0"; then
+    AC_DEFINE(CURL_DISABLE_CA_SEARCH, 1, [If unsafe CA bundle search in PATH on Windows is disabled])
+  fi
 fi
 
 dnl --------------------
@@ -3569,52 +3608,13 @@ if test "$USE_NGTCP2" = "1" && test "$WOLFSSL_ENABLED" = "1"; then
 fi
 
 dnl **********************************************************************
-dnl Check for OpenSSL QUIC
-dnl **********************************************************************
-
-OPT_OPENSSL_QUIC="no"
-
-if test "$disable_http" = "yes" || test "$OPENSSL_ENABLED" != "1"; then
-  # without HTTP or without openssl, no use
-  OPT_OPENSSL_QUIC="no"
-fi
-
-AC_ARG_WITH(openssl-quic,
-AS_HELP_STRING([--with-openssl-quic],[Enable OpenSSL QUIC usage])
-AS_HELP_STRING([--without-openssl-quic],[Disable OpenSSL QUIC usage]),
-  [OPT_OPENSSL_QUIC=$withval])
-case "$OPT_OPENSSL_QUIC" in
-  no)
-    dnl --without-openssl-quic option used
-    want_openssl_quic="no"
-    ;;
-  yes)
-    dnl --with-openssl-quic option used
-    want_openssl_quic="yes"
-    ;;
-esac
-
-curl_openssl_quic_msg="no      (--with-openssl-quic)"
-if test "$want_openssl_quic" = "yes"; then
-
-  if test "$USE_NGTCP2" = "1"; then
-    AC_MSG_ERROR([--with-openssl-quic and --with-ngtcp2 are mutually exclusive])
-  fi
-  if test "$have_openssl_quic" != "1"; then
-    AC_MSG_ERROR([--with-openssl-quic requires quic support and OpenSSL >= 3.3.0])
-  fi
-  AC_DEFINE(USE_OPENSSL_QUIC, 1, [if openssl QUIC is in use])
-  USE_OPENSSL_QUIC=1
-fi
-
-dnl **********************************************************************
 dnl Check for nghttp3 (HTTP/3 with ngtcp2)
 dnl **********************************************************************
 
 OPT_NGHTTP3="yes"
 
-if test "$USE_NGTCP2" != "1" && test "$USE_OPENSSL_QUIC" != "1"; then
-  # without ngtcp2 or openssl quic, nghttp3 is of no use for us
+if test "$USE_NGTCP2" != "1"; then
+  # without ngtcp2, nghttp3 is of no use for us
   OPT_NGHTTP3="no"
   want_nghttp3="no"
 fi
@@ -3643,9 +3643,9 @@ esac
 curl_http3_msg="no      (--with-nghttp3)"
 if test "$want_nghttp3" != "no"; then
 
-  if test "$USE_NGTCP2" != "1" && test "$USE_OPENSSL_QUIC" != "1"; then
-    # without ngtcp2 or openssl quic, nghttp3 is of no use for us
-    AC_MSG_ERROR([nghttp3 enabled without a QUIC library; enable ngtcp2 or OpenSSL-QUIC])
+  if test "x$USE_NGTCP2" != "x1"; then
+    # without ngtcp2, nghttp3 is of no use for us
+    AC_MSG_ERROR([nghttp3 enabled without a QUIC library; enable ngtcp2])
   fi
 
   dnl backup the pre-nghttp3 variables
@@ -3712,17 +3712,6 @@ if test "$USE_NGTCP2" = "1" && test "$USE_NGHTTP3" = "1"; then
   USE_NGTCP2_H3=1
   AC_MSG_NOTICE([HTTP3 support is experimental])
   curl_h3_msg="enabled (ngtcp2 + nghttp3)"
-fi
-
-dnl **********************************************************************
-dnl Check for OpenSSL and nghttp3 (HTTP/3 with nghttp3 using OpenSSL QUIC)
-dnl **********************************************************************
-
-if test "$USE_OPENSSL_QUIC" = "1" && test "$USE_NGHTTP3" = "1"; then
-  experimental="$experimental HTTP3"
-  USE_OPENSSL_H3=1
-  AC_MSG_NOTICE([HTTP3 support is experimental])
-  curl_h3_msg="enabled (openssl + nghttp3)"
 fi
 
 dnl **********************************************************************
@@ -4394,7 +4383,7 @@ if test "$curl_cv_winuwp" != "yes"; then
   AC_MSG_CHECKING([whether to enable SSPI support (Windows native builds only)])
   AC_ARG_ENABLE(sspi,
   AS_HELP_STRING([--enable-sspi],[Enable SSPI])
-  AS_HELP_STRING([--disable-sspi],[Disable SSPI]),
+AS_HELP_STRING([--disable-sspi],[Disable SSPI]),
   [ case "$enableval" in
     yes)
       if test "$curl_cv_native_windows" = "yes"; then
@@ -5038,7 +5027,7 @@ if test "$CURL_DISABLE_HTTP" != "1"; then
   AC_MSG_CHECKING([whether to support WebSockets])
   AC_ARG_ENABLE(websockets,
   AS_HELP_STRING([--enable-websockets],[Enable WebSockets support])
-  AS_HELP_STRING([--disable-websockets],[Disable WebSockets support]),
+AS_HELP_STRING([--disable-websockets],[Disable WebSockets support]),
   [ case "$enableval" in
     no)
       AC_MSG_RESULT(no)
@@ -5286,8 +5275,12 @@ if test "$OPENSSL_ENABLED" = "1" || test -n "$SSL_ENABLED"; then
   fi
 fi
 
-if test "$APPLE_SECTRUST_ENABLED" = "1"; then
-  SUPPORT_FEATURES="$SUPPORT_FEATURES AppleSecTrust"
+if test -n "$SSL_ENABLED"; then
+  if test "$APPLE_SECTRUST_ENABLED" = "1"; then
+    SUPPORT_FEATURES="$SUPPORT_FEATURES AppleSecTrust"
+  elif test "$ca_native_opt" = "1"; then
+    SUPPORT_FEATURES="$SUPPORT_FEATURES NativeCA"
+  fi
 fi
 
 if test "$want_httpsrr" != "no"; then
@@ -5381,6 +5374,9 @@ if test "$CURL_DISABLE_GOPHER" != "1"; then
 fi
 if test "$CURL_DISABLE_MQTT" != "1"; then
   SUPPORT_PROTOCOLS="$SUPPORT_PROTOCOLS MQTT"
+  if test "$SSL_ENABLED" = "1"; then
+    SUPPORT_PROTOCOLS="$SUPPORT_PROTOCOLS MQTTS"
+  fi
 fi
 if test "$CURL_DISABLE_POP3" != "1"; then
   SUPPORT_PROTOCOLS="$SUPPORT_PROTOCOLS POP3"
