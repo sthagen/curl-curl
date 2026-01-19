@@ -67,7 +67,6 @@ if [ "${BUILD_SYSTEM}" = 'CMake' ]; then
     [[ "${TARGET}" = *'ARM64'* ]] && SKIP_RUN='ARM64 architecture'
     [ -n "${TOOLSET:-}" ] && options+=" -T ${TOOLSET}"
     [ "${OPENSSL}" = 'ON' ] && options+=" -DOPENSSL_ROOT_DIR=${openssl_root_win}"
-    [ -n "${CURLDEBUG:-}" ] && options+=" -DENABLE_CURLDEBUG=${CURLDEBUG}"
     if [ "${APPVEYOR_BUILD_WORKER_IMAGE}" = 'Visual Studio 2013' ]; then
       mkdir "_bld${_chkprefill}"
       cd "_bld${_chkprefill}"
@@ -115,7 +114,9 @@ elif [ "${BUILD_SYSTEM}" = 'VisualStudioSolution' ]; then
   curl="build/${platdir}/${VC_VERSION}/${PRJ_CFG}/curl${binsuffix}.exe"
 fi
 
-find . \( -name '*.exe' -o -name '*.dll' -o -name '*.lib' -o -name '*.pdb' \) -exec file -- '{}' \;
+find . \( -name '*.exe' -o -name '*.dll' -o -name '*.lib' -o -name '*.pdb' \) -print0 | grep -z curl | xargs -0 file --
+find . \( -name '*.exe' -o -name '*.dll' -o -name '*.lib' -o -name '*.pdb' \) -print0 | grep -z curl | xargs -0 stat -c '%10s bytes: %n' --
+
 if [ -z "${SKIP_RUN:-}" ]; then
   "${curl}" --disable --version
 else

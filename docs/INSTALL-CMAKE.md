@@ -246,7 +246,6 @@ target_link_libraries(my_target PRIVATE CURL::libcurl)
 - `CURL_STATIC_CRT`:                        Build libcurl with static CRT with MSVC (`/MT`) (requires UCRT, static libcurl or no curl executable). Default: `OFF`
 - `CURL_TARGET_WINDOWS_VERSION`:            Minimum target Windows version as hex string.
 - `CURL_WERROR`:                            Turn compiler warnings into errors. Default: `OFF`
-- `ENABLE_CURLDEBUG`:                       Enable TrackMemory debug feature. Default: =`ENABLE_DEBUG`
 - `ENABLE_CURL_MANUAL`:                     Build the man page for curl and enable its `-M`/`--manual` option. Default: `ON`
 - `ENABLE_DEBUG`:                           Enable curl debug features (for developing curl itself). Default: `OFF`
 - `IMPORT_LIB_SUFFIX`:                      Import library suffix. Default: `_imp` for MSVC-like toolchains, otherwise empty.
@@ -358,7 +357,7 @@ Details via CMake
 - `CURL_USE_GNUTLS`:                        Enable GnuTLS for SSL/TLS. Default: `OFF`
 - `CURL_USE_GSASL`:                         Use libgsasl. Default: `OFF`
 - `CURL_USE_GSSAPI`:                        Use GSSAPI implementation. Default: `OFF`
-- `CURL_USE_LIBBACKTRACE`:                  Use [libbacktrace](https://github.com/ianlancetaylor/libbacktrace). Requires build with TrackMemory and DWARF debug information. Default: `OFF`
+- `CURL_USE_LIBBACKTRACE`:                  Use [libbacktrace](https://github.com/ianlancetaylor/libbacktrace). Requires debug-enabled build and DWARF debug information. Default: `OFF`
 - `CURL_USE_LIBPSL`:                        Use libpsl. Default: `ON`
 - `CURL_USE_LIBSSH2`:                       Use libssh2. Default: `ON`
 - `CURL_USE_LIBSSH`:                        Use libssh. Default: `OFF`
@@ -476,6 +475,14 @@ Examples:
 - `-DOPENSSL_ROOT_DIR=/path/to/openssl`,
   which directory (typically) contains `include` and `lib` subdirectories.
   No ending slash or backslash is necessary.
+
+## Dependency options (Apple frameworks)
+
+- `COREFOUNDATION_FRAMEWORK`:               Absolute path to `CoreFoundation` framework. (for IPv6 non-c-ares, SecTrust, wolfSSL)
+- `CORESERVICES_FRAMEWORK`:                 Absolute path to `CoreServices` framework. (for IPv6 non-c-ares, SecTrust)
+- `FOUNDATION_FRAMEWORK`:                   Absolute path to `Foundation` framework. (for Rustls)
+- `SECURITY_FRAMEWORK`:                     Absolute path to `Security` framework. (for Rustls, SecTrust, wolfSSL)
+- `SYSTEMCONFIGURATION_FRAMEWORK`:          Absolute path to `SystemConfiguration` framework. (for IPv6 non-c-ares)
 
 ## Test tools
 
