@@ -52,8 +52,6 @@
 #define PORT_MQTT   1883
 #define PORT_MQTTS  8883
 
-struct curl_trc_featt;
-
 #ifdef USE_ECH
 /* CURLECH_ bits for the tls_ech option */
 # define CURLECH_DISABLE    (1 << 0)
@@ -1041,7 +1039,7 @@ struct UrlState {
                                     curl_easy_setopt(COOKIEFILE) calls */
 #endif
 
-#ifndef CURL_DISABLE_VERBOSE_STRINGS
+#ifdef CURLVERBOSE
   struct curl_trc_feat *feat; /* opt. trace feature transfer is part of */
 #endif
 

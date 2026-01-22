@@ -89,10 +89,6 @@
 #ifdef _MSC_VER
 /* Disable Visual Studio warnings: 4127 "conditional expression is constant" */
 #pragma warning(disable:4127)
-/* Avoid VS2005 and upper complaining about portable C functions. */
-#ifndef _CRT_NONSTDC_NO_DEPRECATE  /* mingw-w64 v2+. MS SDK ~10+/~VS2017+. */
-#define _CRT_NONSTDC_NO_DEPRECATE  /* for close(), fileno(), unlink(), etc. */
-#endif
 #ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS  /* for getenv(), tests: sscanf() */
 #endif
@@ -453,6 +449,10 @@
 #define USE_EVENTFD
 #endif
 
+#ifdef SO_NOSIGPIPE
+#define USE_SO_NOSIGPIPE
+#endif
+
 #include <stdio.h>
 #include <assert.h>
 
@@ -804,6 +804,13 @@
 #  define read(fd, buf, count)  (ssize_t)_read(fd, buf, curlx_uztoui(count))
 #  undef  write
 #  define write(fd, buf, count) (ssize_t)_write(fd, buf, curlx_uztoui(count))
+/* Avoid VS2005+ _CRT_NONSTDC_NO_DEPRECATE warnings about non-portable funcs */
+#  undef fileno
+#  define fileno(fh) _fileno(fh)
+#  undef unlink
+#  define unlink(fn) _unlink(fn)
+#  undef isatty
+#  define isatty(fd) _isatty(fd)
 #endif
 
 /*
@@ -1208,6 +1215,22 @@ typedef struct sockaddr_un {
 /* Probably 'inline' is not supported by compiler.
    Define to the empty string to be on the safe side. */
 #  define CURL_INLINE /* empty */
+#endif
+
+/* Detect if compiler supports C99 variadic macros */
+#if (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 199901L) || \
+  defined(_MSC_VER)
+#define CURL_HAVE_MACRO_VARARG
+#endif
+
+#if !defined(CURL_HAVE_MACRO_VARARG) || \
+  (defined(CURL_HAVE_MACRO_VARARG) && !defined(CURL_DISABLE_VERBOSE_STRINGS))
+#define CURLVERBOSE
+#define VERBOSE(x) x
+#define NOVERBOSE(x) Curl_nop_stmt
+#else
+#define VERBOSE(x) Curl_nop_stmt
+#define NOVERBOSE(x) x
 #endif
 
 #endif /* HEADER_CURL_SETUP_H */

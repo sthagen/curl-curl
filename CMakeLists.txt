@@ -193,9 +193,6 @@ if(WIN32)
 
   # Apply to all feature checks
   list(APPEND CMAKE_REQUIRED_DEFINITIONS "-DWIN32_LEAN_AND_MEAN")
-  if(MSVC)
-    list(APPEND CMAKE_REQUIRED_DEFINITIONS "-D_CRT_NONSTDC_NO_DEPRECATE")  # for strdup() detection
-  endif()
 
   set(CURL_TARGET_WINDOWS_VERSION "" CACHE STRING "Minimum target Windows version as hex string")
   if(CURL_TARGET_WINDOWS_VERSION)
@@ -300,6 +297,40 @@ if(CURL_CODE_COVERAGE)
     set(CURL_COVERAGE_LDFLAGS "-fprofile-instr-generate" "-fcoverage-mapping")
   else()
     set(CURL_CODE_COVERAGE OFF)
+  endif()
+endif()
+
+set(CURL_CFLAGS "")  # C flags set for libcurl and curl tool (aka public binaries) only
+
+option(CURL_DROP_UNUSED "Drop unused code and data from built binaries" OFF)
+if(CURL_DROP_UNUSED OR TRUE)
+  if(APPLE)
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.13)
+      set_property(DIRECTORY APPEND PROPERTY LINK_OPTIONS "-Wl,-dead_strip")
+    else()
+      set_property(DIRECTORY APPEND PROPERTY LINK_FLAGS "-Wl,-dead_strip")
+    endif()
+  elseif(MSVC)  # Options below are toolchain defaults in Release configurations.
+    # This option does not seem to have an effect with VS2010:
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.13)
+      set_property(DIRECTORY APPEND PROPERTY LINK_OPTIONS "-OPT:REF")
+    else()
+      set_property(DIRECTORY APPEND PROPERTY LINK_FLAGS "-OPT:REF")
+    endif()
+    # Optional, but reduces binary size further, with the cost of larger objects/static libraries:
+    list(APPEND CURL_CFLAGS "-Gy")
+  elseif(CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID MATCHES "Clang")
+    if(WIN32)
+      # To make -Wl,--gc-sections work on Windows: https://sourceware.org/bugzilla/show_bug.cgi?id=11539
+      set_property(DIRECTORY APPEND PROPERTY COMPILE_OPTIONS "-fno-asynchronous-unwind-tables")
+    endif()
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.13)
+      set_property(DIRECTORY APPEND PROPERTY LINK_OPTIONS "-Wl,--gc-sections")
+    else()
+      set_property(DIRECTORY APPEND PROPERTY LINK_FLAGS "-Wl,--gc-sections")
+    endif()
+    # Optional, but reduces binary size further, with the cost of larger objects/static libraries:
+    list(APPEND CURL_CFLAGS "-ffunction-sections" "-fdata-sections")
   endif()
 endif()
 
@@ -1537,7 +1568,6 @@ check_symbol_exists("send"            "${CURL_INCLUDES}" HAVE_SEND)  # proto/bsd
 check_function_exists("sendmsg"       HAVE_SENDMSG)
 check_function_exists("sendmmsg"      HAVE_SENDMMSG)
 check_symbol_exists("select"          "${CURL_INCLUDES}" HAVE_SELECT)  # proto/bsdsocket.h sys/select.h sys/socket.h
-check_symbol_exists("strdup"          "string.h" HAVE_STRDUP)
 check_symbol_exists("memrchr"         "string.h" HAVE_MEMRCHR)
 check_symbol_exists("alarm"           "unistd.h" HAVE_ALARM)
 check_symbol_exists("fcntl"           "fcntl.h" HAVE_FCNTL)
@@ -1575,11 +1605,14 @@ check_function_exists("getrlimit"     HAVE_GETRLIMIT)
 check_function_exists("setlocale"     HAVE_SETLOCALE)
 check_function_exists("setrlimit"     HAVE_SETRLIMIT)
 
-if(NOT WIN32)
+if(WIN32)
+  set(HAVE_STRDUP 1)  # to not define local implementation. curl uses _strdup() on Windows.
+else()
   check_function_exists("if_nametoindex"  HAVE_IF_NAMETOINDEX)  # net/if.h
   check_function_exists("realpath"        HAVE_REALPATH)
   check_function_exists("sched_yield"     HAVE_SCHED_YIELD)
   check_symbol_exists("strcasecmp"        "string.h" HAVE_STRCASECMP)
+  check_symbol_exists("strdup"            "string.h" HAVE_STRDUP)
   check_symbol_exists("stricmp"           "string.h" HAVE_STRICMP)
   check_symbol_exists("strcmpi"           "string.h" HAVE_STRCMPI)
 endif()

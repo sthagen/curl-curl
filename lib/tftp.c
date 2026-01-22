@@ -156,10 +156,9 @@ static CURLcode tftp_set_timeouts(struct tftp_conn *state)
 {
   time_t timeout;
   timediff_t timeout_ms;
-  bool start = (state->state == TFTP_STATE_START);
 
   /* Compute drop-dead time */
-  timeout_ms = Curl_timeleft_ms(state->data, start);
+  timeout_ms = Curl_timeleft_ms(state->data);
 
   if(timeout_ms < 0) {
     /* time-out, bail out, go home */
@@ -498,11 +497,9 @@ static CURLcode tftp_connect_for_tx(struct tftp_conn *state,
                                     tftp_event_t event)
 {
   CURLcode result;
-#ifndef CURL_DISABLE_VERBOSE_STRINGS
-  struct Curl_easy *data = state->data;
 
-  infof(data, "%s", "Connected for transmit");
-#endif
+  infof(state->data, "%s", "Connected for transmit");
+
   state->state = TFTP_STATE_TX;
   result = tftp_set_timeouts(state);
   if(result)
@@ -636,11 +633,9 @@ static CURLcode tftp_connect_for_rx(struct tftp_conn *state,
                                     tftp_event_t event)
 {
   CURLcode result;
-#ifndef CURL_DISABLE_VERBOSE_STRINGS
-  struct Curl_easy *data = state->data;
 
-  infof(data, "%s", "Connected for receive");
-#endif
+  infof(state->data, "%s", "Connected for receive");
+
   state->state = TFTP_STATE_RX;
   result = tftp_set_timeouts(state);
   if(result)
@@ -1142,8 +1137,7 @@ static timediff_t tftp_state_timeout(struct tftp_conn *state,
   if(event)
     *event = TFTP_EVENT_NONE;
 
-  timeout_ms = Curl_timeleft_ms(state->data,
-                                (state->state == TFTP_STATE_START));
+  timeout_ms = Curl_timeleft_ms(state->data);
   if(timeout_ms < 0) {
     state->error = TFTP_ERR_TIMEOUT;
     state->state = TFTP_STATE_FIN;
