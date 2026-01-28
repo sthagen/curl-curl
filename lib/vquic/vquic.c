@@ -168,6 +168,7 @@ static CURLcode do_sendmsg(struct Curl_cfilter *cf,
       return CURLE_AGAIN;
     case SOCKEMSGSIZE:
       /* UDP datagram is too large; caused by PMTUD. Just let it be lost. */
+      *psent = pktlen;
       break;
     case EIO:
       if(pktlen > gsolen) {
@@ -195,8 +196,7 @@ static CURLcode do_sendmsg(struct Curl_cfilter *cf,
 
   *psent = 0;
 
-  while((rv = send(qctx->sockfd, (const char *)pkt,
-                   (SEND_TYPE_ARG3)pktlen, 0)) == -1 &&
+  while((rv = swrite(qctx->sockfd, pkt, pktlen)) == -1 &&
         SOCKERRNO == SOCKEINTR)
     ;
 
@@ -206,13 +206,13 @@ static CURLcode do_sendmsg(struct Curl_cfilter *cf,
       goto out;
     }
     else {
-      failf(data, "send() returned %zd (errno %d)", rv, SOCKERRNO);
       if(SOCKERRNO != SOCKEMSGSIZE) {
+        failf(data, "send() returned %zd (errno %d)", rv, SOCKERRNO);
         result = CURLE_SEND_ERROR;
         goto out;
       }
-      /* UDP datagram is too large; caused by PMTUD. Just let it be
-         lost. */
+      /* UDP datagram is too large; caused by PMTUD. Just let it be lost. */
+      *psent = pktlen;
     }
   }
 #endif

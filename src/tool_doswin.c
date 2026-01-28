@@ -693,6 +693,7 @@ static void init_terminal(void)
   }
 }
 
+#ifdef USE_WINSOCK
 /* The following STDIN non - blocking read techniques are heavily inspired
    by nmap and ncat (https://nmap.org/ncat/) */
 struct win_thread_data {
@@ -708,7 +709,7 @@ static DWORD WINAPI win_stdin_thread_func(void *thread_data)
 {
   struct win_thread_data *tdata = (struct win_thread_data *)thread_data;
   DWORD n;
-  int nwritten;
+  ssize_t nwritten;
   char buffer[BUFSIZ];
   BOOL r;
 
@@ -726,7 +727,7 @@ static DWORD WINAPI win_stdin_thread_func(void *thread_data)
 
   sclose(tdata->socket_l);
   tdata->socket_l = CURL_SOCKET_BAD;
-  if(shutdown(socket_w, SD_RECEIVE)) {
+  if(shutdown(socket_w, SHUT_RD)) {
     errorf("shutdown error: %d", SOCKERRNO);
     goto ThreadCleanup;
   }
@@ -736,7 +737,7 @@ static DWORD WINAPI win_stdin_thread_func(void *thread_data)
       break;
     if(n == 0)
       break;
-    nwritten = send(socket_w, buffer, n, 0);
+    nwritten = swrite(socket_w, buffer, n);
     if(nwritten == -1)
       break;
     if((DWORD)nwritten != n)
@@ -760,7 +761,8 @@ ThreadCleanup:
 curl_socket_t win32_stdin_read_thread(void)
 {
   bool r;
-  int rc = 0, socksize = 0;
+  int rc = 0;
+  curl_socklen_t socksize = 0;
   struct win_thread_data *tdata = NULL;
   struct sockaddr_in selfaddr;
   static HANDLE stdin_thread = NULL;
@@ -791,7 +793,7 @@ curl_socket_t win32_stdin_read_thread(void)
     socksize = sizeof(selfaddr);
     memset(&selfaddr, 0, socksize);
     selfaddr.sin_family = AF_INET;
-    selfaddr.sin_addr.S_un.S_addr = htonl(INADDR_LOOPBACK);
+    selfaddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
     /* Bind to any available loopback port */
     if(bind(tdata->socket_l, (const struct sockaddr *)&selfaddr, socksize)) {
       errorf("bind error: %d", SOCKERRNO);
@@ -846,7 +848,7 @@ curl_socket_t win32_stdin_read_thread(void)
       break;
     }
 
-    if(shutdown(socket_r, SD_SEND)) {
+    if(shutdown(socket_r, SHUT_WR)) {
       errorf("shutdown error: %d", SOCKERRNO);
       break;
     }
@@ -894,6 +896,7 @@ curl_socket_t win32_stdin_read_thread(void)
   assert(socket_r != CURL_SOCKET_BAD);
   return socket_r;
 }
+#endif /* USE_WINSOCK */
 
 #endif /* !CURL_WINDOWS_UWP */
 

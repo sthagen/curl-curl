@@ -273,7 +273,7 @@ static curl_socket_t socks4(curl_socket_t fd,
   response[1] = cd; /* result */
   /* copy port and address from connect request */
   memcpy(&response[2], &buffer[SOCKS4_DSTPORT], 6);
-  rc = (send)(fd, (char *)response, 8, 0);
+  rc = swrite(fd, response, 8);
   if(rc != 8) {
     logmsg("Sending SOCKS4 response failed!");
     return CURL_SOCKET_BAD;
@@ -306,7 +306,7 @@ static curl_socket_t sockit(curl_socket_t fd)
 
   socksd_getconfig();
 
-  rc = recv(fd, (char *)buffer, sizeof(buffer), 0);
+  rc = sread(fd, buffer, sizeof(buffer));
   if(rc <= 0) {
     logmsg("SOCKS identifier message missing, recv returned %zd", rc);
     return CURL_SOCKET_BAD;
@@ -344,7 +344,7 @@ static curl_socket_t sockit(curl_socket_t fd)
   /* respond with two bytes: VERSION + METHOD */
   response[0] = s_config.responseversion;
   response[1] = s_config.responsemethod;
-  rc = (send)(fd, (char *)response, 2, 0);
+  rc = swrite(fd, response, 2);
   if(rc != 2) {
     logmsg("Sending response failed!");
     return CURL_SOCKET_BAD;
@@ -353,7 +353,7 @@ static curl_socket_t sockit(curl_socket_t fd)
   loghex(response, rc);
 
   /* expect the request or auth */
-  rc = recv(fd, (char *)buffer, sizeof(buffer), 0);
+  rc = sread(fd, buffer, sizeof(buffer));
   if(rc <= 0) {
     logmsg("SOCKS5 request or auth message missing, recv returned %zd", rc);
     return CURL_SOCKET_BAD;
@@ -401,7 +401,7 @@ static curl_socket_t sockit(curl_socket_t fd)
     }
     response[0] = 1;
     response[1] = login ? 0 : 1;
-    rc = (send)(fd, (char *)response, 2, 0);
+    rc = swrite(fd, response, 2);
     if(rc != 2) {
       logmsg("Sending auth response failed!");
       return CURL_SOCKET_BAD;
@@ -412,7 +412,7 @@ static curl_socket_t sockit(curl_socket_t fd)
       return CURL_SOCKET_BAD;
 
     /* expect the request */
-    rc = recv(fd, (char *)buffer, sizeof(buffer), 0);
+    rc = sread(fd, buffer, sizeof(buffer));
     if(rc <= 0) {
       logmsg("SOCKS5 request message missing, recv returned %zd", rc);
       return CURL_SOCKET_BAD;
@@ -548,7 +548,7 @@ static curl_socket_t sockit(curl_socket_t fd)
   memcpy(&response[SOCKS5_BNDADDR + len],
          &buffer[SOCKS5_DSTADDR + len], sizeof(socksport));
 
-  rc = (send)(fd, (char *)response, (SEND_TYPE_ARG3)(len + 6), 0);
+  rc = swrite(fd, response, len + 6);
   if(rc != (len + 6)) {
     logmsg("Sending connect response failed!");
     return CURL_SOCKET_BAD;
@@ -581,9 +581,9 @@ static int tunnel(struct perclient *cp, fd_set *fds)
   char buffer[512];
   if(FD_ISSET(cp->clientfd, fds)) {
     /* read from client, send to remote */
-    nread = recv(cp->clientfd, buffer, sizeof(buffer), 0);
+    nread = sread(cp->clientfd, buffer, sizeof(buffer));
     if(nread > 0) {
-      nwrite = send(cp->remotefd, (char *)buffer, (SEND_TYPE_ARG3)nread, 0);
+      nwrite = swrite(cp->remotefd, buffer, nread);
       if(nwrite != nread)
         return 1;
       cp->fromclient += nwrite;
@@ -593,9 +593,9 @@ static int tunnel(struct perclient *cp, fd_set *fds)
   }
   if(FD_ISSET(cp->remotefd, fds)) {
     /* read from remote, send to client */
-    nread = recv(cp->remotefd, buffer, sizeof(buffer), 0);
+    nread = sread(cp->remotefd, buffer, sizeof(buffer));
     if(nread > 0) {
-      nwrite = send(cp->clientfd, (char *)buffer, (SEND_TYPE_ARG3)nread, 0);
+      nwrite = swrite(cp->clientfd, buffer, nread);
       if(nwrite != nread)
         return 1;
       cp->fromremote += nwrite;

@@ -466,15 +466,19 @@
 #include <curl/stdcheaders.h>
 #endif
 
-#if defined(HAVE_STDINT_H) || defined(USE_WOLFSSL)
 #include <stdint.h>
-#endif
+#define HAVE_UINTPTR_T  /* assume uintptr_t is provided by stdint.h */
 
 #ifdef __DJGPP__
 /* By default, DJGPP provides this type as a version of 'unsigned long' which
    forces us to use a define use it in printf() format strings without
    warnings. long and int are both 32 bits for this platform. */
 #define uint32_t unsigned int
+#endif
+
+/* Disable uintptr_t for targets known to miss it from stdint.h */
+#ifdef __OS400__
+#undef HAVE_UINTPTR_T
 #endif
 
 #include <limits.h>
@@ -515,7 +519,7 @@
 
 #ifndef SIZEOF_CURL_SOCKET_T
 /* configure and cmake check and set the define */
-#  ifdef _WIN64
+#  if defined(USE_WINSOCK) && defined(_WIN64)
 #    define SIZEOF_CURL_SOCKET_T 8
 #  else
 /* default guess */
@@ -524,12 +528,12 @@
 #endif
 
 #if SIZEOF_CURL_SOCKET_T < 8
-#ifdef _WIN32
+#ifdef USE_WINSOCK
 #  define FMT_SOCKET_T "u"
 #else
 #  define FMT_SOCKET_T "d"
 #endif
-#elif defined(_WIN32)
+#elif defined(USE_WINSOCK)
 #  define FMT_SOCKET_T "zu"
 #else
 #  define FMT_SOCKET_T "qd"
@@ -898,7 +902,7 @@ endings either CRLF or LF so 't' is appropriate.
 
 /* for systems that do not detect this in configure */
 #ifndef CURL_SA_FAMILY_T
-#  ifdef _WIN32
+#  ifdef USE_WINSOCK
 #    define CURL_SA_FAMILY_T ADDRESS_FAMILY
 #  elif defined(HAVE_SA_FAMILY_T)
 #    define CURL_SA_FAMILY_T sa_family_t
