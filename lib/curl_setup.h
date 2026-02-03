@@ -490,9 +490,6 @@
 #  include <sys/types.h>
 #  include <sys/stat.h>
    /* Large file (>2Gb) support using Win32 functions. */
-#  undef  fstat
-#  define fstat(fdes, stp)                _fstati64(fdes, stp)
-#  define struct_stat                     struct _stati64
 #  define curl_lseek                      _lseeki64
 #  define LSEEK_ERROR                     ((__int64)-1)
 #elif defined(__DJGPP__)
@@ -506,10 +503,6 @@
 #else
 #  define curl_lseek                      lseek
 #  define LSEEK_ERROR                     ((off_t)-1)
-#endif
-
-#ifndef struct_stat
-#define struct_stat struct stat
 #endif
 
 #ifndef SIZEOF_TIME_T
@@ -1084,6 +1077,12 @@ CURL_EXTERN ALLOC_FUNC FILE *curl_dbg_fdopen(int filedes, const char *mode,
 
 /* Allocator macros */
 
+#ifdef _WIN32
+#define CURLX_STRDUP_LOW _strdup
+#else
+#define CURLX_STRDUP_LOW strdup
+#endif
+
 #ifdef CURL_MEMDEBUG
 
 #define curlx_strdup(ptr)          curl_dbg_strdup(ptr, __LINE__, __FILE__)
@@ -1098,35 +1097,31 @@ CURL_EXTERN ALLOC_FUNC FILE *curl_dbg_fdopen(int filedes, const char *mode,
 #ifdef UNICODE
 #define curlx_tcsdup(ptr)          curl_dbg_wcsdup(ptr, __LINE__, __FILE__)
 #else
-#define curlx_tcsdup(ptr)          curlx_strdup(ptr)
+#define curlx_tcsdup               curlx_strdup
 #endif
 #endif /* _WIN32 */
 
 #else /* !CURL_MEMDEBUG */
 
 #ifdef BUILDING_LIBCURL
-#define curlx_strdup(ptr)          Curl_cstrdup(ptr)
-#define curlx_malloc(size)         Curl_cmalloc(size)
-#define curlx_calloc(nbelem, size) Curl_ccalloc(nbelem, size)
-#define curlx_realloc(ptr, size)   Curl_crealloc(ptr, size)
-#define curlx_free(ptr)            Curl_cfree(ptr)
+#define curlx_strdup               Curl_cstrdup
+#define curlx_malloc               Curl_cmalloc
+#define curlx_calloc               Curl_ccalloc
+#define curlx_realloc              Curl_crealloc
+#define curlx_free                 Curl_cfree
 #else /* !BUILDING_LIBCURL */
-#ifdef _WIN32
-#define curlx_strdup(ptr)          _strdup(ptr)
-#else
-#define curlx_strdup(ptr)          strdup(ptr)
-#endif
-#define curlx_malloc(size)         malloc(size)
-#define curlx_calloc(nbelem, size) calloc(nbelem, size)
-#define curlx_realloc(ptr, size)   realloc(ptr, size)
-#define curlx_free(ptr)            free(ptr)
+#define curlx_strdup               CURLX_STRDUP_LOW
+#define curlx_malloc               malloc
+#define curlx_calloc               calloc
+#define curlx_realloc              realloc
+#define curlx_free                 free
 #endif /* BUILDING_LIBCURL */
 
 #ifdef _WIN32
 #ifdef UNICODE
-#define curlx_tcsdup(ptr)          Curl_wcsdup(ptr)
+#define curlx_tcsdup               curlx_wcsdup
 #else
-#define curlx_tcsdup(ptr)          curlx_strdup(ptr)
+#define curlx_tcsdup               curlx_strdup
 #endif
 #endif /* _WIN32 */
 
