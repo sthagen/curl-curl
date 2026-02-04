@@ -333,8 +333,8 @@ static void exit_signal_handler(int signum)
   else {
     int fd = -1;
 #ifdef _WIN32
-    if(!_sopen_s(&fd, serverlogfile, O_WRONLY | O_CREAT | O_APPEND,
-                 _SH_DENYNO, S_IREAD | S_IWRITE) &&
+    if(!_sopen_s(&fd, serverlogfile, _O_WRONLY | _O_CREAT | _O_APPEND,
+                 _SH_DENYNO, _S_IREAD | _S_IWRITE) &&
        fd != -1) {
 #else
     /* !checksrc! disable BANNEDFUNC 1 */
@@ -670,7 +670,7 @@ int bind_unix_socket(curl_socket_t sock, const char *unix_socket,
   curlx_strcopy(sau->sun_path, sizeof(sau->sun_path), unix_socket, len);
   rc = bind(sock, (struct sockaddr *)sau, sizeof(struct sockaddr_un));
   if(rc && SOCKERRNO == SOCKEADDRINUSE) {
-    curl_struct_stat statbuf;
+    curlx_struct_stat statbuf;
     /* socket already exists. Perhaps it is stale? */
     curl_socket_t unixfd = socket(AF_UNIX, SOCK_STREAM, 0);
     if(CURL_SOCKET_BAD == unixfd) {
