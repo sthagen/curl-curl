@@ -112,7 +112,8 @@ jobs:
         if: ${{ contains(matrix.build.install_steps, 'libressl') && steps.cache-libressl.outputs.cache-hit != 'true' }}
         run: |
           curl --disable --fail --silent --show-error --connect-timeout 15 --max-time 60 --retry 3 --retry-connrefused \
-            --location "https://github.com/libressl/portable/releases/download/v${LIBRESSL_VERSION}/libressl-${LIBRESSL_VERSION}.tar.gz" | tar -xz
+            --location "https://github.com/libressl/portable/releases/download/v${LIBRESSL_VERSION}/libressl-${LIBRESSL_VERSION}.tar.gz" --output pkg.bin
+          sha256sum pkg.bin && tar -xzf pkg.bin && rm -f pkg.bin
           cd "libressl-${LIBRESSL_VERSION}"
           cmake -B . -G Ninja \
             -DCMAKE_INSTALL_PREFIX=/Users/runner/libressl \
@@ -233,7 +234,7 @@ jobs:
             tflags: '--min=930'
             generate: >-
               -DENABLE_DEBUG=ON -DENABLE_ARES=ON
-              -DCURL_ENABLE_SSL=OFF -DHTTP_ONLY=ON -DCURL_DISABLE_WEBSOCKETS=ON
+              -DCURL_ENABLE_SSL=OFF -DHTTP_ONLY=ON
               -DCURL_DISABLE_NTLM=ON -DCURL_DISABLE_ALTSVC=ON -DENABLE_UNIX_SOCKETS=OFF
               -DCURL_USE_LIBSSH2=OFF -DCURL_USE_LIBSSH=OFF -DUSE_NGHTTP2=OFF
               -DCURL_USE_GSSAPI=OFF -DUSE_LIBIDN2=OFF -DCURL_USE_LIBPSL=OFF -DUSE_LIBRTMP=OFF

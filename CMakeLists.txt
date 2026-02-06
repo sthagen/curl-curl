@@ -525,6 +525,7 @@ if(HTTP_ONLY)
   set(CURL_DISABLE_SMTP ON)
   set(CURL_DISABLE_TELNET ON)
   set(CURL_DISABLE_TFTP ON)
+  set(CURL_DISABLE_WEBSOCKETS ON)
 endif()
 
 if(WINDOWS_STORE)
@@ -1920,7 +1921,7 @@ endif()
 macro(curl_add_if _label)
   # Needs to be a macro to allow this indirection
   if(${ARGN})
-    set(_items ${_items} "${_label}")
+    list(APPEND _items "${_label}")
   endif()
 endmacro()
 
