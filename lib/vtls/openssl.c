@@ -29,10 +29,31 @@
 
 #if defined(USE_QUICHE) || defined(USE_OPENSSL)
 
-/* Wincrypt must be included before anything that could include OpenSSL. */
 #ifdef USE_WIN32_CRYPTO
 #include <wincrypt.h>
-/* Undefine wincrypt conflicting symbols for BoringSSL. */
+/* If <wincrypt.h> is included directly, or indirectly via <schannel.h>,
+ * <winldap.h>, <iphlpapi.h>, or something else, <wincrypt.h> does this:
+ *   #define X509_NAME  ((LPCSTR)7)
+ *
+ * And in BoringSSL/AWC-LC's <openssl/base.h> there is:
+ *  typedef struct X509_name_st X509_NAME;
+ *  etc.
+ *
+ * The redefined symbols break these OpenSSL headers when included after
+ * <wincrypt.h>.
+ * The workaround is to undefine those defines here (and only here).
+ *
+ * For unity builds it may need to be repeated elsewhere too, e.g. in ldap.c,
+ * to apply to other sources using OpenSSL includes. Each compilation unit
+ * needs undefine them between the first <wincrypt.h> include and the first
+ * OpenSSL include.
+ *
+ * OpenSSL does this in <openssl/ssl.h> and <openssl/x509v3.h>, but it
+ * also does the #undef by including <openssl/ossl_typ.h>. <3.1.0 only does
+ * it on the first include.
+ *
+ * LibreSSL automatically undefines these symbols before using them.
+ */
 #undef X509_NAME
 #undef X509_EXTENSIONS
 #undef PKCS7_ISSUER_AND_SERIAL
@@ -1509,7 +1530,7 @@ static CURLcode client_cert(struct Curl_easy *data,
       return CURLE_BAD_FUNCTION_ARGUMENT;
     }
 
-    if((!key_file) && (!key_blob)) {
+    if(!key_file && !key_blob) {
       key_file = cert_file;
       key_blob = cert_blob;
     }
@@ -2703,7 +2724,7 @@ CURLcode Curl_ossl_add_session(struct Curl_cfilter *cf,
     earlydata_max = SSL_SESSION_get_max_early_data(session);
 #endif
     if(quic_tp && quic_tp_len) {
-      qtp_clone = curlx_memdup0((char *)quic_tp, quic_tp_len);
+      qtp_clone = curlx_memdup0((const char *)quic_tp, quic_tp_len);
       if(!qtp_clone) {
         result = CURLE_OUT_OF_MEMORY;
         goto out;
@@ -3451,14 +3472,14 @@ static CURLcode ossl_init_ech(struct ossl_ctx *octx,
 
   if(data->set.tls_ech & CURLECH_GREASE) {
     infof(data, "ECH: will GREASE ClientHello");
-# ifdef HAVE_BORINGSSL_LIKE
+#ifdef HAVE_BORINGSSL_LIKE
     SSL_set_enable_ech_grease(octx->ssl, 1);
-# else
+#else
     SSL_set_options(octx->ssl, SSL_OP_ECH_GREASE);
-# endif
+#endif
   }
   else if(data->set.tls_ech & CURLECH_CLA_CFG) {
-# ifdef HAVE_BORINGSSL_LIKE
+#ifdef HAVE_BORINGSSL_LIKE
     /* have to do base64 decode here for BoringSSL */
     const char *b64 = data->set.str[STRING_ECH_CONFIG];
 
@@ -3482,7 +3503,7 @@ static CURLcode ossl_init_ech(struct ossl_ctx *octx,
     }
     curlx_free(ech_config);
     trying_ech_now = 1;
-# else
+#else
     ech_config = (unsigned char *)data->set.str[STRING_ECH_CONFIG];
     if(!ech_config) {
       infof(data, "ECH: ECHConfig from command line empty");
@@ -3496,7 +3517,7 @@ static CURLcode ossl_init_ech(struct ossl_ctx *octx,
     }
     else
       trying_ech_now = 1;
-# endif
+#endif /* HAVE_BORINGSSL_LIKE */
     infof(data, "ECH: ECHConfig from command line");
   }
   else {
@@ -3537,12 +3558,12 @@ static CURLcode ossl_init_ech(struct ossl_ctx *octx,
       Curl_resolv_unlink(data, &dns);
     }
   }
-# ifdef HAVE_BORINGSSL_LIKE
+#ifdef HAVE_BORINGSSL_LIKE
   if(trying_ech_now && outername) {
     infof(data, "ECH: setting public_name not supported with BoringSSL");
     return CURLE_SSL_CONNECT_ERROR;
   }
-# else
+#else
   if(trying_ech_now && outername) {
     infof(data, "ECH: inner: '%s', outer: '%s'",
           peer->hostname ? peer->hostname : "NULL", outername);
@@ -3554,7 +3575,7 @@ static CURLcode ossl_init_ech(struct ossl_ctx *octx,
       return CURLE_SSL_CONNECT_ERROR;
     }
   }
-# endif /* HAVE_BORINGSSL_LIKE */
+#endif /* HAVE_BORINGSSL_LIKE */
   if(trying_ech_now &&
      SSL_set_min_proto_version(octx->ssl, TLS1_3_VERSION) != 1) {
     infof(data, "ECH: cannot force TLSv1.3 [ERROR]");
@@ -4064,27 +4085,27 @@ static void ossl_trace_ech_retry_configs(struct Curl_easy *data, SSL *ssl,
   CURLcode result = CURLE_OK;
   size_t rcl = 0;
   int rv = 1;
-# ifndef HAVE_BORINGSSL_LIKE
+#ifndef HAVE_BORINGSSL_LIKE
   char *inner = NULL;
   uint8_t *rcs = NULL;
   char *outer = NULL;
-# else
+#else
   const char *inner = NULL;
   const uint8_t *rcs = NULL;
   const char *outer = NULL;
   size_t out_name_len = 0;
   int servername_type = 0;
-# endif
+#endif
 
   /* nothing to trace if not doing ECH */
   if(!ECH_ENABLED(data))
     return;
-# ifndef HAVE_BORINGSSL_LIKE
+#ifndef HAVE_BORINGSSL_LIKE
   rv = SSL_ech_get1_retry_config(ssl, &rcs, &rcl);
-# else
+#else
   SSL_get0_ech_retry_configs(ssl, &rcs, &rcl);
   rv = (int)rcl;
-# endif
+#endif
 
   if(rv && rcs) {
     char *b64str = NULL;
@@ -4110,9 +4131,9 @@ static void ossl_trace_ech_retry_configs(struct Curl_easy *data, SSL *ssl,
   }
   else
     infof(data, "ECH: no retry_configs (rv = %d)", rv);
-# ifndef HAVE_BORINGSSL_LIKE
+#ifndef HAVE_BORINGSSL_LIKE
   OPENSSL_free((void *)rcs);
-# endif
+#endif
   return;
 }
 
@@ -4229,11 +4250,11 @@ static CURLcode ossl_connect_step2(struct Curl_cfilter *cf,
 #endif
 #ifdef HAVE_SSL_SET1_ECH_CONFIG_LIST
       else if((lib == ERR_LIB_SSL) &&
-# ifndef HAVE_BORINGSSL_LIKE
+#ifndef HAVE_BORINGSSL_LIKE
               (reason == SSL_R_ECH_REQUIRED)) {
-# else
+#else
               (reason == SSL_R_ECH_REJECTED)) {
-# endif
+#endif /* HAVE_BORINGSSL_LIKE */
 
         /* trace retry_configs if we got some */
         ossl_trace_ech_retry_configs(data, octx->ssl, reason);
