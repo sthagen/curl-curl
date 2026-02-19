@@ -63,11 +63,6 @@
 #include <ares_version.h> /* really old c-ares did not include this by
                              itself */
 
-#if ARES_VERSION >= 0x010601
-/* IPv6 supported since 1.6.1 */
-#define HAVE_CARES_IPV6 1
-#endif
-
 #if ARES_VERSION >= 0x010704
 #define HAVE_CARES_SERVERS_CSV 1
 #define HAVE_CARES_LOCAL_DEV 1
@@ -385,14 +380,14 @@ out:
  * CURLE_OPERATION_TIMEDOUT if a time-out occurred, or other errors.
  */
 CURLcode Curl_async_await(struct Curl_easy *data,
-                          struct Curl_dns_entry **entry)
+                          struct Curl_dns_entry **dns)
 {
   struct async_ares_ctx *ares = &data->state.async.ares;
   CURLcode result = CURLE_OK;
   timediff_t timeout_ms;
 
-  DEBUGASSERT(entry);
-  *entry = NULL; /* clear on entry */
+  DEBUGASSERT(dns);
+  *dns = NULL; /* clear on entry */
 
   timeout_ms = Curl_timeleft_ms(data);
   if(timeout_ms < 0) {
@@ -431,7 +426,7 @@ CURLcode Curl_async_await(struct Curl_easy *data,
     if(Curl_ares_perform(ares->channel, call_timeout_ms) < 0)
       return CURLE_UNRECOVERABLE_POLL;
 
-    result = Curl_async_is_resolved(data, entry);
+    result = Curl_async_is_resolved(data, dns);
     if(result || data->state.async.done)
       break;
 
@@ -454,7 +449,7 @@ CURLcode Curl_async_await(struct Curl_easy *data,
   /* Operation complete, if the lookup was successful we now have the entry
      in the cache. */
   data->state.async.done = TRUE;
-  *entry = data->state.async.dns;
+  *dns = data->state.async.dns;
 
   if(result)
     ares_cancel(ares->channel);
@@ -783,7 +778,7 @@ CURLcode Curl_async_getaddrinfo(struct Curl_easy *data, const char *hostname,
   }
 #else
 
-#ifdef HAVE_CARES_IPV6
+#if ARES_VERSION >= 0x010601  /* IPv6 supported since 1.6.1 */
   if((ip_version != CURL_IPRESOLVE_V4) && Curl_ipv6works(data)) {
     /* The stack seems to be IPv6-enabled */
     /* areschannel is already setup in the Curl_open() function */

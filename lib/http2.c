@@ -51,10 +51,6 @@
 #error too old nghttp2 version, upgrade!
 #endif
 
-#ifndef CURLVERBOSE
-#define nghttp2_session_callbacks_set_error_callback(x, y)
-#endif
-
 #if (NGHTTP2_VERSION_NUM >= 0x010c00)
 #define NGHTTP2_HAS_SET_LOCAL_WINDOW_SIZE 1
 #endif
@@ -674,7 +670,7 @@ char *curl_pushheader_bynum(struct curl_pushheaders *h, size_t num)
 /*
  * push header access function. Only to be used from within the push callback
  */
-char *curl_pushheader_byname(struct curl_pushheaders *h, const char *header)
+char *curl_pushheader_byname(struct curl_pushheaders *h, const char *name)
 {
   struct h2_stream_ctx *stream;
   size_t len;
@@ -685,17 +681,17 @@ char *curl_pushheader_byname(struct curl_pushheaders *h, const char *header)
      the header, but header == ":" must be rejected. If we have ':' in
      the middle of header, it could be matched in middle of the value,
      this is because we do prefix match.*/
-  if(!h || !GOOD_EASY_HANDLE(h->data) || !header || !header[0] ||
-     !strcmp(header, ":") || strchr(header + 1, ':'))
+  if(!h || !GOOD_EASY_HANDLE(h->data) || !name || !name[0] ||
+     !strcmp(name, ":") || strchr(name + 1, ':'))
     return NULL;
 
   stream = h->stream;
   if(!stream)
     return NULL;
 
-  len = strlen(header);
+  len = strlen(name);
   for(i = 0; i < stream->push_headers_used; i++) {
-    if(!strncmp(header, stream->push_headers[i], len)) {
+    if(!strncmp(name, stream->push_headers[i], len)) {
       /* sub-match, make sure that it is followed by a colon */
       if(stream->push_headers[i][len] != ':')
         continue;
@@ -3005,10 +3001,10 @@ char *curl_pushheader_bynum(struct curl_pushheaders *h, size_t num)
   return NULL;
 }
 
-char *curl_pushheader_byname(struct curl_pushheaders *h, const char *header)
+char *curl_pushheader_byname(struct curl_pushheaders *h, const char *name)
 {
   (void)h;
-  (void)header;
+  (void)name;
   return NULL;
 }
 

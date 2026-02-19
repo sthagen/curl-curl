@@ -917,10 +917,9 @@ static bool is_pkcs11_uri(const char *string)
 
 #endif
 
-static CURLcode ossl_set_engine(struct Curl_easy *data, const char *engine);
+static CURLcode ossl_set_engine(struct Curl_easy *data, const char *name);
 #ifdef OPENSSL_HAS_PROVIDERS
-static CURLcode ossl_set_provider(struct Curl_easy *data,
-                                  const char *provider);
+static CURLcode ossl_set_provider(struct Curl_easy *data, const char *iname);
 #endif
 
 static int use_certificate_blob(SSL_CTX *ctx, const struct curl_blob *blob,
@@ -3452,7 +3451,7 @@ ossl_init_session_and_alpns(struct ossl_ctx *octx,
       failf(data, "Error determining ALPN");
       return CURLE_SSL_CONNECT_ERROR;
     }
-    if(SSL_set_alpn_protos(octx->ssl, proto.data, (int)proto.len)) {
+    if(SSL_set_alpn_protos(octx->ssl, proto.data, proto.len)) {
       failf(data, "Error setting ALPN");
       return CURLE_SSL_CONNECT_ERROR;
     }
@@ -4430,9 +4429,9 @@ static CURLcode ossl_pkp_pin_peer_pubkey(struct Curl_easy *data, X509 *cert,
   return result;
 }
 
-#if !(defined(LIBRESSL_VERSION_NUMBER) && \
-  LIBRESSL_VERSION_NUMBER < 0x3060000fL) && \
-  !defined(HAVE_BORINGSSL_LIKE) && defined(CURLVERBOSE)
+#ifdef CURLVERBOSE
+#if !defined(HAVE_BORINGSSL_LIKE) && \
+  !(defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER < 0x3060000fL)
 static void infof_certstack(struct Curl_easy *data, const SSL *ssl)
 {
   STACK_OF(X509) *certstack;
@@ -4505,6 +4504,7 @@ static void infof_certstack(struct Curl_easy *data, const SSL *ssl)
 #else
 #define infof_certstack(data, ssl)
 #endif
+#endif /* CURLVERBOSE */
 
 static CURLcode ossl_check_issuer(struct Curl_cfilter *cf,
                                   struct Curl_easy *data,
@@ -5157,7 +5157,7 @@ static CURLcode ossl_recv(struct Curl_cfilter *cf,
     *pnread = (size_t)nread;
   else {
     /* failed SSL_read */
-    int err = SSL_get_error(octx->ssl, (int)nread);
+    int err = SSL_get_error(octx->ssl, nread);
 
     switch(err) {
     case SSL_ERROR_NONE: /* this is not an error */

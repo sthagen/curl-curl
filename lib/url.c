@@ -133,7 +133,7 @@ static void data_priority_cleanup(struct Curl_easy *data);
 # error READBUFFER_SIZE is too small
 #endif
 
-#ifdef USE_UNIX_SOCKETS
+#if !defined(CURL_DISABLE_PROXY) && defined(USE_UNIX_SOCKETS)
 #define UNIX_SOCKET_PREFIX "localhost"
 #endif
 
@@ -614,10 +614,6 @@ static bool socks_proxy_info_matches(const struct proxy_info *data,
     return FALSE;
   return TRUE;
 }
-#else
-/* disabled, will not get called */
-#define proxy_info_matches(x, y)       FALSE
-#define socks_proxy_info_matches(x, y) FALSE
 #endif
 
 /* A connection has to have been idle for less than 'conn_max_idle_ms'
@@ -3027,7 +3023,7 @@ static CURLcode parse_connect_to_slist(struct Curl_easy *data,
       }
     }
     else if(hit) {
-      char *hostd = curlx_strdup((char *)as->dst.host);
+      char *hostd = curlx_strdup(as->dst.host);
       if(!hostd)
         return CURLE_OUT_OF_MEMORY;
       conn->conn_to_host.rawalloc = hostd;

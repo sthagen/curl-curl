@@ -2495,7 +2495,7 @@ static CURLMcode multi_runsingle(struct Curl_multi *multi,
 
       /* after init, go SETUP */
       multistate(data, MSTATE_SETUP);
-      (void)Curl_pgrsTime(data, TIMER_STARTOP);
+      Curl_pgrsTime(data, TIMER_STARTOP);
       FALLTHROUGH();
 
     case MSTATE_SETUP:
@@ -3607,11 +3607,11 @@ void Curl_expire(struct Curl_easy *data, timediff_t milli, expire_id id)
  * Removes the expire timer. Marks it as done.
  *
  */
-void Curl_expire_done(struct Curl_easy *data, expire_id eid)
+void Curl_expire_done(struct Curl_easy *data, expire_id id)
 {
   /* remove the timer, if there */
-  multi_deltimeout(data, eid);
-  CURL_TRC_TIMER(data, eid, "cleared");
+  multi_deltimeout(data, id);
+  CURL_TRC_TIMER(data, id, "cleared");
 }
 
 /*

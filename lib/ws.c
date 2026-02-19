@@ -63,7 +63,9 @@
 #define WSBIT_OPCODE_CLOSE 0x8
 #define WSBIT_OPCODE_PING  0x9
 #define WSBIT_OPCODE_PONG  0xa
+#ifdef CURLVERBOSE
 #define WSBIT_OPCODE_MASK  0xf
+#endif
 
 #define WSBIT_MASK 0x80
 
@@ -620,7 +622,7 @@ static CURLcode ws_enc_send(struct Curl_easy *data,
                             size_t buflen,
                             curl_off_t fragsize,
                             unsigned int flags,
-                            size_t *sent);
+                            size_t *pnsent);
 static CURLcode ws_enc_add_pending(struct Curl_easy *data,
                                    struct websocket *ws);
 

@@ -80,13 +80,6 @@
 
 */
 
-#define PARSEDATE_OK     0
-#define PARSEDATE_FAIL   -1
-#define PARSEDATE_LATER  1
-#if defined(HAVE_TIME_T_UNSIGNED) || (SIZEOF_TIME_T < 5)
-#define PARSEDATE_SOONER 2
-#endif
-
 #if !defined(CURL_DISABLE_PARSEDATE) || !defined(CURL_DISABLE_FTP) || \
   !defined(CURL_DISABLE_FILE) || defined(USE_GNUTLS)
 /* These names are also used by FTP and FILE code */
@@ -99,7 +92,16 @@ const char * const Curl_month[] = {
 };
 #endif
 
+#define PARSEDATE_OK     0
+#define PARSEDATE_FAIL   -1
+
 #ifndef CURL_DISABLE_PARSEDATE
+
+#define PARSEDATE_LATER  1
+#if defined(HAVE_TIME_T_UNSIGNED) || (SIZEOF_TIME_T < 5)
+#define PARSEDATE_SOONER 2
+#endif
+
 static const char * const weekday[] = {
   "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
 };
@@ -556,11 +558,11 @@ static int parsedate(const char *date, time_t *output)
 }
 #endif
 
-time_t curl_getdate(const char *p, const time_t *now)
+time_t curl_getdate(const char *p, const time_t *unused)
 {
   time_t parsed = -1;
   int rc = parsedate(p, &parsed);
-  (void)now; /* legacy argument from the past that we ignore */
+  (void)unused; /* legacy argument from the past that we ignore */
 
   if(rc == PARSEDATE_OK) {
     if(parsed == (time_t)-1)
