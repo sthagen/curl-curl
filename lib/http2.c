@@ -260,9 +260,9 @@ static CURLcode cf_h2_update_settings(struct cf_h2_ctx *ctx,
   return CURLE_OK;
 }
 
-#define H2_STREAM_CTX(ctx, data)                                        \
-  ((struct h2_stream_ctx *)(                                            \
-    data? Curl_uint32_hash_get(&(ctx)->streams, (data)->mid) : NULL))
+#define H2_STREAM_CTX(ctx, data)                                         \
+  ((struct h2_stream_ctx *)(                                             \
+    (data) ? Curl_uint32_hash_get(&(ctx)->streams, (data)->mid) : NULL))
 
 static struct h2_stream_ctx *h2_stream_ctx_create(struct cf_h2_ctx *ctx)
 {
@@ -1126,7 +1126,7 @@ static int on_frame_send(nghttp2_session *session, const nghttp2_frame *frame,
 
   (void)session;
   DEBUGASSERT(data);
-  if(data && Curl_trc_cf_is_verbose(cf, data)) {
+  if(Curl_trc_cf_is_verbose(cf, data)) {
     char buffer[256];
     int len;
     len = Curl_nghttp2_fr_print(frame, buffer, sizeof(buffer) - 1);
