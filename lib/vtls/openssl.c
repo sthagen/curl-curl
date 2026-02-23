@@ -25,7 +25,7 @@
  * Source file for all OpenSSL-specific code for the TLS/SSL layer. No code
  * but vtls.c should ever call or use these functions.
  */
-#include "../curl_setup.h"
+#include "curl_setup.h"
 
 #if defined(USE_QUICHE) || defined(USE_OPENSSL)
 
@@ -62,28 +62,28 @@
 #undef OCSP_RESPONSE
 #endif
 
-#include "../urldata.h"
-#include "../curl_trc.h"
-#include "../httpsrr.h"
-#include "../formdata.h" /* for the boundary function */
-#include "../url.h" /* for the ssl config check function */
-#include "../curlx/inet_pton.h"
-#include "openssl.h"
-#include "../connect.h"
-#include "../progress.h"
-#include "vtls.h"
-#include "vtls_int.h"
-#include "vtls_scache.h"
-#include "../vauth/vauth.h"
-#include "keylog.h"
-#include "hostcheck.h"
-#include "../transfer.h"
-#include "../multiif.h"
-#include "../curlx/strerr.h"
-#include "../curlx/strparse.h"
-#include "../curlx/strcopy.h"
-#include "../curlx/strdup.h"
-#include "apple.h"
+#include "urldata.h"
+#include "curl_trc.h"
+#include "httpsrr.h"
+#include "formdata.h" /* for the boundary function */
+#include "url.h" /* for the ssl config check function */
+#include "curlx/inet_pton.h"
+#include "vtls/openssl.h"
+#include "connect.h"
+#include "progress.h"
+#include "vtls/vtls.h"
+#include "vtls/vtls_int.h"
+#include "vtls/vtls_scache.h"
+#include "vauth/vauth.h"
+#include "vtls/keylog.h"
+#include "vtls/hostcheck.h"
+#include "transfer.h"
+#include "multiif.h"
+#include "curlx/strerr.h"
+#include "curlx/strparse.h"
+#include "curlx/strcopy.h"
+#include "curlx/strdup.h"
+#include "vtls/apple.h"
 
 #include <openssl/rand.h>
 #include <openssl/x509v3.h>
@@ -389,6 +389,13 @@ static CURLcode get_pkey_dh(struct Curl_easy *data,
   return result;
 }
 
+#ifdef HAVE_OPENSSL3
+/* from OpenSSL commit fc756e594ed5a27af378 */
+typedef const X509_PUBKEY pubkeytype_t;
+#else
+typedef X509_PUBKEY pubkeytype_t;
+#endif
+
 static CURLcode ossl_certchain(struct Curl_easy *data, SSL *ssl)
 {
   CURLcode result;
@@ -453,7 +460,7 @@ static CURLcode ossl_certchain(struct Curl_easy *data, SSL *ssl)
 
     {
       const X509_ALGOR *sigalg = NULL;
-      X509_PUBKEY *xpubkey = NULL;
+      pubkeytype_t *xpubkey = NULL;
       ASN1_OBJECT *pubkeyoid = NULL;
 
       X509_get0_signature(&psig, &sigalg, x);

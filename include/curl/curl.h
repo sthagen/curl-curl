@@ -3218,7 +3218,7 @@ typedef struct curl_version_info_data curl_version_info_data;
  * This function returns a pointer to a static copy of the version info
  * struct. See above.
  */
-CURL_EXTERN curl_version_info_data *curl_version_info(CURLversion);
+CURL_EXTERN curl_version_info_data *curl_version_info(CURLversion stamp);
 
 /*
  * NAME curl_easy_strerror()
@@ -3229,7 +3229,7 @@ CURL_EXTERN curl_version_info_data *curl_version_info(CURLversion);
  * into the equivalent human readable error string. This is useful
  * for printing meaningful error messages.
  */
-CURL_EXTERN const char *curl_easy_strerror(CURLcode);
+CURL_EXTERN const char *curl_easy_strerror(CURLcode error);
 
 /*
  * NAME curl_share_strerror()
@@ -3240,7 +3240,7 @@ CURL_EXTERN const char *curl_easy_strerror(CURLcode);
  * into the equivalent human readable error string. This is useful
  * for printing meaningful error messages.
  */
-CURL_EXTERN const char *curl_share_strerror(CURLSHcode);
+CURL_EXTERN const char *curl_share_strerror(CURLSHcode error);
 
 /*
  * NAME curl_easy_pause()
@@ -3329,15 +3329,16 @@ CURL_EXTERN CURLcode curl_easy_ssls_export(CURL *handle,
 #if defined(__STDC__) && (__STDC__ >= 1)
 /* This preprocessor magic that replaces a call with the exact same call is
    only done to make sure application authors pass exactly three arguments
-   to these functions. */
+   to these functions. Use recursive macros to allow using these symbols via
+   the C++ global namespace '::' or reuse them as method names. */
 #define curl_easy_setopt(handle, opt, param) \
-  (curl_easy_setopt)(handle, opt, param)
+  curl_easy_setopt(handle, opt, param)
 #define curl_easy_getinfo(handle, info, arg) \
-  (curl_easy_getinfo)(handle, info, arg)
+  curl_easy_getinfo(handle, info, arg)
 #define curl_share_setopt(share, opt, param) \
-  (curl_share_setopt)(share, opt, param)
-#define curl_multi_setopt(handle,opt,param) \
-  (curl_multi_setopt)(handle, opt, param)
+  curl_share_setopt(share, opt, param)
+#define curl_multi_setopt(handle, opt, param) \
+  curl_multi_setopt(handle, opt, param)
 #endif /* __STDC__ >= 1 */
 #endif /* gcc >= 4.3 && !__cplusplus && !CURL_DISABLE_TYPECHECK */
 
