@@ -2592,18 +2592,20 @@ static void ossl_trace(int direction, int ssl_ver, int content_type,
 
     if(content_type == SSL3_RT_CHANGE_CIPHER_SPEC) {
       if(len) {
-        msg_type = *(const char *)buf;
+        msg_type = *(const unsigned char *)buf;
         msg_name = "Change cipher spec";
       }
     }
     else if(content_type == SSL3_RT_ALERT) {
       if(len >= 2) {
-        msg_type = (((const char *)buf)[0] << 8) + ((const char *)buf)[1];
+        msg_type =
+          (((const unsigned char *)buf)[0] << 8) +
+           ((const unsigned char *)buf)[1];
         msg_name = SSL_alert_desc_string_long(msg_type);
       }
     }
     else if(len) {
-      msg_type = *(const char *)buf;
+      msg_type = *(const unsigned char *)buf;
       msg_name = ssl_msg_type(ssl_ver, msg_type);
     }
 
@@ -2917,8 +2919,8 @@ static CURLcode ossl_win_load_store(struct Curl_easy *data,
        * depending on what is found. For more details see
        * CertGetEnhancedKeyUsage doc.
        */
-      if(CertGetEnhancedKeyUsage(pContext, 0, NULL, &req_size)) {
-        if(req_size && req_size > enhkey_usage_size) {
+      if(CertGetEnhancedKeyUsage(pContext, 0, NULL, &req_size) && req_size) {
+        if(req_size > enhkey_usage_size) {
           void *tmp = curlx_realloc(enhkey_usage, req_size);
 
           if(!tmp) {
@@ -5382,7 +5384,7 @@ static CURLcode ossl_random(struct Curl_easy *data,
     if(!rand_enough())
       return CURLE_FAILED_INIT;
   }
-  /* RAND_bytes() returns 1 on success, 0 otherwise.  */
+  /* RAND_bytes() returns 1 on success, 0 otherwise. */
   rc = RAND_bytes(entropy, (ossl_valsize_t)curlx_uztosi(length));
   return rc == 1 ? CURLE_OK : CURLE_FAILED_INIT;
 }
