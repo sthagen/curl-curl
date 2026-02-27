@@ -66,7 +66,6 @@ jobs:
       MATRIX_BUILD: ${{ matrix.build.generate && 'cmake' || 'autotools' }}
       MATRIX_INSTALL_PACKAGES: '${{ matrix.build.install_packages }}'
       MATRIX_INSTALL_STEPS: '${{ matrix.build.install_steps }}'
-      MATRIX_MAKE_PREFIX: '${{ matrix.build.make-prefix }}'
     strategy:
       fail-fast: false
       matrix:
@@ -279,7 +278,6 @@ jobs:
             install_packages: clang-20 clang-tidy-20 libssl-dev libidn2-dev libssh2-1-dev libnghttp2-dev libldap-dev libkrb5-dev librtmp-dev libgnutls28-dev
             install_steps: skiprun mbedtls-latest-intel rustls wolfssl-opensslextra-intel
             install_steps_brew: gsasl
-            make-custom-target: tidy
             CC: clang-20
             LDFLAGS: -Wl,-rpath,/home/runner/wolfssl-opensslextra/lib -Wl,-rpath,/home/runner/mbedtls/lib -Wl,-rpath,/home/runner/rustls/lib -Wl,-rpath,/home/linuxbrew/.linuxbrew/opt/gsasl/lib
             PKG_CONFIG_PATH: /home/runner/wolfssl-opensslextra/lib/pkgconfig:/home/runner/mbedtls/lib/pkgconfig:/home/runner/rustls/lib/pkgconfig:/home/linuxbrew/.linuxbrew/opt/gsasl/lib/pkgconfig
@@ -289,69 +287,52 @@ jobs:
               -DUSE_ECH=ON -DCURL_USE_GSSAPI=ON -DUSE_SSLS_EXPORT=ON
               -DCURL_CLANG_TIDY=ON -DCLANG_TIDY=/usr/bin/clang-tidy-20
 
-          - name: 'scan-build'
-            install_packages: clang-tools clang libssl-dev libidn2-dev libssh2-1-dev libnghttp2-dev libldap-dev libgss-dev librtmp-dev libgnutls28-dev
-            install_steps: skipall mbedtls-latest-intel rustls wolfssl-opensslextra-intel
-            install_steps_brew: gsasl
-            CC: clang
-            configure-prefix: scan-build
-            make-prefix: scan-build --status-bugs
-            LDFLAGS: -Wl,-rpath,/home/runner/wolfssl-opensslextra/lib -Wl,-rpath,/home/runner/mbedtls/lib -Wl,-rpath,/home/runner/rustls/lib -Wl,-rpath,/home/linuxbrew/.linuxbrew/opt/gsasl/lib
-            PKG_CONFIG_PATH: /home/runner/wolfssl-opensslextra/lib/pkgconfig:/home/runner/mbedtls/lib/pkgconfig:/home/runner/rustls/lib/pkgconfig:/home/linuxbrew/.linuxbrew/opt/gsasl/lib/pkgconfig
-            generate: >-
-              -DCURL_USE_OPENSSL=ON -DCURL_USE_WOLFSSL=ON -DCURL_USE_GNUTLS=ON -DCURL_USE_MBEDTLS=ON -DCURL_USE_RUSTLS=ON
-              -DCURL_USE_GSASL=ON -DUSE_LIBRTMP=ON
-              -DUSE_ECH=ON -DCURL_USE_GSSAPI=ON -DUSE_SSLS_EXPORT=ON
-              -DCMAKE_UNITY_BUILD=OFF -DCURL_DISABLE_TYPECHECK=ON
-
-          - name: 'scan-build H3 c-ares !examples'
-            install_packages: clang-tools clang libidn2-dev libssh-dev libnghttp2-dev
-            install_steps: skipall
+          - name: 'clang-tidy H3 c-ares !examples'
+            install_packages: clang-20 clang-tidy-20 libidn2-dev libssh-dev libnghttp2-dev
+            install_steps: skiprun
             install_steps_brew: openssl libngtcp2 libnghttp3 c-ares
-            CC: clang
-            configure-prefix: scan-build
-            make-prefix: scan-build --status-bugs
+            CC: clang-20
             LDFLAGS: -Wl,-rpath,/home/linuxbrew/.linuxbrew/opt/openssl/lib -Wl,-rpath,/home/linuxbrew/.linuxbrew/opt/libngtcp2/lib -Wl,-rpath,/home/linuxbrew/.linuxbrew/opt/libnghttp3/lib -Wl,-rpath,/home/linuxbrew/.linuxbrew/opt/c-ares/lib
             PKG_CONFIG_PATH: /home/linuxbrew/.linuxbrew/opt/libngtcp2/lib/pkgconfig:/home/linuxbrew/.linuxbrew/opt/libnghttp3/lib/pkgconfig:/home/linuxbrew/.linuxbrew/opt/c-ares/lib/pkgconfig
             generate: >-
               -DCURL_USE_OPENSSL=ON -DOPENSSL_ROOT_DIR=/home/linuxbrew/.linuxbrew/opt/openssl -DUSE_NGTCP2=ON
               -DCURL_USE_LIBSSH2=OFF -DCURL_USE_LIBSSH=ON -DUSE_HTTPSRR=ON -DENABLE_ARES=ON
-              -DCMAKE_UNITY_BUILD=OFF -DCURL_DISABLE_TYPECHECK=ON
               -DCURL_DISABLE_VERBOSE_STRINGS=ON
+              -DCURL_CLANG_TIDY=ON -DCLANG_TIDY=/usr/bin/clang-tidy-20
 
           - name: 'address-sanitizer'
-            install_packages: clang libssl-dev libssh-dev libidn2-dev libnghttp2-dev libubsan1 libasan8 libtsan2
+            install_packages: clang-20 libssl-dev libssh-dev libidn2-dev libnghttp2-dev libubsan1 libasan8 libtsan2
             install_steps: pytest randcurl
             CFLAGS: -fsanitize=address,undefined,signed-integer-overflow -fno-sanitize-recover=undefined,integer -Wformat -Werror=format-security -Werror=array-bounds -g
             LDFLAGS: -fsanitize=address,undefined -fno-sanitize-recover=undefined,integer -ldl -lubsan
-            CC: clang
+            CC: clang-20
             generate: -DENABLE_DEBUG=ON -DCURL_USE_LIBSSH=ON
 
           - name: 'address-sanitizer H3 c-ares'
-            install_packages: clang libubsan1 libasan8 libtsan2
+            install_packages: clang-20 libubsan1 libasan8 libtsan2
             install_steps: pytest
             install_steps_brew: openssl libssh2 libngtcp2 libnghttp3 c-ares
             CFLAGS: -fsanitize=address,undefined,signed-integer-overflow -fno-sanitize-recover=undefined,integer -Wformat -Werror=format-security -Werror=array-bounds -g
             LDFLAGS: -fsanitize=address,undefined -fno-sanitize-recover=undefined,integer -ldl -lubsan -Wl,-rpath,/home/linuxbrew/.linuxbrew/opt/c-ares/lib
             PKG_CONFIG_PATH: /home/linuxbrew/.linuxbrew/opt/libssh2/lib/pkgconfig:/home/linuxbrew/.linuxbrew/opt/libngtcp2/lib/pkgconfig:/home/linuxbrew/.linuxbrew/opt/libnghttp3/lib/pkgconfig:/home/linuxbrew/.linuxbrew/opt/c-ares/lib/pkgconfig
-            CC: clang
+            CC: clang-20
             generate: -DENABLE_DEBUG=ON -DCURL_USE_OPENSSL=ON -DOPENSSL_ROOT_DIR=/home/linuxbrew/.linuxbrew/opt/openssl -DUSE_NGTCP2=ON -DUSE_SSLS_EXPORT=ON -DENABLE_ARES=ON
 
           - name: 'thread-sanitizer'
-            install_packages: clang libtsan2
+            install_packages: clang-20 libtsan2
             install_steps: pytest openssl-tsan
             CFLAGS: -fsanitize=thread -g
             LDFLAGS: -fsanitize=thread
-            CC: clang
+            CC: clang-20
             generate: -DOPENSSL_ROOT_DIR=/home/runner/openssl -DENABLE_DEBUG=ON
 
           - name: 'memory-sanitizer'
-            install_packages: clang
+            install_packages: clang-20
             install_steps: randcurl
             CFLAGS: -fsanitize=memory -Wformat -Werror=format-security -Werror=array-bounds -g
             LDFLAGS: -fsanitize=memory
             LIBS: -ldl
-            configure: CC=clang --without-ssl --without-zlib --without-brotli --without-zstd --without-libpsl --without-nghttp2 --enable-debug
+            configure: CC=clang-20 --without-ssl --without-zlib --without-brotli --without-zstd --without-libpsl --without-nghttp2 --enable-debug
             tflags: '--min=1480'
 
           - name: 'event-based'
@@ -794,14 +775,12 @@ jobs:
           LDFLAGS: '${{ matrix.build.LDFLAGS }}'
           LIBS: '${{ matrix.build.LIBS }}'
           MATRIX_CONFIGURE: '${{ matrix.build.configure }}'
-          MATRIX_CONFIGURE_PREFIX: '${{ matrix.build.configure-prefix }}'
           MATRIX_GENERATE: '${{ matrix.build.generate }}'
           MATRIX_PKG_CONFIG_PATH: '${{ matrix.build.PKG_CONFIG_PATH }}'
         run: |
           [[ "${MATRIX_INSTALL_STEPS}" = *'awslc'* ]] && sudo apt-get -o Dpkg::Use-Pty=0 purge libssl-dev
           [ -n "${MATRIX_PKG_CONFIG_PATH}" ] && export PKG_CONFIG_PATH="${MATRIX_PKG_CONFIG_PATH}"
           if [ "${MATRIX_BUILD}" = 'cmake' ]; then
-            ${MATRIX_CONFIGURE_PREFIX} \
             cmake -B bld -G Ninja \
               -DCMAKE_INSTALL_PREFIX="$HOME"/curl-install \
               -DCMAKE_C_COMPILER_TARGET="$(uname -m)-pc-linux-gnu" -DBUILD_STATIC_LIBS=ON \
@@ -809,7 +788,6 @@ jobs:
               ${MATRIX_GENERATE}
           else
             mkdir bld && cd bld && \
-            ${MATRIX_CONFIGURE_PREFIX} \
             ../configure --prefix="$HOME"/curl-install --enable-unity --enable-warnings --enable-werror --disable-static \
               --disable-dependency-tracking --enable-option-checking=fatal \
               ${MATRIX_CONFIGURE}
@@ -828,13 +806,11 @@ jobs:
         run: grep -H -v '^#' bld/tests/config bld/tests/http/config.ini || true
 
       - name: 'build'
-        env:
-          MATRIX_MAKE_CUSTOM_TARGET: '${{ matrix.build.make-custom-target }}'
         run: |
           if [ "${MATRIX_BUILD}" = 'cmake' ]; then
-            ${MATRIX_MAKE_PREFIX} cmake --build bld --verbose
+            cmake --build bld --verbose
           else
-            ${MATRIX_MAKE_PREFIX} make -C bld V=1 ${MATRIX_MAKE_CUSTOM_TARGET}
+            make -C bld V=1
           fi
 
       - name: 'single-use function check'
@@ -849,7 +825,6 @@ jobs:
           ./scripts/singleuse.pl --unit "${libcurla}"
 
       - name: 'curl -V'
-        if: ${{ matrix.build.make-custom-target != 'tidy' }}
         run: |
           find . -type f \( -name curl -o -name '*.so.*' -o -name '*.a' \) -print0 | xargs -0 file --
           find . -type f \( -name curl -o -name '*.so.*' -o -name '*.a' \) -print0 | xargs -0 stat -c '%10s bytes: %n' --
@@ -934,10 +909,10 @@ jobs:
           ../.github/scripts/randcurl.pl 60 ../bld/src/curl
 
       - name: 'build examples'
-        if: ${{ !contains(matrix.build.install_packages, 'valgrind') && matrix.build.make-custom-target != 'tidy' && !contains(matrix.build.name, '!examples') }}
+        if: ${{ !contains(matrix.build.install_packages, 'valgrind') && !contains(matrix.build.name, '!examples') }}
         run: |
           if [ "${MATRIX_BUILD}" = 'cmake' ]; then
-            ${MATRIX_MAKE_PREFIX} cmake --build bld --verbose --target curl-examples-build
+            cmake --build bld --verbose --target curl-examples-build
           else
-            ${MATRIX_MAKE_PREFIX} make -C bld V=1 examples
+            make -C bld V=1 examples
           fi
