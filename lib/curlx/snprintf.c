@@ -1,5 +1,3 @@
-#ifndef HEADER_CURL_URLAPI_INT_H
-#define HEADER_CURL_URLAPI_INT_H
 /***************************************************************************
  *                                  _   _ ____  _
  *  Project                     ___| | | |  _ \| |
@@ -23,21 +21,29 @@
  * SPDX-License-Identifier: curl
  *
  ***************************************************************************/
-#include "curl_setup.h"
+#include "curlx/snprintf.h"
 
-size_t Curl_is_absolute_url(const char *url, char *buf, size_t buflen,
-                            bool guess_scheme);
+#ifdef _WIN32
+#include <stdarg.h>
 
-CURLUcode Curl_url_set_authority(CURLU *u, const char *authority);
-
-CURLUcode Curl_junkscan(const char *url, size_t *urllen, bool allowspace);
-
-#ifdef UNITTESTS
-UNITTEST CURLUcode Curl_parse_port(struct Curl_URL *u, struct dynbuf *host,
-                                   bool has_scheme);
+/* Simplified wrapper for the Windows platform to use the correct symbol and
+   ensuring null-termination. Omit returning a length to keep it simple. */
+void curlx_win32_snprintf(char *buf, size_t maxlen, const char *fmt, ...)
+{
+  va_list ap;
+  if(!maxlen)
+    return;
+  va_start(ap, fmt);
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
 #endif
-
-#define U_CURLU_URLDECODE (unsigned int)CURLU_URLDECODE
-#define U_CURLU_PATH_AS_IS (unsigned int)CURLU_PATH_AS_IS
-
-#endif /* HEADER_CURL_URLAPI_INT_H */
+  /* !checksrc! disable BANNEDFUNC 1 */
+  (void)vsnprintf(buf, maxlen, fmt, ap);
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
+  buf[maxlen - 1] = 0;
+  va_end(ap);
+}
+#endif /* _WIN32 */

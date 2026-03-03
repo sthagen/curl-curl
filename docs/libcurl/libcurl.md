@@ -82,8 +82,8 @@ builds a linked list. See curl_slist_append(3)
 ## Sharing data between transfers
 
 You can have multiple easy handles share certain data, even if they are used
-in different threads. This magic is setup using the share interface, as
-described in the libcurl-share(3) man page.
+in different threads. Set that up using the share interface, as described in
+the libcurl-share(3) man page.
 
 ## URL Parsing
 
@@ -192,8 +192,8 @@ libcurl at all. Call curl_global_cleanup(3) immediately before the
 program exits, when the program is again only one thread and after its last
 use of libcurl.
 
-It is not actually required that the functions be called at the beginning
-and end of the program -- that is just usually the easiest way to do it.
+It is not actually required that the functions be called at the beginning and
+end of the program -- that is usually the easiest way to do it.
 
 You can call both of these multiple times, as long as all calls meet
 these requirements and the number of calls to each is the same.
@@ -205,13 +205,13 @@ other parts of the program -- it does not know whether they use libcurl or
 not. Its code does not necessarily run at the start and end of the whole
 program.
 
-A module like this must have global constant functions of its own, just like
-curl_global_init(3) and curl_global_cleanup(3). The module thus
-has control at the beginning and end of the program and has a place to call
-the libcurl functions. If multiple modules in the program use libcurl, they
-all separately call the libcurl functions, and that is OK because only the
-first curl_global_init(3) and the last curl_global_cleanup(3) in a
-program change anything. (libcurl uses a reference count in static memory).
+A module like this must have global constant functions of its own, like
+curl_global_init(3) and curl_global_cleanup(3). The module thus has control at
+the beginning and end of the program and has a place to call the libcurl
+functions. If multiple modules in the program use libcurl, they all separately
+call the libcurl functions, and that is OK because only the first
+curl_global_init(3) and the last curl_global_cleanup(3) in a program change
+anything. (libcurl uses a reference count in static memory).
 
 In a C++ module, it is common to deal with the global constant situation by
 defining a special class that represents the global constant environment of
