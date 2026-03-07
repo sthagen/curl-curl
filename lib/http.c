@@ -705,6 +705,7 @@ static CURLcode output_auth_headers(struct Curl_easy *data,
   if(authstatus->picked == CURLAUTH_BEARER) {
     /* Bearer */
     if(!proxy && data->set.str[STRING_BEARER] &&
+       Curl_auth_allowed_to_host(data) &&
        !Curl_checkheaders(data, STRCONST("Authorization"))) {
       auth = "Bearer";
       result = http_output_bearer(data);
@@ -974,9 +975,8 @@ static CURLcode auth_basic(struct Curl_easy *data,
   *availp |= CURLAUTH_BASIC;
   authp->avail |= CURLAUTH_BASIC;
   if(authp->picked == CURLAUTH_BASIC) {
-    /* We asked for Basic authentication but got a 40X back
-       anyway, which basically means our name+password is not
-       valid. */
+    /* We asked for Basic authentication but got a 40X back anyway, which
+       means our name+password is not valid. */
     authp->avail = CURLAUTH_NONE;
     infof(data, "Basic authentication problem, ignoring.");
     data->state.authproblem = TRUE;
@@ -993,8 +993,8 @@ static CURLcode auth_bearer(struct Curl_easy *data,
   *availp |= CURLAUTH_BEARER;
   authp->avail |= CURLAUTH_BEARER;
   if(authp->picked == CURLAUTH_BEARER) {
-    /* We asked for Bearer authentication but got a 40X back
-       anyway, which basically means our token is not valid. */
+    /* We asked for Bearer authentication but got a 40X back anyway, which
+       means our token is not valid. */
     authp->avail = CURLAUTH_NONE;
     infof(data, "Bearer authentication problem, ignoring.");
     data->state.authproblem = TRUE;

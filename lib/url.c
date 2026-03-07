@@ -545,7 +545,6 @@ void Curl_conn_free(struct Curl_easy *data, struct connectdata *conn)
   Curl_safefree(conn->oauth_bearer);
   Curl_safefree(conn->host.rawalloc); /* hostname buffer */
   Curl_safefree(conn->conn_to_host.rawalloc); /* hostname buffer */
-  Curl_safefree(conn->hostname_resolve);
   Curl_safefree(conn->secondaryhostname);
   Curl_safefree(conn->localdev);
   Curl_ssl_conn_config_cleanup(conn);
@@ -591,28 +590,14 @@ static bool proxy_info_matches(const struct proxy_info *data,
 {
   if((data->proxytype == needle->proxytype) &&
      (data->port == needle->port) &&
-     curl_strequal(data->host.name, needle->host.name))
+     curl_strequal(data->host.name, needle->host.name)) {
+
+    if(Curl_timestrcmp(data->user, needle->user) ||
+       Curl_timestrcmp(data->passwd, needle->passwd))
+      return FALSE;
     return TRUE;
-
+  }
   return FALSE;
-}
-
-static bool socks_proxy_info_matches(const struct proxy_info *data,
-                                     const struct proxy_info *needle)
-{
-  if(!proxy_info_matches(data, needle))
-    return FALSE;
-
-  /* the user information is case-sensitive
-     or at least it is not defined as case-insensitive
-     see https://datatracker.ietf.org/doc/html/rfc3986#section-3.2.1 */
-
-  /* curl_strequal does a case insensitive comparison,
-     so do not use it here! */
-  if(Curl_timestrcmp(data->user, needle->user) ||
-     Curl_timestrcmp(data->passwd, needle->passwd))
-    return FALSE;
-  return TRUE;
 }
 #endif
 
@@ -924,7 +909,7 @@ static bool url_match_proxy_use(struct connectdata *conn,
     return FALSE;
 
   if(m->needle->bits.socksproxy &&
-     !socks_proxy_info_matches(&m->needle->socks_proxy, &conn->socks_proxy))
+     !proxy_info_matches(&m->needle->socks_proxy, &conn->socks_proxy))
     return FALSE;
 
   if(m->needle->bits.httpproxy) {
@@ -3146,12 +3131,7 @@ static CURLcode resolve_server(struct Curl_easy *data,
     eport = conn->bits.conn_to_port ? conn->conn_to_port : conn->remote_port;
   }
 
-  /* Resolve target host right on */
-  conn->hostname_resolve = curlx_strdup(ehost->name);
-  if(!conn->hostname_resolve)
-    return CURLE_OUT_OF_MEMORY;
-
-  result = Curl_resolv_timeout(data, conn->hostname_resolve,
+  result = Curl_resolv_timeout(data, ehost->name,
                                eport, conn->ip_version,
                                pdns, timeout_ms);
   DEBUGASSERT(!result || !*pdns);
@@ -3237,9 +3217,6 @@ static void url_conn_reuse_adjust(struct Curl_easy *data,
 
   conn->conn_to_port = needle->conn_to_port;
   conn->remote_port = needle->remote_port;
-  curlx_free(conn->hostname_resolve);
-  conn->hostname_resolve = needle->hostname_resolve;
-  needle->hostname_resolve = NULL;
 }
 
 static void conn_meta_freeentry(void *p)

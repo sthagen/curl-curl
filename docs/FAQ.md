@@ -121,7 +121,8 @@ important and crucial. Anyone can contribute and post their changes and
 improvements and have them inserted in the main sources (of course on the
 condition that developers agree that the fixes are good).
 
-The full list of all contributors is found in the docs/THANKS file.
+The full list of all contributors is found in the
+[docs/THANKS](https://curl.se/docs/thanks.html) file.
 
 curl is developed by a community, with Daniel at the wheel.
 
@@ -261,7 +262,7 @@ documents.
 
 Here's a rough step-by-step:
 
-1. copy a suitable lib/config-*.h file as a start to `lib/config-[youros].h`
+1. copy a suitable `lib/config-*.h` file as a start to `lib/config-[youros].h`
 2. edit `lib/config-[youros].h` to match your OS and setup
 3. edit `lib/curl_setup.h` to include `config-[youros].h` when your OS is
    detected by the preprocessor, in the style others already exist
@@ -430,10 +431,10 @@ can imagine.
 
 ## What about SOAP, WebDAV, XML-RPC or similar protocols over HTTP?
 
-curl adheres to the HTTP spec, which basically means you can play with *any*
-protocol that is built on top of HTTP. Protocols such as SOAP, WebDAV and
-XML-RPC are all such ones. You can use `-X` to set custom requests and -H to
-set custom headers (or replace internally generated ones).
+curl adheres to the HTTP spec, which means you can play with *any* protocol
+that is built on top of HTTP. Protocols such as SOAP, WebDAV and XML-RPC are
+all such ones. You can use `-X` to set custom requests and -H to set custom
+headers (or replace internally generated ones).
 
 Using libcurl of course also works and you would use the proper library
 options to do the same.
@@ -1109,7 +1110,7 @@ They are usually:
 * Adjust the system's config to check for libs in the directory where you have
   put the library (like Linux's `/etc/ld.so.conf`)
 
-`man ld.so` and`'man ld` will tell you more details
+`man ld.so` and `man ld` will tell you more details
 
 ## How does libcurl resolve hostnames?
 
@@ -1329,9 +1330,9 @@ their projects, no matter what license they already have in use.
 ## What are my obligations when using libcurl in my commercial apps?
 
 Next to none. All you need to adhere to is the MIT-style license (stated in
-the COPYING file) which basically says you have to include the copyright
-notice in *all copies* and that you may not use the copyright holder's name
-when promoting your software.
+the COPYING file) which says you have to include the copyright notice in *all
+copies* and that you may not use the copyright holder's name when promoting
+your software.
 
 You do not have to release any of your source code.
 
