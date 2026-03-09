@@ -291,11 +291,11 @@ a better understanding why the server behaves the way it does. Include headers
 in the normal body output with CURLOPT_HEADER(3) set 1.
 
 Of course, there are bugs left. We need to know about them to be able to fix
-them, so we are quite dependent on your bug reports. When you do report
-suspected bugs in libcurl, please include as many details as you possibly can:
-a protocol dump that CURLOPT_VERBOSE(3) produces, library version, as
-much as possible of your code that uses libcurl, operating system name and
-version, compiler name and version etc.
+them, so we are dependent on your bug reports. When you do report suspected
+bugs in libcurl, please include as many details as you possibly can: a protocol
+dump that CURLOPT_VERBOSE(3) produces, library version, as much as possible of
+your code that uses libcurl, operating system name and version, compiler name
+and version etc.
 
 If CURLOPT_VERBOSE(3) is not enough, you increase the level of debug
 data your application receive by using the CURLOPT_DEBUGFUNCTION(3).
@@ -377,8 +377,8 @@ char * to a string in the format "user:password". In a manner like this:
 
 Another case where name and password might be needed at times, is for those
 users who need to authenticate themselves to a proxy they use. libcurl offers
-another option for this, the CURLOPT_PROXYUSERPWD(3). It is used quite similar
-to the CURLOPT_USERPWD(3) option like this:
+another option for this, the CURLOPT_PROXYUSERPWD(3). Its use is similar to the
+CURLOPT_USERPWD(3) option, like this:
 
 ~~~c
     curl_easy_setopt(handle, CURLOPT_PROXYUSERPWD, "myname:thesecret");
@@ -772,10 +772,10 @@ terminal.
 Switch on the progress meter by, oddly enough, setting
 CURLOPT_NOPROGRESS(3) to zero. This option is set to 1 by default.
 
-For most applications however, the built-in progress meter is useless and what
-instead is interesting is the ability to specify a progress callback. The
-function pointer you pass to libcurl is then called on irregular intervals
-with information about the current transfer.
+For most applications, the built-in progress meter is useless and what instead
+is interesting is the ability to specify a progress callback. The function
+pointer you pass to libcurl is then called on irregular intervals with
+information about the current transfer.
 
 Set the progress callback by using CURLOPT_PROGRESSFUNCTION(3). Pass a pointer
 to a function that matches this prototype:
@@ -826,8 +826,8 @@ libcurl supports SOCKS and HTTP proxies. When a given URL is wanted, libcurl
 asks the proxy for it instead of trying to connect to the actual remote host
 identified in the URL.
 
-If you are using a SOCKS proxy, you may find that libcurl does not quite support
-all operations through it.
+If you are using a SOCKS proxy, you may find that libcurl does not support all
+operations through it.
 
 For HTTP proxies: the fact that the proxy is an HTTP proxy puts certain
 restrictions on what can actually happen. A requested URL that might not be a
@@ -1190,13 +1190,13 @@ CURLOPT_COOKIEFILE(3).
 
 The CURLOPT_COOKIEFILE(3) option also automatically enables the cookie parser
 in libcurl. Until the cookie parser is enabled, libcurl does not parse or
-understand incoming cookies and they are instead ignored. However, when the
-parser is enabled the cookies are understood and the cookies are kept in
-memory and used properly in subsequent requests when the same handle is used.
-Many times this is enough, and you may not have to save the cookies to disk at
-all. Note that the file you specify to CURLOPT_COOKIEFILE(3) does not have to
-exist to enable the parser, so a common way to enable the parser and not read
-any cookies is to use the name of a file you know does not exist.
+understand incoming cookies and they are instead ignored. When the parser is
+enabled the cookies are understood and the cookies are kept in memory and used
+properly in subsequent requests when the same handle is used. Many times this
+is enough, and you may not have to save the cookies to disk at all. Note that
+the file you specify to CURLOPT_COOKIEFILE(3) does not have to exist to enable
+the parser, so a common way to enable the parser and not read any cookies is
+to use the name of a file you know does not exist.
 
 If you would rather use existing cookies that you have previously received
 with your Netscape or Mozilla browsers, you can make libcurl use that cookie
@@ -1446,9 +1446,8 @@ size.
 
 ## [2]
 
-This happens on Windows machines when libcurl is built and used as a
-DLL. However, you can still do this on Windows if you link with a static
-library.
+This happens on Windows machines when libcurl is built and used as a DLL. You
+can still do this on Windows if you link with a static library.
 
 ## [3]
 
