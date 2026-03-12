@@ -1230,7 +1230,7 @@ static CURLcode pop3_state_command_resp(struct Curl_easy *data,
      when there is no body to return. */
   pop3c->eob = 2;
 
-  /* But since this initial CR LF pair is not part of the actual body, we set
+  /* Since this initial CR LF pair is not part of the actual body, we set
      the strip counter here so that these bytes will not be delivered. */
   pop3c->strip = 2;
 
@@ -1707,7 +1707,7 @@ static const struct Curl_protocol Curl_protocol_pop3 = {
   pop3_disconnect,                  /* disconnect */
   pop3_write,                       /* write_resp */
   ZERO_NULL,                        /* write_resp_hd */
-  ZERO_NULL,                        /* connection_check */
+  ZERO_NULL,                        /* connection_is_dead */
   ZERO_NULL,                        /* attach connection */
   ZERO_NULL,                        /* follow */
 };

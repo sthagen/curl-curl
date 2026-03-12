@@ -1426,7 +1426,7 @@ CURLcode Curl_ws_accept(struct Curl_easy *data,
       k->keepon |= KEEP_SEND;
     }
 
-    /* And pass any additional data to the writers */
+    /* Then pass any additional data to the writers */
     if(nread) {
       result = Curl_client_write(data, CLIENTWRITE_BODY, mem, nread);
       if(result)
@@ -1930,7 +1930,7 @@ static const struct Curl_protocol Curl_protocol_ws = {
   ZERO_NULL,                            /* disconnect */
   Curl_http_write_resp,                 /* write_resp */
   Curl_http_write_resp_hd,              /* write_resp_hd */
-  ZERO_NULL,                            /* connection_check */
+  ZERO_NULL,                            /* connection_is_dead */
   ZERO_NULL,                            /* attach connection */
   Curl_http_follow,                     /* follow */
 };

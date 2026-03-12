@@ -49,8 +49,14 @@ struct dynbuf;
 #define SSLSUPP_ISSUERCERT_BLOB (1 << 14) /* CURLOPT_ISSUERCERT_BLOB */
 
 #ifdef USE_ECH
-#include "curlx/base64.h"
-#define ECH_ENABLED(data) \
+/* CURLECH_ bits for the tls_ech option */
+#define CURLECH_DISABLE    (1 << 0)
+#define CURLECH_GREASE     (1 << 1)
+#define CURLECH_ENABLE     (1 << 2)
+#define CURLECH_HARD       (1 << 3)
+#define CURLECH_CLA_CFG    (1 << 4)
+
+#define CURLECH_ENABLED(data) \
   ((data)->set.tls_ech && !((data)->set.tls_ech & CURLECH_DISABLE))
 #endif /* USE_ECH */
 
@@ -134,7 +140,7 @@ bool Curl_ssl_conn_config_match(struct Curl_easy *data,
                                 bool proxy);
 
 /* Update certain connection SSL config flags after they have
- * been changed on the easy handle. Will work for `verifypeer`,
+ * been changed on the easy handle. Works for `verifypeer`,
  * `verifyhost` and `verifystatus`. */
 void Curl_ssl_conn_config_update(struct Curl_easy *data, bool for_proxy);
 

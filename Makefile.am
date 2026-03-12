@@ -172,7 +172,10 @@ checksrc:
 	(cd docs/examples && $(MAKE) checksrc)
 	(cd projects && $(MAKE) checksrc)
 
-lint: checksrc
+badwords:
+	@PERL@ $(top_srcdir)/scripts/badwords-all
+
+lint: badwords checksrc
 	@PERL@ $(top_srcdir)/scripts/spacecheck.pl
 
 tidy:

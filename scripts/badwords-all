@@ -1,0 +1,14 @@
+#!/usr/bin/env perl
+# Copyright (C) Daniel Stenberg, <daniel@haxx.se>, et al.
+#
+# SPDX-License-Identifier: curl
+
+use strict;
+use warnings;
+
+use File::Basename;
+
+chdir dirname(__FILE__) . "/..";
+
+system("scripts/badwords -a -w scripts/badwords.ok src lib include docs/examples < scripts/badwords.txt");
+system("scripts/badwords    -w scripts/badwords.ok '**.md' projects/OS400/README.OS400 < scripts/badwords.txt");

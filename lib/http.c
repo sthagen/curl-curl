@@ -214,6 +214,8 @@ static CURLcode copy_custom_value(const char *header, char **valp)
  *
  * This function MUST be used after the header has already been confirmed to
  * lead with "word:".
+ *
+ * @unittest: 1626
  */
 char *Curl_copy_header_value(const char *header)
 {
@@ -505,8 +507,8 @@ static bool http_should_fail(struct Curl_easy *data, int httpcode)
   /*
   ** Examine the current authentication state to see if this is an error. The
   ** idea is for this function to get called after processing all the headers
-  ** in a response message. So, if we have been to asked to authenticate a
-  ** particular stage, and we have done it, we are OK. If we are already
+  ** in a response message. If we have been to asked to authenticate
+  ** a particular stage, and we have done it, we are OK. If we are already
   ** completely authenticated, it is not OK to get another 401 or 407.
   **
   ** It is possible for authentication to go stale such that the client needs
@@ -1400,8 +1402,10 @@ CURLcode Curl_http_follow(struct Curl_easy *data, const char *newurl,
 /*
  * Curl_compareheader()
  *
- * Returns TRUE if 'headerline' contains the 'header' with given 'content'.
- * Pass headers WITH the colon.
+ * Returns TRUE if 'headerline' contains the 'header' with given 'content'
+ * (within a comma-separated list of tokens). Pass 'header' WITH the colon.
+ *
+ * @unittest: 1625
  */
 bool Curl_compareheader(const char *headerline, /* line to check */
                         const char *header, /* header keyword _with_ colon */
@@ -1435,9 +1439,24 @@ bool Curl_compareheader(const char *headerline, /* line to check */
   if(curlx_strlen(&val) >= clen) {
     size_t len;
     p = curlx_str(&val);
-    for(len = curlx_strlen(&val); len >= curlx_strlen(&val); len--, p++) {
-      if(curl_strnequal(p, content, clen))
+    for(len = curlx_strlen(&val); len >= clen;) {
+      struct Curl_str next;
+      const char *o = p;
+      /* after a match there must be a comma, space, newline or null byte */
+      if(curl_strnequal(p, content, clen) &&
+         ((p[clen] == ',') || ISBLANK(p[clen]) || ISNEWLINE(p[clen]) ||
+          !p[clen]))
         return TRUE; /* match! */
+      /* advance to the next comma */
+      if(curlx_str_until(&p, &next, MAX_HTTP_RESP_HEADER_SIZE, ',') ||
+         curlx_str_single(&p, ','))
+        break; /* no comma, get out */
+
+      /* if there are more dummy commas, move over them as well */
+      do
+        curlx_str_passblanks(&p);
+      while(!curlx_str_single(&p, ','));
+      len -= (p - o);
     }
   }
   return FALSE; /* no match */
@@ -1667,7 +1686,7 @@ CURLcode Curl_http_done(struct Curl_easy *data,
      (data->req.bytecount +
       data->req.headerbytecount -
       data->req.deductheadercount) <= 0) {
-    /* If this connection is not simply closed to be retried, AND nothing was
+    /* If this connection is not closed to be retried, AND nothing was
        read from the HTTP server (that counts), this cannot be right so we
        return an error here */
     failf(data, "Empty reply from server");
@@ -1973,7 +1992,7 @@ void Curl_http_method(struct Curl_easy *data,
 
 static CURLcode http_useragent(struct Curl_easy *data)
 {
-  /* The User-Agent string might have been allocated in url.c already, because
+  /* The User-Agent string might have been allocated already, because
      it might have been used in the proxy connect, but if we have got a header
      with the user-agent string specified, we erase the previously made string
      here. */
@@ -2025,7 +2044,7 @@ static CURLcode http_set_aptr_host(struct Curl_easy *data)
       if(*cookiehost == '[') {
         char *closingbracket;
         /* since the 'cookiehost' is an allocated memory area that will be
-           freed later we cannot simply increment the pointer */
+           freed later we cannot increment the pointer */
         memmove(cookiehost, cookiehost + 1, strlen(cookiehost) - 1);
         closingbracket = strchr(cookiehost, ']');
         if(closingbracket)
@@ -2097,7 +2116,7 @@ static CURLcode http_target(struct Curl_easy *data,
   if(conn->bits.httpproxy && !conn->bits.tunnel_proxy) {
     /* Using a proxy but does not tunnel through it */
 
-    /* The path sent to the proxy is in fact the entire URL. But if the remote
+    /* The path sent to the proxy is in fact the entire URL, but if the remote
        host is a IDN-name, we must make sure that the request we produce only
        uses the encoded hostname! */
 
@@ -4064,7 +4083,7 @@ static CURLcode http_on_response(struct Curl_easy *data,
        * General treatment of errors when about to send data. Including :
        * "417 Expectation Failed", while waiting for 100-continue.
        *
-       * The check for close above is done simply because of something
+       * The check for close above is done because of something
        * else has already deemed the connection to get closed then
        * something else should have considered the big picture and we
        * avoid this check.
@@ -4136,7 +4155,7 @@ static CURLcode http_on_response(struct Curl_easy *data,
     k->download_done = TRUE;
 
   /* If max download size is *zero* (nothing) we already have
-     nothing and can safely return ok now! But for HTTP/2, we would
+     nothing and can safely return ok now! For HTTP/2, we would
      like to call http2_handle_stream_close to properly close a
      stream. In order to do this, we keep reading until we
      close the stream. */
@@ -4545,7 +4564,7 @@ CURLcode Curl_http_write_resp_hd(struct Curl_easy *data,
 }
 
 /*
- * HTTP protocol `write_resp` implementation. Will parse headers
+ * HTTP protocol `write_resp` implementation. Parse headers
  * when not done yet and otherwise return without consuming data.
  */
 CURLcode Curl_http_write_resp_hds(struct Curl_easy *data,
@@ -4997,7 +5016,7 @@ static const struct Curl_protocol Curl_protocol_http = {
   ZERO_NULL,                            /* disconnect */
   Curl_http_write_resp,                 /* write_resp */
   Curl_http_write_resp_hd,              /* write_resp_hd */
-  ZERO_NULL,                            /* connection_check */
+  ZERO_NULL,                            /* connection_is_dead */
   ZERO_NULL,                            /* attach connection */
   Curl_http_follow,                     /* follow */
 };

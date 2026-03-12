@@ -26,9 +26,9 @@
 #ifdef CURLRES_ARES
 
 /***********************************************************************
- * Only for ares-enabled builds
- * And only for functions that fulfill the asynch resolver backend API
- * as defined in asyn.h, nothing else belongs in this file!
+ * Only for ares-enabled builds and only for functions that fulfill
+ * the asynch resolver backend API as defined in asyn.h,
+ * nothing else belongs in this file!
  **********************************************************************/
 
 #ifdef HAVE_NETINET_IN_H
@@ -549,24 +549,24 @@ static void async_ares_hostbyname_cb(void *user_data,
 
        it is also possible that the other request could always take longer
        because it needs more time or only the second DNS server can fulfill it
-       successfully. But, to align with the philosophy of Happy Eyeballs, we
+       successfully. Yet, to align with the philosophy of Happy Eyeballs, we
        do not want to wait _too_ long or users will think requests are slow
        when IPv6 lookups do not actually work (but IPv4 ones do).
 
-       So, now that we have a usable answer (some IPv4 addresses, some IPv6
+       Now that we have a usable answer (some IPv4 addresses, some IPv6
        addresses, or "no such domain"), we start a timeout for the remaining
        pending responses. Even though it is typical that this resolved
        request came back quickly, that need not be the case. It might be that
        this completing request did not get a result from the first DNS
-       server or even the first round of the whole DNS server pool. So it
+       server or even the first round of the whole DNS server pool. This
        could already be a long time after we issued the DNS queries in
        the first place. Without modifying c-ares, we cannot know exactly
        where in its retry cycle we are. We could guess based on how much
        time has gone by, but it does not really matter. Happy Eyeballs tells
-       us that, given usable information in hand, we simply do not want to
+       us that, given usable information in hand, we do not want to
        wait "too much longer" after we get a result.
 
-       We simply wait an additional amount of time equal to the default c-ares
+       We wait an additional amount of time equal to the default c-ares
        query timeout. That is enough time for a typical parallel response to
        arrive without being "too long". Even on a network where one of the two
        types of queries is failing or timing out constantly, this will usually

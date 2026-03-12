@@ -100,7 +100,7 @@
 #include "curlx/strerr.h"
 #include "curlx/strparse.h"
 
-/* And now for the protocols */
+/* Now for the protocols */
 #include "ftp.h"
 #include "dict.h"
 #include "telnet.h"
@@ -458,7 +458,7 @@ void Curl_init_userdefined(struct Curl_easy *data)
 static void easy_meta_freeentry(void *p)
 {
   (void)p;
-  /* Will always be FALSE. Cannot use a 0 assert here since compilers
+  /* Always FALSE. Cannot use a 0 assert here since compilers
    * are not in agreement if they then want a NORETURN attribute or
    * not. *sigh* */
   DEBUGASSERT(p == NULL);
@@ -650,19 +650,12 @@ bool Curl_conn_seems_dead(struct connectdata *conn,
       /* avoid check if already too old */
       dead = TRUE;
     }
-    else if(conn->scheme->run->connection_check) {
+    else if(conn->scheme->run->connection_is_dead) {
       /* The protocol has a special method for checking the state of the
          connection. Use it to check if the connection is dead. */
-      unsigned int state;
-
-      /* briefly attach the connection to this transfer for the purpose of
-         checking it */
+      /* briefly attach the connection for the check */
       Curl_attach_connection(data, conn);
-
-      state = conn->scheme->run->connection_check(data, conn,
-                                                     CONNCHECK_ISDEAD);
-      dead = (state & CONNRESULT_DEAD);
-      /* detach the connection again */
+      dead = conn->scheme->run->connection_is_dead(data, conn);
       Curl_detach_connection(data);
     }
     else {
@@ -705,18 +698,7 @@ CURLcode Curl_conn_upkeep(struct Curl_easy *data,
 
   /* briefly attach for action */
   Curl_attach_connection(data, conn);
-  if(conn->scheme->run->connection_check) {
-    /* Do a protocol-specific keepalive check on the connection. */
-    unsigned int rc;
-    rc = conn->scheme->run->connection_check(data, conn,
-                                                CONNCHECK_KEEPALIVE);
-    if(rc & CONNRESULT_DEAD)
-      result = CURLE_RECV_ERROR;
-  }
-  else {
-    /* Do the generic action on the FIRSTSOCKET filter chain */
-    result = Curl_conn_keep_alive(data, conn, FIRSTSOCKET);
-  }
+  result = Curl_conn_keep_alive(data, conn, FIRSTSOCKET);
   Curl_detach_connection(data);
 
   conn->keepalive = *Curl_pgrs_now(data);
@@ -2101,7 +2083,7 @@ static CURLcode parse_proxy(struct Curl_easy *data,
   proxyinfo = sockstype ? &conn->socks_proxy : &conn->http_proxy;
   proxyinfo->proxytype = (unsigned char)proxytype;
 
-  /* Is there a username and password given in this proxy url? */
+  /* Is there a username and password given in this proxy URL? */
   uc = curl_url_get(uhp, CURLUPART_USER, &proxyuser, CURLU_URLDECODE);
   if(uc && (uc != CURLUE_NO_USER)) {
     result = Curl_uc_to_curlcode(uc);
@@ -3222,7 +3204,7 @@ static void url_conn_reuse_adjust(struct Curl_easy *data,
 static void conn_meta_freeentry(void *p)
 {
   (void)p;
-  /* Will always be FALSE. Cannot use a 0 assert here since compilers
+  /* Always FALSE. Cannot use a 0 assert here since compilers
    * are not in agreement if they then want a NORETURN attribute or
    * not. *sigh* */
   DEBUGASSERT(p == NULL);

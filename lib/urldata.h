@@ -52,15 +52,6 @@
 #define PORT_MQTT   1883
 #define PORT_MQTTS  8883
 
-#ifdef USE_ECH
-/* CURLECH_ bits for the tls_ech option */
-#define CURLECH_DISABLE    (1 << 0)
-#define CURLECH_GREASE     (1 << 1)
-#define CURLECH_ENABLE     (1 << 2)
-#define CURLECH_HARD       (1 << 3)
-#define CURLECH_CLA_CFG    (1 << 4)
-#endif
-
 #ifndef CURL_DISABLE_WEBSOCKETS
 /* CURLPROTO_GOPHERS (29) is the highest publicly used protocol bit number,
  * the rest are internal information. If we use higher bits we only do this on
@@ -119,9 +110,6 @@ typedef curl_off_t curl_prot_t;
 
 /* length of longest IPv6 address string including the trailing null */
 #define MAX_IPADR_LEN sizeof("ffff:ffff:ffff:ffff:ffff:ffff:255.255.255.255")
-
-/* Default FTP/IMAP etc response timeout in milliseconds */
-#define RESP_TIMEOUT (60 * 1000)
 
 /* Max string input length is a precaution against abuse and to detect junk
    input easier and better. */
@@ -492,12 +480,10 @@ struct Curl_protocol {
   CURLcode (*write_resp_hd)(struct Curl_easy *data,
                             const char *hd, size_t hdlen, bool is_eos);
 
-  /* This function can perform various checks on the connection. See
-     CONNCHECK_* for more information about the checks that can be performed,
-     and CONNRESULT_* for the results that can be returned. */
-  uint32_t (*connection_check)(struct Curl_easy *data,
-                               struct connectdata *conn,
-                               uint32_t checks_to_perform);
+  /* If used, this function checks for a connection managed by this
+    protocol and currently not in use, if it should be considered dead. */
+  bool (*connection_is_dead)(struct Curl_easy *data,
+                             struct connectdata *conn);
 
   /* attach() attaches this transfer to this connection */
   void (*attach)(struct Curl_easy *data, struct connectdata *conn);
@@ -553,13 +539,6 @@ struct Curl_scheme {
                                          SSL connection in the same family
                                          without having PROTOPT_SSL. */
 #define PROTOPT_CONN_REUSE (1 << 16)  /* this protocol can reuse connections */
-
-#define CONNCHECK_NONE 0                 /* No checks */
-#define CONNCHECK_ISDEAD (1 << 0)        /* Check if the connection is dead. */
-#define CONNCHECK_KEEPALIVE (1 << 1)     /* Perform any keepalive function. */
-
-#define CONNRESULT_NONE 0                /* No extra information. */
-#define CONNRESULT_DEAD (1 << 0)         /* The connection is dead. */
 
 #define TRNSPRT_NONE 0
 #define TRNSPRT_TCP  3
