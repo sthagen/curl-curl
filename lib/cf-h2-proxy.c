@@ -80,7 +80,7 @@ static CURLcode tunnel_stream_init(struct Curl_cfilter *cf,
                                    struct tunnel_stream *ts)
 {
   const char *hostname;
-  int port;
+  uint16_t port;
   bool ipv6_ip;
 
   ts->state = H2_TUNNEL_INIT;
@@ -92,7 +92,7 @@ static CURLcode tunnel_stream_init(struct Curl_cfilter *cf,
   Curl_http_proxy_get_destination(cf, &hostname, &port, &ipv6_ip);
 
   /* host:port with IPv6 support */
-  ts->authority = curl_maprintf("%s%s%s:%d", ipv6_ip ? "[" : "", hostname,
+  ts->authority = curl_maprintf("%s%s%s:%u", ipv6_ip ? "[" : "", hostname,
                                 ipv6_ip ? "]" : "", port);
   if(!ts->authority)
     return CURLE_OUT_OF_MEMORY;
@@ -477,7 +477,7 @@ static int proxy_h2_on_frame_recv(nghttp2_session *session,
        * window and *assume* that we treat this like a WINDOW_UPDATE. Some
        * servers send an explicit WINDOW_UPDATE, but not all seem to do that.
        * To be safe, we UNHOLD a stream in order not to stall. */
-      if(CURL_WANT_SEND(data)) {
+      if(CURL_REQ_WANT_SEND(data)) {
         drain_tunnel(cf, data, &ctx->tunnel);
       }
       break;
@@ -512,7 +512,7 @@ static int proxy_h2_on_frame_recv(nghttp2_session *session,
     }
     break;
   case NGHTTP2_WINDOW_UPDATE:
-    if(CURL_WANT_SEND(data)) {
+    if(CURL_REQ_WANT_SEND(data)) {
       drain_tunnel(cf, data, &ctx->tunnel);
     }
     break;

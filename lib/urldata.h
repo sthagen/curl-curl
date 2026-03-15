@@ -338,8 +338,6 @@ struct ConnectBits {
                         that overrides the host in the URL */
   BIT(conn_to_port); /* if set, this connection has a "connect to port"
                         that overrides the port in the URL (remote port) */
-  BIT(ipv6_ip); /* we communicate with a remote site specified with pure IPv6
-                   IP address */
   BIT(ipv6);    /* we communicate with a site using an IPv6 address */
   BIT(do_more); /* this is set TRUE if the ->curl_do_more() function is
                    supposed to be called, after ->curl_do() */
@@ -389,19 +387,6 @@ struct hostname {
   char *name;     /* name to use internally, might be encoded, might be raw */
   const char *dispname; /* name to display, as 'name' might be encoded */
 };
-
-/*
- * Flags on the keepon member of the Curl_transfer_keeper
- */
-
-#define KEEP_NONE       0
-#define KEEP_RECV       (1 << 0) /* there is or may be data to read */
-#define KEEP_SEND       (1 << 1) /* there is or may be data to write */
-
-/* transfer wants to send */
-#define CURL_WANT_SEND(data) ((data)->req.keepon & KEEP_SEND)
-/* transfer wants to receive */
-#define CURL_WANT_RECV(data) ((data)->req.keepon & KEEP_RECV)
 
 #define FIRSTSOCKET     0
 #define SECONDARYSOCKET 1
@@ -674,20 +659,19 @@ struct connectdata {
      that subsequent bound-requested connections are not accidentally reusing
      wrong connections. */
   char *localdev;
-  uint16_t localportrange;
 #if defined(HAVE_GSSAPI) || defined(USE_WINDOWS_SSPI)
   int socks5_gssapi_enctype;
 #endif
-  /* The field below gets set in connect.c:connecthost() */
-  int remote_port; /* the remote port, not the proxy port! */
-  int conn_to_port; /* the remote port to connect to. valid only if
-                       bits.conn_to_port is set */
-
   uint32_t attached_xfers; /* # of attached easy handles */
 
 #ifdef USE_IPV6
   uint32_t scope_id;  /* Scope id for IPv6 */
 #endif
+  /* The field below gets set in connect.c:connecthost() */
+  uint16_t remote_port; /* the remote port, not the proxy port! */
+  uint16_t conn_to_port; /* the remote port to connect to. valid only if
+                            bits.conn_to_port is set */
+  uint16_t localportrange;
   uint16_t localport;
   uint16_t secondary_port; /* secondary socket remote port to connect to
                                     (ftp) */

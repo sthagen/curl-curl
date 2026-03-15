@@ -1366,7 +1366,7 @@ static struct connectdata *allocate_conn(struct Curl_easy *data)
   conn->send_idx = 0; /* default for sending transfer data */
   conn->connection_id = -1;    /* no ID */
   conn->attached_xfers = 0;
-  conn->remote_port = -1; /* unknown at this point */
+  conn->remote_port = 0; /* unknown at this point */
 
   /* Store creation time to help future close decision making */
   conn->created = *Curl_pgrs_now(data);
@@ -1609,6 +1609,7 @@ static CURLcode parseurlandfillconn(struct Curl_easy *data,
   CURLU *uh;
   CURLUcode uc;
   char *hostname;
+  size_t hlen;
   bool use_set_uh = (data->set.uh && !data->state.this_is_a_follow);
 
   up_free(data); /* cleanup previous leftovers first */
@@ -1667,17 +1668,16 @@ static CURLcode parseurlandfillconn(struct Curl_easy *data,
     failf(data, "Too long hostname (maximum is %d)", MAX_URL_LEN);
     return CURLE_URL_MALFORMAT;
   }
+
   hostname = data->state.up.hostname;
+  hlen = hostname ? strlen(hostname) : 0;
 
   if(hostname && hostname[0] == '[') {
     /* This looks like an IPv6 address literal. See if there is an address
        scope. */
-    size_t hlen;
-    conn->bits.ipv6_ip = TRUE;
-    /* cut off the brackets! */
+    /* cut off the brackets after copying this! */
     hostname++;
-    hlen = strlen(hostname);
-    hostname[hlen - 1] = 0;
+    hlen -= 2;
 
     zonefrom_url(uh, data, conn);
   }
@@ -1686,6 +1686,7 @@ static CURLcode parseurlandfillconn(struct Curl_easy *data,
   conn->host.rawalloc = curlx_strdup(hostname ? hostname : "");
   if(!conn->host.rawalloc)
     return CURLE_OUT_OF_MEMORY;
+  conn->host.rawalloc[hlen] = 0; /* cut off for ipv6 case */
   conn->host.name = conn->host.rawalloc;
 
   /*************************************************************
@@ -1862,7 +1863,7 @@ static CURLcode setup_connection_internals(struct Curl_easy *data,
                                            struct connectdata *conn)
 {
   const char *hostname;
-  int port;
+  uint16_t port;
   CURLcode result;
 
   DEBUGF(infof(data, "setup connection, bits.close=%d", conn->bits.close));
@@ -1882,19 +1883,21 @@ static CURLcode setup_connection_internals(struct Curl_easy *data,
   else
 #endif
   {
-    port = conn->remote_port;
-    if(conn->bits.conn_to_host)
-      hostname = conn->conn_to_host.name;
-    else
-      hostname = conn->host.name;
+    port = conn->bits.conn_to_port ?
+      conn->conn_to_port : conn->remote_port;
+    hostname = conn->bits.conn_to_host ?
+      conn->conn_to_host.name : conn->host.name;
   }
 
 #ifdef USE_IPV6
-  conn->destination = curl_maprintf("%u/%d/%s", conn->scope_id, port,
-                                    hostname);
-#else
-  conn->destination = curl_maprintf("%d/%s", port, hostname);
+  /* IPv6 addresses with a scope_id (0 is default == global) have a
+   * printable representation with a '%<scope_id>' suffix. */
+  if(conn->scope_id)
+    conn->destination = curl_maprintf("[%s:%u]%%%d", hostname, port,
+                                      conn->scope_id);
+  else
 #endif
+  conn->destination = curl_maprintf("%s:%u", hostname, port);
   if(!conn->destination)
     return CURLE_OUT_OF_MEMORY;
 
@@ -2817,19 +2820,14 @@ static CURLcode parse_connect_to_string(struct Curl_easy *data,
     ptr++;
   }
   else {
-    /* check whether the URL's hostname matches */
-    size_t hostname_to_match_len;
-    char *hostname_to_match = curl_maprintf("%s%s%s",
-                                            conn->bits.ipv6_ip ? "[" : "",
-                                            conn->host.name,
-                                            conn->bits.ipv6_ip ? "]" : "");
-    if(!hostname_to_match)
-      return CURLE_OUT_OF_MEMORY;
-    hostname_to_match_len = strlen(hostname_to_match);
-    host_match = curl_strnequal(ptr, hostname_to_match,
-                                hostname_to_match_len);
-    curlx_free(hostname_to_match);
-    ptr += hostname_to_match_len;
+    /* check whether the URL's hostname matches. Use the url hostname
+     * when it was an IPv6 address. Otherwise use the connection's hostname
+     * that has IDN conversion. */
+    char *hostname_to_match = (data->state.up.hostname[0] == '[') ?
+       data->state.up.hostname : conn->host.name;
+    size_t hlen = strlen(hostname_to_match);
+    host_match = curl_strnequal(ptr, hostname_to_match, hlen);
+    ptr += hlen;
 
     host_match = host_match && *ptr == ':';
     ptr++;
@@ -2894,7 +2892,7 @@ static CURLcode parse_connect_to_slist(struct Curl_easy *data,
     }
 
     if(port >= 0) {
-      conn->conn_to_port = port;
+      conn->conn_to_port = (uint16_t)port;
       conn->bits.conn_to_port = TRUE;
       infof(data, "Connecting to port: %d", port);
     }
@@ -2998,7 +2996,7 @@ static CURLcode parse_connect_to_slist(struct Curl_easy *data,
       conn->conn_to_port = as->dst.port;
       conn->bits.conn_to_port = TRUE;
       conn->bits.altused = TRUE;
-      infof(data, "Alt-svc connecting from [%s]%s:%d to [%s]%s:%d",
+      infof(data, "Alt-svc connecting from [%s]%s:%u to [%s]%s:%u",
             Curl_alpnid2str(srcalpnid), host, conn->remote_port,
             Curl_alpnid2str(as->dst.alpnid), hostd, as->dst.port);
       if(srcalpnid != as->dst.alpnid) {
@@ -3070,7 +3068,7 @@ static CURLcode resolve_server(struct Curl_easy *data,
                                struct Curl_dns_entry **pdns)
 {
   struct hostname *ehost;
-  int eport;
+  uint16_t eport;
   timediff_t timeout_ms = Curl_timeleft_ms(data);
   const char *peertype = "host";
   CURLcode result;

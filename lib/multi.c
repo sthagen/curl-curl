@@ -600,22 +600,6 @@ static void multi_done_locked(struct connectdata *conn,
                               void *userdata)
 {
   struct multi_done_ctx *mdctx = userdata;
-#ifdef CURLVERBOSE
-  const char *host =
-#ifndef CURL_DISABLE_PROXY
-        conn->bits.socksproxy ?
-        conn->socks_proxy.host.dispname :
-        conn->bits.httpproxy ? conn->http_proxy.host.dispname :
-#endif
-        conn->bits.conn_to_host ? conn->conn_to_host.dispname :
-        conn->host.dispname;
-  int port =
-#ifndef CURL_DISABLE_PROXY
-        conn->bits.httpproxy ? conn->http_proxy.port :
-#endif
-        conn->bits.conn_to_port ? conn->conn_to_port :
-        conn->remote_port;
-#endif /* CURLVERBOSE */
 
   Curl_detach_connection(data);
 
@@ -635,17 +619,18 @@ static void multi_done_locked(struct connectdata *conn,
   Curl_dnscache_prune(data);
 
   if(multi_conn_should_close(conn, data, (bool)mdctx->premature)) {
-    CURL_TRC_M(data, "multi_done, terminating conn #%" FMT_OFF_T " to %s:%d, "
+    CURL_TRC_M(data, "multi_done, terminating conn #%" FMT_OFF_T " to %s, "
                "forbid=%d, close=%d, premature=%d, conn_multiplex=%d",
-               conn->connection_id, host, port, data->set.reuse_forbid,
-               conn->bits.close, mdctx->premature,
+               conn->connection_id, conn->destination,
+               data->set.reuse_forbid, conn->bits.close, mdctx->premature,
                Curl_conn_is_multiplex(conn, FIRSTSOCKET));
     connclose(conn, "disconnecting");
     Curl_conn_terminate(data, conn, (bool)mdctx->premature);
   }
   else if(!Curl_conn_get_max_concurrent(data, conn, FIRSTSOCKET)) {
-    CURL_TRC_M(data, "multi_done, conn #%" FMT_OFF_T " to %s:%d was shutdown"
-               " by server, not reusing", conn->connection_id, host, port);
+    CURL_TRC_M(data, "multi_done, conn #%" FMT_OFF_T " to %s was shutdown"
+               " by server, not reusing", conn->connection_id,
+               conn->destination);
     connclose(conn, "server shutdown");
     Curl_conn_terminate(data, conn, (bool)mdctx->premature);
   }
@@ -654,8 +639,8 @@ static void multi_done_locked(struct connectdata *conn,
     if(Curl_cpool_conn_now_idle(data, conn)) {
       /* connection kept in the cpool */
       data->state.lastconnect_id = conn->connection_id;
-      infof(data, "Connection #%" FMT_OFF_T " to host %s:%d left intact",
-            conn->connection_id, host, port);
+      infof(data, "Connection #%" FMT_OFF_T " to host %s left intact",
+            conn->connection_id, conn->destination);
     }
     else {
       /* connection was removed from the cpool and destroyed. */
@@ -1080,7 +1065,7 @@ static CURLcode mstate_perform_pollset(struct Curl_easy *data,
   if(conn->scheme->run->perform_pollset)
     result = conn->scheme->run->perform_pollset(data, ps);
   else {
-    /* Default is to obey the data->req.keepon flags for send/recv */
+    /* Default is to obey the request flags for send/recv */
     if(Curl_req_want_recv(data) && CONN_SOCK_IDX_VALID(conn->recv_idx)) {
       result = Curl_pollset_add_in(data, ps, conn->sock[conn->recv_idx]);
     }
@@ -1660,7 +1645,6 @@ CURLMcode Curl_multi_add_perform(struct Curl_multi *multi,
 
   mresult = curl_multi_add_handle(multi, data);
   if(!mresult) {
-    struct SingleRequest *k = &data->req;
     CURLcode result;
 
     /* pass in NULL for 'conn' here since we do not want to init the
@@ -1674,7 +1658,7 @@ CURLMcode Curl_multi_add_perform(struct Curl_multi *multi,
     /* take this handle to the perform state right away */
     multistate(data, MSTATE_PERFORMING);
     Curl_attach_connection(data, conn);
-    k->keepon |= KEEP_RECV; /* setup to receive! */
+    CURL_REQ_SET_RECV(data);
   }
   return mresult;
 }
