@@ -205,7 +205,7 @@ static void doh_print_buf(struct Curl_easy *data,
 #endif
 
 /* called from multi when a sub transfer, e.g. doh probe, is done.
- * This looks up the the probe response at its meta CURL_EZM_DOH_PROBE
+ * This looks up the probe response at its meta CURL_EZM_DOH_PROBE
  * and copies the response body over to the struct at the master's
  * meta at CURL_EZM_DOH_MASTER. */
 static void doh_probe_done(struct Curl_easy *data,
@@ -448,6 +448,7 @@ CURLcode Curl_doh(struct Curl_easy *data, const char *hostname,
   data->state.async.done = FALSE;
   data->state.async.port = port;
   data->state.async.ip_version = ip_version;
+  curlx_free(data->state.async.hostname);
   data->state.async.hostname = curlx_strdup(hostname);
   if(!data->state.async.hostname)
     return CURLE_OUT_OF_MEMORY;

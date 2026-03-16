@@ -47,7 +47,6 @@ LIB_CURLX_CFILES =      \
 LIB_CURLX_HFILES =      \
   curlx/base64.h        \
   curlx/basename.h      \
-  curlx/curlx.h         \
   curlx/dynbuf.h        \
   curlx/fopen.h         \
   curlx/inet_ntop.h     \
@@ -236,6 +235,7 @@ LIB_CFILES =         \
   pingpong.c         \
   pop3.c             \
   progress.c         \
+  protocol.c         \
   psl.c              \
   rand.c             \
   ratelimit.c        \
@@ -327,6 +327,7 @@ LIB_HFILES =         \
   fileinfo.h         \
   formdata.h         \
   ftp.h              \
+  ftp-int.h          \
   ftplistparser.h    \
   functypes.h        \
   getinfo.h          \
@@ -362,6 +363,7 @@ LIB_HFILES =         \
   pingpong.h         \
   pop3.h             \
   progress.h         \
+  protocol.h         \
   psl.h              \
   rand.h             \
   ratelimit.h        \
