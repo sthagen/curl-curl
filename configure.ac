@@ -3262,18 +3262,18 @@ if test "$USE_NGTCP2" = "1" && test "$OPENSSL_ENABLED" = "1" && test "$HAVE_LIBR
   CLEANCPPFLAGS="$CPPFLAGS"
   CLEANLIBS="$LIBS"
 
-  CURL_CHECK_PKGCONFIG(libngtcp2_crypto_libressl, $want_tcp2_path)
+  CURL_CHECK_PKGCONFIG(libngtcp2_crypto_libressl, $want_tcp2_path, 1)
 
   if test "$PKGCONFIG" != "no"; then
-    LIB_NGTCP2_CRYPTO_LIBRESSL=`CURL_EXPORT_PCDIR([$want_tcp2_path])
+    LIB_NGTCP2_CRYPTO_LIBRESSL=`CURL_EXPORT_PCDIR([$want_tcp2_path], 1)
       $PKGCONFIG --libs-only-l libngtcp2_crypto_libressl`
     AC_MSG_NOTICE([-l is $LIB_NGTCP2_CRYPTO_LIBRESSL])
 
-    CPP_NGTCP2_CRYPTO_LIBRESSL=`CURL_EXPORT_PCDIR([$want_tcp2_path]) dnl
+    CPP_NGTCP2_CRYPTO_LIBRESSL=`CURL_EXPORT_PCDIR([$want_tcp2_path], 1) dnl
       $PKGCONFIG --cflags-only-I libngtcp2_crypto_libressl`
     AC_MSG_NOTICE([-I is $CPP_NGTCP2_CRYPTO_LIBRESSL])
 
-    LD_NGTCP2_CRYPTO_LIBRESSL=`CURL_EXPORT_PCDIR([$want_tcp2_path])
+    LD_NGTCP2_CRYPTO_LIBRESSL=`CURL_EXPORT_PCDIR([$want_tcp2_path], 1)
       $PKGCONFIG --libs-only-L libngtcp2_crypto_libressl`
     AC_MSG_NOTICE([-L is $LD_NGTCP2_CRYPTO_LIBRESSL])
 
@@ -3315,7 +3315,7 @@ if test "$USE_NGTCP2" = "1" && test "$OPENSSL_ENABLED" = "1" && test "$HAVE_LIBR
 fi
 
 if test "$USE_NGTCP2" = "1" && test "$OPENSSL_ENABLED" = "1" && test "$HAVE_LIBRESSL" != "1" &&
-   test "$OPENSSL_IS_BORINGSSL" != "1" && test "$OPENSSL_QUIC_API2" != "1"; then
+   test "$OPENSSL_IS_AWSLC" != "1" && test "$OPENSSL_IS_BORINGSSL" != "1" && test "$OPENSSL_QUIC_API2" != "1"; then
 
   dnl backup the pre-ngtcp2_crypto_quictls variables
   CLEANLDFLAGS="$LDFLAGS"
@@ -3323,18 +3323,18 @@ if test "$USE_NGTCP2" = "1" && test "$OPENSSL_ENABLED" = "1" && test "$HAVE_LIBR
   CLEANCPPFLAGS="$CPPFLAGS"
   CLEANLIBS="$LIBS"
 
-  CURL_CHECK_PKGCONFIG(libngtcp2_crypto_quictls, $want_tcp2_path)
+  CURL_CHECK_PKGCONFIG(libngtcp2_crypto_quictls, $want_tcp2_path, 1)
 
   if test "$PKGCONFIG" != "no"; then
-    LIB_NGTCP2_CRYPTO_QUICTLS=`CURL_EXPORT_PCDIR([$want_tcp2_path])
+    LIB_NGTCP2_CRYPTO_QUICTLS=`CURL_EXPORT_PCDIR([$want_tcp2_path], 1)
       $PKGCONFIG --libs-only-l libngtcp2_crypto_quictls`
     AC_MSG_NOTICE([-l is $LIB_NGTCP2_CRYPTO_QUICTLS])
 
-    CPP_NGTCP2_CRYPTO_QUICTLS=`CURL_EXPORT_PCDIR([$want_tcp2_path]) dnl
+    CPP_NGTCP2_CRYPTO_QUICTLS=`CURL_EXPORT_PCDIR([$want_tcp2_path], 1) dnl
       $PKGCONFIG --cflags-only-I libngtcp2_crypto_quictls`
     AC_MSG_NOTICE([-I is $CPP_NGTCP2_CRYPTO_QUICTLS])
 
-    LD_NGTCP2_CRYPTO_QUICTLS=`CURL_EXPORT_PCDIR([$want_tcp2_path])
+    LD_NGTCP2_CRYPTO_QUICTLS=`CURL_EXPORT_PCDIR([$want_tcp2_path], 1)
       $PKGCONFIG --libs-only-L libngtcp2_crypto_quictls`
     AC_MSG_NOTICE([-L is $LD_NGTCP2_CRYPTO_QUICTLS])
 
@@ -3373,8 +3373,8 @@ if test "$USE_NGTCP2" = "1" && test "$OPENSSL_ENABLED" = "1" && test "$HAVE_LIBR
   fi
 fi
 
-if test "$USE_NGTCP2" = "1" && test "$OPENSSL_ENABLED" = "1" && test "$OPENSSL_IS_BORINGSSL" != "1" &&
-   test "$OPENSSL_QUIC_API2" = "1"; then
+if test "$USE_NGTCP2" = "1" && test "$OPENSSL_ENABLED" = "1" &&
+   test "$OPENSSL_IS_AWSLC" != "1" && test "$OPENSSL_IS_BORINGSSL" != "1" && test "$OPENSSL_QUIC_API2" = "1"; then
 
   dnl backup the pre-ngtcp2_crypto_ossl variables
   CLEANLDFLAGS="$LDFLAGS"
@@ -3382,18 +3382,18 @@ if test "$USE_NGTCP2" = "1" && test "$OPENSSL_ENABLED" = "1" && test "$OPENSSL_I
   CLEANCPPFLAGS="$CPPFLAGS"
   CLEANLIBS="$LIBS"
 
-  CURL_CHECK_PKGCONFIG(libngtcp2_crypto_ossl, $want_tcp2_path)
+  CURL_CHECK_PKGCONFIG(libngtcp2_crypto_ossl, $want_tcp2_path, 1)
 
   if test "$PKGCONFIG" != "no"; then
-    LIB_NGTCP2_CRYPTO_OSSL=`CURL_EXPORT_PCDIR([$want_tcp2_path])
+    LIB_NGTCP2_CRYPTO_OSSL=`CURL_EXPORT_PCDIR([$want_tcp2_path], 1)
       $PKGCONFIG --libs-only-l libngtcp2_crypto_ossl`
     AC_MSG_NOTICE([-l is $LIB_NGTCP2_CRYPTO_OSSL])
 
-    CPP_NGTCP2_CRYPTO_OSSL=`CURL_EXPORT_PCDIR([$want_tcp2_path]) dnl
+    CPP_NGTCP2_CRYPTO_OSSL=`CURL_EXPORT_PCDIR([$want_tcp2_path], 1) dnl
       $PKGCONFIG --cflags-only-I libngtcp2_crypto_ossl`
     AC_MSG_NOTICE([-I is $CPP_NGTCP2_CRYPTO_OSSL])
 
-    LD_NGTCP2_CRYPTO_OSSL=`CURL_EXPORT_PCDIR([$want_tcp2_path])
+    LD_NGTCP2_CRYPTO_OSSL=`CURL_EXPORT_PCDIR([$want_tcp2_path], 1)
       $PKGCONFIG --libs-only-L libngtcp2_crypto_ossl`
     AC_MSG_NOTICE([-L is $LD_NGTCP2_CRYPTO_OSSL])
 
@@ -3433,7 +3433,8 @@ if test "$USE_NGTCP2" = "1" && test "$OPENSSL_ENABLED" = "1" && test "$OPENSSL_I
   fi
 fi
 
-if test "$USE_NGTCP2" = "1" && test "$OPENSSL_ENABLED" = "1" && test "$OPENSSL_IS_BORINGSSL" = "1"; then
+if test "$USE_NGTCP2" = "1" && test "$OPENSSL_ENABLED" = "1" &&
+   (test "$OPENSSL_IS_AWSLC" = "1" || test "$OPENSSL_IS_BORINGSSL" = "1"); then
 
   dnl backup the pre-ngtcp2_crypto_boringssl variables
   CLEANLDFLAGS="$LDFLAGS"
@@ -3441,18 +3442,18 @@ if test "$USE_NGTCP2" = "1" && test "$OPENSSL_ENABLED" = "1" && test "$OPENSSL_I
   CLEANCPPFLAGS="$CPPFLAGS"
   CLEANLIBS="$LIBS"
 
-  CURL_CHECK_PKGCONFIG(libngtcp2_crypto_boringssl, $want_tcp2_path)
+  CURL_CHECK_PKGCONFIG(libngtcp2_crypto_boringssl, $want_tcp2_path, 1)
 
   if test "$PKGCONFIG" != "no"; then
-    LIB_NGTCP2_CRYPTO_BORINGSSL=`CURL_EXPORT_PCDIR([$want_tcp2_path])
+    LIB_NGTCP2_CRYPTO_BORINGSSL=`CURL_EXPORT_PCDIR([$want_tcp2_path], 1)
       $PKGCONFIG --libs-only-l libngtcp2_crypto_boringssl`
     AC_MSG_NOTICE([-l is $LIB_NGTCP2_CRYPTO_BORINGSSL])
 
-    CPP_NGTCP2_CRYPTO_BORINGSSL=`CURL_EXPORT_PCDIR([$want_tcp2_path]) dnl
+    CPP_NGTCP2_CRYPTO_BORINGSSL=`CURL_EXPORT_PCDIR([$want_tcp2_path], 1) dnl
       $PKGCONFIG --cflags-only-I libngtcp2_crypto_boringssl`
     AC_MSG_NOTICE([-I is $CPP_NGTCP2_CRYPTO_BORINGSSL])
 
-    LD_NGTCP2_CRYPTO_BORINGSSL=`CURL_EXPORT_PCDIR([$want_tcp2_path])
+    LD_NGTCP2_CRYPTO_BORINGSSL=`CURL_EXPORT_PCDIR([$want_tcp2_path], 1)
       $PKGCONFIG --libs-only-L libngtcp2_crypto_boringssl`
     AC_MSG_NOTICE([-L is $LD_NGTCP2_CRYPTO_BORINGSSL])
 
@@ -3498,18 +3499,18 @@ if test "$USE_NGTCP2" = "1" && test "$GNUTLS_ENABLED" = "1"; then
   CLEANCPPFLAGS="$CPPFLAGS"
   CLEANLIBS="$LIBS"
 
-  CURL_CHECK_PKGCONFIG(libngtcp2_crypto_gnutls, $want_tcp2_path)
+  CURL_CHECK_PKGCONFIG(libngtcp2_crypto_gnutls, $want_tcp2_path, 1)
 
   if test "$PKGCONFIG" != "no"; then
-    LIB_NGTCP2_CRYPTO_GNUTLS=`CURL_EXPORT_PCDIR([$want_tcp2_path])
+    LIB_NGTCP2_CRYPTO_GNUTLS=`CURL_EXPORT_PCDIR([$want_tcp2_path], 1)
       $PKGCONFIG --libs-only-l libngtcp2_crypto_gnutls`
     AC_MSG_NOTICE([-l is $LIB_NGTCP2_CRYPTO_GNUTLS])
 
-    CPP_NGTCP2_CRYPTO_GNUTLS=`CURL_EXPORT_PCDIR([$want_tcp2_path]) dnl
+    CPP_NGTCP2_CRYPTO_GNUTLS=`CURL_EXPORT_PCDIR([$want_tcp2_path], 1) dnl
       $PKGCONFIG --cflags-only-I libngtcp2_crypto_gnutls`
     AC_MSG_NOTICE([-I is $CPP_NGTCP2_CRYPTO_GNUTLS])
 
-    LD_NGTCP2_CRYPTO_GNUTLS=`CURL_EXPORT_PCDIR([$want_tcp2_path])
+    LD_NGTCP2_CRYPTO_GNUTLS=`CURL_EXPORT_PCDIR([$want_tcp2_path], 1)
       $PKGCONFIG --libs-only-L libngtcp2_crypto_gnutls`
     AC_MSG_NOTICE([-L is $LD_NGTCP2_CRYPTO_GNUTLS])
 
@@ -3555,18 +3556,18 @@ if test "$USE_NGTCP2" = "1" && test "$WOLFSSL_ENABLED" = "1"; then
   CLEANCPPFLAGS="$CPPFLAGS"
   CLEANLIBS="$LIBS"
 
-  CURL_CHECK_PKGCONFIG(libngtcp2_crypto_wolfssl, $want_tcp2_path)
+  CURL_CHECK_PKGCONFIG(libngtcp2_crypto_wolfssl, $want_tcp2_path, 1)
 
   if test "$PKGCONFIG" != "no"; then
-    LIB_NGTCP2_CRYPTO_WOLFSSL=`CURL_EXPORT_PCDIR([$want_tcp2_path])
+    LIB_NGTCP2_CRYPTO_WOLFSSL=`CURL_EXPORT_PCDIR([$want_tcp2_path], 1)
       $PKGCONFIG --libs-only-l libngtcp2_crypto_wolfssl`
     AC_MSG_NOTICE([-l is $LIB_NGTCP2_CRYPTO_WOLFSSL])
 
-    CPP_NGTCP2_CRYPTO_WOLFSSL=`CURL_EXPORT_PCDIR([$want_tcp2_path]) dnl
+    CPP_NGTCP2_CRYPTO_WOLFSSL=`CURL_EXPORT_PCDIR([$want_tcp2_path], 1) dnl
       $PKGCONFIG --cflags-only-I libngtcp2_crypto_wolfssl`
     AC_MSG_NOTICE([-I is $CPP_NGTCP2_CRYPTO_WOLFSSL])
 
-    LD_NGTCP2_CRYPTO_WOLFSSL=`CURL_EXPORT_PCDIR([$want_tcp2_path])
+    LD_NGTCP2_CRYPTO_WOLFSSL=`CURL_EXPORT_PCDIR([$want_tcp2_path], 1)
       $PKGCONFIG --libs-only-L libngtcp2_crypto_wolfssl`
     AC_MSG_NOTICE([-L is $LD_NGTCP2_CRYPTO_WOLFSSL])
 

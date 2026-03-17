@@ -776,6 +776,7 @@ static CURLcode imap_perform_select(struct Curl_easy *data,
 
   /* Invalidate old information as we are switching mailboxes */
   Curl_safefree(imapc->mailbox);
+  imapc->mb_uidvalidity_set = FALSE;
 
   /* Check we have a mailbox */
   if(!imap->mailbox) {
@@ -1024,7 +1025,6 @@ static CURLcode imap_state_capability_resp(struct Curl_easy *data,
                                            imapstate instate)
 {
   CURLcode result = CURLE_OK;
-  struct connectdata *conn = data->conn;
   const char *line = curlx_dyn_ptr(&imapc->pp.recvbuf);
 
   (void)instate;
@@ -1076,7 +1076,7 @@ static CURLcode imap_state_capability_resp(struct Curl_easy *data,
       line += wordlen;
     }
   }
-  else if(data->set.use_ssl && !Curl_conn_is_ssl(conn, FIRSTSOCKET)) {
+  else if(data->set.use_ssl && !Curl_xfer_is_secure(data)) {
     /* PREAUTH is not compatible with STARTTLS. */
     if(imapcode == IMAP_RESP_OK && imapc->tls_supported && !imapc->preauth) {
       /* Switch to TLS connection now */
@@ -1704,6 +1704,7 @@ static void imap_easy_reset(struct IMAP *imap)
   Curl_safefree(imap->query);
   Curl_safefree(imap->custom);
   Curl_safefree(imap->custom_params);
+  imap->uidvalidity_set = FALSE;
   /* Clear the transfer mode for the next request */
   imap->transfer = PPTRANSFER_BODY;
 }
