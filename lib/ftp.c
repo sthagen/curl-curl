@@ -68,6 +68,7 @@
 #include "curlx/strdup.h"
 #include "curlx/strerr.h"
 #include "curlx/strparse.h"
+#include "curl_ctype.h"
 
 #ifndef NI_MAXHOST
 #define NI_MAXHOST 1025
@@ -2566,7 +2567,7 @@ static CURLcode ftp_state_mdtm_resp(struct Curl_easy *data,
     /* If we asked for a time of the file and we actually got one as well,
        we "emulate" an HTTP-style header in our output. */
 
-#if defined(__GNUC__) && (defined(__DJGPP__) || defined(__AMIGA__))
+#if defined(CURL_HAVE_DIAG) && (defined(__DJGPP__) || defined(__AMIGA__))
 #pragma GCC diagnostic push
 /* 'time_t' is unsigned in MSDOS and AmigaOS. Silence:
    warning: comparison of unsigned expression in '>= 0' is always true */
@@ -2574,7 +2575,7 @@ static CURLcode ftp_state_mdtm_resp(struct Curl_easy *data,
 #endif
     if(data->req.no_body && ftpc->file &&
        data->set.get_filetime && showtime) {
-#if defined(__GNUC__) && (defined(__DJGPP__) || defined(__AMIGA__))
+#if defined(CURL_HAVE_DIAG) && (defined(__DJGPP__) || defined(__AMIGA__))
 #pragma GCC diagnostic pop
 #endif
       char headerbuf[128];
@@ -3076,10 +3077,18 @@ static CURLcode ftp_pwd_resp(struct Curl_easy *data,
             break; /* get out of this loop */
           }
         }
-        else
+        else {
+          if(ISCNTRL(*ptr)) {
+            /* control characters have no business in a path */
+            curlx_dyn_free(&out);
+            return CURLE_WEIRD_SERVER_REPLY;
+          }
           result = curlx_dyn_addn(&out, ptr, 1);
-        if(result)
+        }
+        if(result) {
+          curlx_dyn_free(&out);
           return result;
+        }
       }
     }
     if(entry_extracted) {

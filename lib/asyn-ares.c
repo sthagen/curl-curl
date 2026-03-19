@@ -728,7 +728,7 @@ CURLcode Curl_async_getaddrinfo(struct Curl_easy *data, const char *hostname,
     return CURLE_OUT_OF_MEMORY;
 #ifdef USE_HTTPSRR
   if(port != 443) {
-    rrname = curl_maprintf("_%d_.https.%s", port, hostname);
+    rrname = curl_maprintf("_%d._https.%s", port, hostname);
     if(!rrname)
       return CURLE_OUT_OF_MEMORY;
   }
@@ -896,7 +896,6 @@ CURLcode Curl_async_ares_set_dns_interface(struct Curl_easy *data)
   return CURLE_OK;
 #else /* c-ares version too old! */
   (void)data;
-  (void)interf;
   return CURLE_NOT_BUILT_IN;
 #endif
 }
@@ -925,7 +924,6 @@ CURLcode Curl_async_ares_set_dns_local_ip4(struct Curl_easy *data)
   return CURLE_OK;
 #else /* c-ares version too old! */
   (void)data;
-  (void)local_ip4;
   return CURLE_NOT_BUILT_IN;
 #endif
 }
