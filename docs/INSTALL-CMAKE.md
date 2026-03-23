@@ -43,20 +43,6 @@ that is apart from the source tree.
 For the full list of CMake build configuration variables see
 [the corresponding section](#cmake-build-options).
 
-### Fallback for CMake before version 3.13
-
-CMake before version 3.13 does not support the `-B` option. In that case,
-you must create the build directory yourself, `cd` to it and run `cmake`
-from there:
-
-    $ mkdir ../curl-build
-    $ cd ../curl-build
-    $ cmake ../curl
-
-If you want to build in the source tree, it is enough to do this:
-
-    $ cmake .
-
 ### Build system generator selection
 
 You can override CMake's default by using `-G <generator-name>`. For example
@@ -273,6 +259,7 @@ target_link_libraries(my_target PRIVATE CURL::libcurl)
 
 ## Enabling features
 
+- `CURL_ENABLE_NTLM`:                       Enable NTLM support. Default: `OFF`
 - `CURL_ENABLE_SSL`:                        Enable SSL support. Default: `ON`
 - `CURL_WINDOWS_SSPI`:                      Enable SSPI on Windows. Default: =`CURL_USE_SCHANNEL`
 - `ENABLE_IPV6`:                            Enable IPv6 support. Default: `ON` if target supports IPv6.
@@ -315,7 +302,6 @@ target_link_libraries(my_target PRIVATE CURL::libcurl)
 - `CURL_DISABLE_MQTT`:                      Disable MQTT. Default: `OFF`
 - `CURL_DISABLE_NEGOTIATE_AUTH`:            Disable negotiate authentication. Default: `OFF`
 - `CURL_DISABLE_NETRC`:                     Disable netrc parser. Default: `OFF`
-- `CURL_DISABLE_NTLM`:                      Disable NTLM support. Default: `OFF`
 - `CURL_DISABLE_OPENSSL_AUTO_LOAD_CONFIG`:  Disable automatic loading of OpenSSL configuration. Default: `OFF`
 - `CURL_DISABLE_PARSEDATE`:                 Disable date parsing. Default: `OFF`
 - `CURL_DISABLE_POP3`:                      Disable POP3. Default: `OFF`
@@ -324,7 +310,7 @@ target_link_libraries(my_target PRIVATE CURL::libcurl)
 - `CURL_DISABLE_RTSP`:                      Disable RTSP. Default: `OFF`
 - `CURL_DISABLE_SHA512_256`:                Disable SHA-512/256 hash algorithm. Default: `OFF`
 - `CURL_DISABLE_SHUFFLE_DNS`:               Disable shuffle DNS feature. Default: `OFF`
-- `CURL_DISABLE_SMB`:                       Disable SMB. Default: `OFF`
+- `CURL_ENABLE_SMB`:                        Enable SMB. Default: `OFF`
 - `CURL_DISABLE_SMTP`:                      Disable SMTP. Default: `OFF`
 - `CURL_DISABLE_SOCKETPAIR`:                Disable use of socketpair for curl_multi_poll(). Default: `OFF`
 - `CURL_DISABLE_SRP`:                       Disable TLS-SRP support. Default: `OFF`
@@ -361,6 +347,7 @@ Details via CMake
 ## Dependencies
 
 - `CURL_BROTLI`:                            Use brotli (`ON`, `OFF` or `AUTO`). Default: `AUTO`
+- `CURL_USE_CMAKECONFIG`:                   Enable detecting dependencies via CMake Config. Default: `ON` for MSVC (except under vcpkg), if not cross-compiling. (experimental)
 - `CURL_USE_GNUTLS`:                        Enable GnuTLS for SSL/TLS. Default: `OFF`
 - `CURL_USE_GSASL`:                         Use libgsasl. Default: `OFF`
 - `CURL_USE_GSSAPI`:                        Use GSSAPI implementation. Default: `OFF`
@@ -381,7 +368,6 @@ Details via CMake
 - `USE_APPLE_IDN`:                          Use Apple built-in IDN support. Default: `OFF`
 - `USE_APPLE_SECTRUST`:                     Use Apple OS-native certificate verification. Default: `OFF`
 - `USE_LIBIDN2`:                            Use libidn2 for IDN support. Default: `ON`
-- `USE_LIBRTMP`:                            Enable librtmp from rtmpdump. Default: `OFF`
 - `USE_NGHTTP2`:                            Use nghttp2 library. Default: `ON`
 - `USE_NGTCP2`:                             Use ngtcp2 and nghttp3 libraries for HTTP/3 support. Default: `OFF`
 - `USE_QUICHE`:                             Use quiche library for HTTP/3 support. Default: `OFF`
@@ -398,6 +384,11 @@ Details via CMake
 - `ZLIB_INCLUDE_DIR`:                       Absolute path to zlib include directory.
 - `ZLIB_LIBRARY`:                           Absolute path to `zlib` library.
 - `ZLIB_USE_STATIC_LIBS`:                   Look for static `zlib` library (requires CMake v3.24).
+- `<PackageName>_DIR`:                      Absolute path to `<PackageName>` CMake Config directory where `*.cmake` files reside. Used when `CURL_USE_CMAKECONFIG` is enabled.
+                                            `<PackageName>` may be:
+                                            `Libssh2`, `MbedTLS`, `NGHTTP2`, `NGHTTP3`,
+                                            `NGTCP2` 1.19.0+ (with non-fork OpenSSL only),
+                                            `Zstd` 1.4.5+.
 
 ## Dependency options (tools)
 
@@ -432,8 +423,6 @@ Details via CMake
 - `LIBIDN2_LIBRARY`:                        Absolute path to `libidn2` library.
 - `LIBPSL_INCLUDE_DIR`:                     Absolute path to libpsl include directory.
 - `LIBPSL_LIBRARY`:                         Absolute path to `libpsl` library.
-- `LIBRTMP_INCLUDE_DIR`:                    Absolute path to librtmp include directory.
-- `LIBRTMP_LIBRARY`:                        Absolute path to `librtmp` library.
 - `LIBSSH_INCLUDE_DIR`:                     Absolute path to libssh include directory.
 - `LIBSSH_LIBRARY`:                         Absolute path to `libssh` library.
 - `LIBSSH_USE_STATIC_LIBS`:                 Configure for static libssh libraries. (experimental)

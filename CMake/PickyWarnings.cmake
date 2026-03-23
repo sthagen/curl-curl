@@ -163,7 +163,8 @@ if(PICKY_COMPILER)
       if(CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 3.1)
         list(APPEND _picky_enable
           -Wno-covered-switch-default      # clang  3.1            appleclang  3.1  # Annoying to fix or silence
-          -Wno-disabled-macro-expansion    # clang  3.1            appleclang  3.1  # Triggered by curl/curl.h, standard headers
+          -Wno-disabled-macro-expansion    # clang  3.1            appleclang  3.1  # Triggered by standard headers,
+                                                                                    # and curl/curl.h (in rare combinations)
         )
         if(MSVC)
           list(APPEND _picky_enable
@@ -258,6 +259,7 @@ if(PICKY_COMPILER)
         list(APPEND _picky_enable
           -Warray-compare                  # clang 20.1  gcc 12.0  appleclang 26.4
           -Wc++-hidden-decl                # clang 21.1            appleclang 26.4
+          -Wimplicit-int-enum-cast         # clang 21.1
           -Wjump-misses-init               # clang 21.1  gcc  4.5  appleclang 26.4
           -Wno-implicit-void-ptr-cast      # clang 21.1            appleclang 26.4
           -Wtentative-definition-compat    # clang 21.1            appleclang 26.4
@@ -429,11 +431,13 @@ if(CMAKE_C_COMPILER_ID STREQUAL "Clang" AND MSVC)
   endforeach()
 endif()
 
-if(CMAKE_C_STANDARD STREQUAL 90 AND CMAKE_C_COMPILER_ID STREQUAL "AppleClang")
-  if(CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 4.2)
+if(CMAKE_C_STANDARD STREQUAL 90 AND CMAKE_C_COMPILER_ID MATCHES "Clang")
+  if((CMAKE_C_COMPILER_ID STREQUAL "Clang"      AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 3.0) OR
+     (CMAKE_C_COMPILER_ID STREQUAL "AppleClang" AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 4.2))
     list(APPEND _picky "-Wno-c99-extensions")  # Avoid: warning: '_Bool' is a C99 extension
   endif()
-  if(CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 8.1)
+  if((CMAKE_C_COMPILER_ID STREQUAL "Clang"      AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 3.9) OR
+     (CMAKE_C_COMPILER_ID STREQUAL "AppleClang" AND CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL 8.1))
     list(APPEND _picky "-Wno-comma")  # Just silly
   endif()
 endif()

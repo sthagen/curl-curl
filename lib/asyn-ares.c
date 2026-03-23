@@ -23,7 +23,7 @@
  ***************************************************************************/
 #include "curl_setup.h"
 
-#ifdef CURLRES_ARES
+#ifdef USE_RESOLV_ARES
 
 /***********************************************************************
  * Only for ares-enabled builds and only for functions that fulfill
@@ -58,35 +58,10 @@
 #include "progress.h"
 #include "curlx/timediff.h"
 #include "httpsrr.h"
-
 #include <ares.h>
-#include <ares_version.h> /* really old c-ares did not include this by
-                             itself */
 
-#if ARES_VERSION >= 0x010704
-#define HAVE_CARES_SERVERS_CSV 1
-#define HAVE_CARES_LOCAL_DEV 1
-#define HAVE_CARES_SET_LOCAL 1
-#endif
-
-#if ARES_VERSION >= 0x010b00
-#define HAVE_CARES_PORTS_CSV 1
-#endif
-
-#if ARES_VERSION >= 0x011000
-/* 1.16.0 or later has ares_getaddrinfo */
-#define HAVE_CARES_GETADDRINFO 1
-#else
-/* How long we are willing to wait for additional parallel responses after
-   obtaining a "definitive" one. For old c-ares without getaddrinfo.
-
-   This is intended to equal the c-ares default timeout. curl always uses that
-   default value. Unfortunately, c-ares does not expose its default timeout in
-   its API, but it is officially documented as 5 seconds.
-
-   See query_completed_cb() for an explanation of how this is used.
- */
-#define HAPPY_EYEBALLS_DNS_TIMEOUT 5000
+#if ARES_VERSION < 0x011000
+#error "requires c-ares 1.16.0 or newer"
 #endif
 
 #ifdef USE_HTTPSRR
@@ -142,9 +117,10 @@ static void sock_state_cb(void *data, ares_socket_t socket_fd,
   }
 }
 
-static CURLcode async_ares_init(struct Curl_easy *data)
+static CURLcode async_ares_init(struct Curl_easy *data,
+                                struct Curl_resolv_async *async)
 {
-  struct async_ares_ctx *ares = &data->state.async.ares;
+  struct async_ares_ctx *ares = &async->ares;
   int status;
   struct ares_options options;
   int optmask = ARES_OPT_SOCK_STATE_CB;
@@ -202,20 +178,23 @@ out:
   return rc;
 }
 
-static CURLcode async_ares_init_lazy(struct Curl_easy *data)
+static CURLcode async_ares_init_lazy(struct Curl_easy *data,
+                                     struct Curl_resolv_async *async)
 {
-  struct async_ares_ctx *ares = &data->state.async.ares;
+  struct async_ares_ctx *ares = &async->ares;
   if(!ares->channel)
-    return async_ares_init(data);
+    return async_ares_init(data, async);
   return CURLE_OK;
 }
 
-CURLcode Curl_async_get_impl(struct Curl_easy *data, void **impl)
+CURLcode Curl_async_get_impl(struct Curl_easy *data,
+                             struct Curl_resolv_async *async,
+                             void **impl)
 {
-  struct async_ares_ctx *ares = &data->state.async.ares;
+  struct async_ares_ctx *ares = &async->ares;
   CURLcode result = CURLE_OK;
   if(!ares->channel) {
-    result = async_ares_init(data);
+    result = async_ares_init(data, async);
   }
   *impl = ares->channel;
   return result;
@@ -224,9 +203,9 @@ CURLcode Curl_async_get_impl(struct Curl_easy *data, void **impl)
 /*
  * async_ares_cleanup() cleans up async resolver data.
  */
-static void async_ares_cleanup(struct Curl_easy *data)
+static void async_ares_cleanup(struct Curl_resolv_async *async)
 {
-  struct async_ares_ctx *ares = &data->state.async.ares;
+  struct async_ares_ctx *ares = &async->ares;
   if(ares->temp_ai) {
     Curl_freeaddrinfo(ares->temp_ai);
     ares->temp_ai = NULL;
@@ -236,24 +215,27 @@ static void async_ares_cleanup(struct Curl_easy *data)
 #endif
 }
 
-void Curl_async_ares_shutdown(struct Curl_easy *data)
+void Curl_async_ares_shutdown(struct Curl_easy *data,
+                             struct Curl_resolv_async *async)
 {
   /* c-ares has a method to "cancel" operations on a channel, but
    * as reported in #18216, this does not totally reset the channel
    * and ares may get stuck.
    * We need to destroy the channel and on demand create a new
    * one to avoid that. */
-  Curl_async_ares_destroy(data);
+  Curl_async_ares_destroy(data, async);
 }
 
-void Curl_async_ares_destroy(struct Curl_easy *data)
+void Curl_async_ares_destroy(struct Curl_easy *data,
+                             struct Curl_resolv_async *async)
 {
-  struct async_ares_ctx *ares = &data->state.async.ares;
+  struct async_ares_ctx *ares = &async->ares;
+  (void)data;
   if(ares->channel) {
     ares_destroy(ares->channel);
     ares->channel = NULL;
   }
-  async_ares_cleanup(data);
+  async_ares_cleanup(async);
 }
 
 /*
@@ -263,74 +245,46 @@ void Curl_async_ares_destroy(struct Curl_easy *data)
 
 CURLcode Curl_async_pollset(struct Curl_easy *data, struct easy_pollset *ps)
 {
-  struct async_ares_ctx *ares = &data->state.async.ares;
-  if(ares->channel)
+  struct Curl_resolv_async *async = data->state.async;
+  struct async_ares_ctx *ares = async ? &async->ares : NULL;
+  if(ares && ares->channel)
     return Curl_ares_pollset(data, ares->channel, ps);
   return CURLE_OK;
 }
 
 /*
- * Curl_async_is_resolved() is called repeatedly to check if a previous
+ * Curl_async_take_result() is called repeatedly to check if a previous
  * name resolve request has completed. It should also make sure to time-out if
  * the operation seems to take too long.
  *
  * Returns normal CURLcode errors.
  */
-CURLcode Curl_async_is_resolved(struct Curl_easy *data,
-                                struct Curl_dns_entry **dns)
+CURLcode Curl_async_take_result(struct Curl_easy *data,
+                                struct Curl_resolv_async *async,
+                                struct Curl_dns_entry **pdns)
 {
-  struct async_ares_ctx *ares = &data->state.async.ares;
+  struct async_ares_ctx *ares = &async->ares;
   CURLcode result = CURLE_OK;
 
-  DEBUGASSERT(dns);
-  *dns = NULL;
-
-  if(data->state.async.done) {
-    *dns = data->state.async.dns;
-    return ares->result;
-  }
+  DEBUGASSERT(pdns);
+  *pdns = NULL;
+  if(!ares)
+    return CURLE_FAILED_INIT;
 
   if(Curl_ares_perform(ares->channel, 0) < 0) {
     result = CURLE_UNRECOVERABLE_POLL;
     goto out;
   }
 
-#ifndef HAVE_CARES_GETADDRINFO
-  /* Now that we have checked for any last minute results above, see if there
-     are any responses still pending when the EXPIRE_HAPPY_EYEBALLS_DNS timer
-     expires. */
-  if(ares->num_pending &&
-     /* This is only set to non-zero if the timer was started. */
-     (ares->happy_eyeballs_dns_time.tv_sec ||
-      ares->happy_eyeballs_dns_time.tv_usec) &&
-     (curlx_ptimediff_ms(Curl_pgrs_now(data),
-                         &ares->happy_eyeballs_dns_time) >=
-      HAPPY_EYEBALLS_DNS_TIMEOUT)) {
-    /* Remember that the EXPIRE_HAPPY_EYEBALLS_DNS timer is no longer
-       running. */
-    memset(&ares->happy_eyeballs_dns_time, 0,
-           sizeof(ares->happy_eyeballs_dns_time));
-
-    /* Cancel the raw c-ares request, which will fire query_completed_cb() with
-       ARES_ECANCELLED synchronously for all pending responses. This will
-       leave us with res->num_pending == 0, which is perfect for the next
-       block. */
-    ares_cancel(ares->channel);
-    DEBUGASSERT(ares->num_pending == 0);
-  }
-#endif
-
   if(!ares->num_pending) {
     /* all c-ares operations done, what is the result to report? */
-    Curl_resolv_unlink(data, &data->state.async.dns);
-    data->state.async.done = TRUE;
     result = ares->result;
     if(ares->ares_status == ARES_SUCCESS && !result) {
-      data->state.async.dns =
+      struct Curl_dns_entry *dns =
         Curl_dnscache_mk_entry(data, &ares->temp_ai,
-                               data->state.async.hostname, 0,
-                               data->state.async.port, FALSE);
-      if(!data->state.async.dns) {
+                               async->hostname, async->port,
+                               async->ip_version);
+      if(!dns) {
         result = CURLE_OUT_OF_MEMORY;
         goto out;
       }
@@ -340,28 +294,29 @@ CURLcode Curl_async_is_resolved(struct Curl_easy *data,
         if(!lhrr)
           result = CURLE_OUT_OF_MEMORY;
         else
-          data->state.async.dns->hinfo = lhrr;
+          dns->hinfo = lhrr;
       }
 #endif
-      if(!result)
-        result = Curl_dnscache_add(data, data->state.async.dns);
+      if(!result) {
+        result = Curl_dnscache_add(data, dns);
+        *pdns = dns;
+      }
     }
     /* if we have not found anything, report the proper
      * CURLE_COULDNT_RESOLVE_* code */
-    if(!result && !data->state.async.dns) {
+    if(!result && !*pdns) {
       const char *msg = NULL;
       if(ares->ares_status != ARES_SUCCESS)
         msg = ares_strerror(ares->ares_status);
       result = Curl_resolver_error(data, msg);
     }
 
-    if(result)
-      Curl_resolv_unlink(data, &data->state.async.dns);
-    *dns = data->state.async.dns;
     CURL_TRC_DNS(data, "is_resolved() result=%d, dns=%sfound",
-                 result, *dns ? "" : "not ");
-    async_ares_cleanup(data);
+                 result, *pdns ? "" : "not ");
+    async_ares_cleanup(async);
   }
+  else
+    return CURLE_AGAIN;
 
 out:
   ares->result = result;
@@ -406,14 +361,15 @@ static timediff_t async_ares_poll_timeout(struct async_ares_ctx *ares,
  * CURLE_OPERATION_TIMEDOUT if a time-out occurred, or other errors.
  */
 CURLcode Curl_async_await(struct Curl_easy *data,
-                          struct Curl_dns_entry **dns)
+                          struct Curl_resolv_async *async,
+                          struct Curl_dns_entry **pdns)
 {
-  struct async_ares_ctx *ares = &data->state.async.ares;
+  struct async_ares_ctx *ares = &async->ares;
   struct curltime start = *Curl_pgrs_now(data);
   CURLcode result = CURLE_OK;
 
-  DEBUGASSERT(dns);
-  *dns = NULL; /* clear on entry */
+  DEBUGASSERT(pdns);
+  *pdns = NULL; /* clear on entry */
 
   /* Wait for the name resolve query to complete or time out. */
   while(!result) {
@@ -439,8 +395,10 @@ CURLcode Curl_async_await(struct Curl_easy *data,
       break;
     }
 
-    result = Curl_async_is_resolved(data, dns);
-    if(result || data->state.async.done)
+    result = Curl_async_take_result(data, async, pdns);
+    if(result == CURLE_AGAIN)
+      result = CURLE_OK;
+    else if(result || *pdns)
       break;
 
     if(Curl_pgrsUpdate(data)) {
@@ -449,141 +407,10 @@ CURLcode Curl_async_await(struct Curl_easy *data,
     }
   }
 
-  /* Operation complete, if the lookup was successful we now have the entry
-     in the cache. */
-  data->state.async.done = TRUE;
-  *dns = data->state.async.dns;
-
   if(result)
     ares_cancel(ares->channel);
   return result;
 }
-
-#ifndef HAVE_CARES_GETADDRINFO
-
-/* Connects results to the list */
-static void async_addr_concat(struct Curl_addrinfo **pbase,
-                              struct Curl_addrinfo *ai)
-{
-  if(!ai)
-    return;
-
-  /* When adding `ai` to an existing address list, we prefer ipv6
-   * to be in front. */
-#ifdef USE_IPV6 /* CURLRES_IPV6 */
-  if(*pbase && (*pbase)->ai_family == PF_INET6) {
-    /* ipv6 already in front, append `ai` */
-    struct Curl_addrinfo *tail = *pbase;
-    while(tail->ai_next)
-      tail = tail->ai_next;
-    tail->ai_next = ai;
-  }
-  else
-#endif /* CURLRES_IPV6 */
-  {
-    /* prepend to the (possibly) existing list. */
-    struct Curl_addrinfo *tail = ai;
-    while(tail->ai_next)
-      tail = tail->ai_next;
-    tail->ai_next = *pbase;
-    *pbase = ai;
-  }
-}
-
-/*
- * ares_query_completed_cb() is the callback that ares will call when
- * the host query initiated by ares_gethostbyname() from
- * Curl_async_getaddrinfo(), when using ares, is completed either
- * successfully or with failure.
- */
-static void async_ares_hostbyname_cb(void *user_data,
-                                     int status,
-                                     int timeouts,
-                                     struct hostent *hostent)
-{
-  struct Curl_easy *data = (struct Curl_easy *)user_data;
-  struct async_ares_ctx *ares = &data->state.async.ares;
-
-  (void)timeouts; /* ignored */
-
-  if(ARES_EDESTRUCTION == status)
-    return;
-
-  if(ARES_SUCCESS == status) {
-    ares->ares_status = status; /* one success overrules any error */
-    async_addr_concat(&ares->temp_ai,
-                      Curl_he2ai(hostent, data->state.async.port));
-  }
-  else if(ares->ares_status != ARES_SUCCESS) {
-    /* no success so far, remember last error */
-    ares->ares_status = status;
-  }
-
-  ares->num_pending--;
-
-  CURL_TRC_DNS(data, "ares: hostbyname done, status=%d, pending=%d, "
-               "addr=%sfound",
-               status, ares->num_pending, ares->temp_ai ? "" : "not ");
-  /* If there are responses still pending, we presume they must be the
-     complementary IPv4 or IPv6 lookups that we started in parallel in
-     Curl_async_getaddrinfo() (for Happy Eyeballs). If we have got a
-     "definitive" response from one of a set of parallel queries, we need to
-     think about how long we are willing to wait for more responses. */
-  if(ares->num_pending
-     /* Only these c-ares status values count as "definitive" for these
-        purposes. For example, ARES_ENODATA is what we expect when there is
-        no IPv6 entry for a domain name, and that is not a reason to get more
-        aggressive in our timeouts for the other response. Other errors are
-        either a result of bad input (which should affect all parallel
-        requests), local or network conditions, non-definitive server
-        responses, or us cancelling the request. */
-     && (status == ARES_SUCCESS || status == ARES_ENOTFOUND)) {
-    /* Right now, there can only be up to two parallel queries, so do not
-       bother handling any other cases. */
-    DEBUGASSERT(ares->num_pending == 1);
-
-    /* it is possible that one of these parallel queries could succeed
-       quickly, but the other could always fail or timeout (when we are
-       talking to a pool of DNS servers that can only successfully resolve
-       IPv4 address, for example).
-
-       it is also possible that the other request could always take longer
-       because it needs more time or only the second DNS server can fulfill it
-       successfully. Yet, to align with the philosophy of Happy Eyeballs, we
-       do not want to wait _too_ long or users will think requests are slow
-       when IPv6 lookups do not actually work (but IPv4 ones do).
-
-       Now that we have a usable answer (some IPv4 addresses, some IPv6
-       addresses, or "no such domain"), we start a timeout for the remaining
-       pending responses. Even though it is typical that this resolved
-       request came back quickly, that need not be the case. It might be that
-       this completing request did not get a result from the first DNS
-       server or even the first round of the whole DNS server pool. This
-       could already be a long time after we issued the DNS queries in
-       the first place. Without modifying c-ares, we cannot know exactly
-       where in its retry cycle we are. We could guess based on how much
-       time has gone by, but it does not really matter. Happy Eyeballs tells
-       us that, given usable information in hand, we do not want to
-       wait "too much longer" after we get a result.
-
-       We wait an additional amount of time equal to the default c-ares
-       query timeout. That is enough time for a typical parallel response to
-       arrive without being "too long". Even on a network where one of the two
-       types of queries is failing or timing out constantly, this will usually
-       mean we wait a total of the default c-ares timeout (5 seconds) plus the
-       round trip time for the successful request, which seems bearable. The
-       downside is that c-ares might race with us to issue one more retry
-       before we give up, but it seems better to "waste" that request instead
-       of trying to guess the perfect timeout to prevent it. After all, we do
-       not even know where in the c-ares retry cycle each request is.
-    */
-    ares->happy_eyeballs_dns_time = *Curl_pgrs_now(data);
-    Curl_expire(data, HAPPY_EYEBALLS_DNS_TIMEOUT, EXPIRE_HAPPY_EYEBALLS_DNS);
-  }
-}
-
-#else
-/* c-ares 1.16.0 or later */
 
 /*
  * async_ares_node2addr() converts an address list provided by c-ares
@@ -664,8 +491,12 @@ static void async_ares_addrinfo_cb(void *user_data, int status, int timeouts,
                                    struct ares_addrinfo *ares_ai)
 {
   struct Curl_easy *data = (struct Curl_easy *)user_data;
-  struct async_ares_ctx *ares = &data->state.async.ares;
+  struct Curl_resolv_async *async = data->state.async;
+  struct async_ares_ctx *ares = async ? &async->ares : NULL;
+
   (void)timeouts;
+  if(!ares)
+    return;
   if(ares->ares_status != ARES_SUCCESS) /* do not overwrite success */
     ares->ares_status = status;
   if(status == ARES_SUCCESS) {
@@ -679,16 +510,17 @@ static void async_ares_addrinfo_cb(void *user_data, int status, int timeouts,
                ares->temp_ai ? "" : "not ");
 }
 
-#endif
-
 #ifdef USE_HTTPSRR
 static void async_ares_rr_done(void *user_data, ares_status_t status,
                                size_t timeouts,
                                const ares_dns_record_t *dnsrec)
 {
   struct Curl_easy *data = user_data;
-  struct async_ares_ctx *ares = &data->state.async.ares;
+  struct Curl_resolv_async *async = data->state.async;
+  struct async_ares_ctx *ares = async ? &async->ares : NULL;
 
+  if(!ares)
+    return;
   (void)timeouts;
   --ares->num_pending;
   CURL_TRC_DNS(data, "ares: httpsrr done, status=%d, pending=%d, "
@@ -708,27 +540,20 @@ static void async_ares_rr_done(void *user_data, ares_status_t status,
  *
  * Starts a name resolve for the given hostname and port number.
  */
-CURLcode Curl_async_getaddrinfo(struct Curl_easy *data, const char *hostname,
-                                int port, int ip_version)
+CURLcode Curl_async_getaddrinfo(struct Curl_easy *data,
+                                struct Curl_resolv_async *async)
 {
-  struct async_ares_ctx *ares = &data->state.async.ares;
+  struct async_ares_ctx *ares = &async->ares;
 #ifdef USE_HTTPSRR
   char *rrname = NULL;
 #endif
 
-  if(async_ares_init_lazy(data))
+  if(async_ares_init_lazy(data, async))
     return CURLE_FAILED_INIT;
 
-  data->state.async.done = FALSE;   /* not done */
-  data->state.async.dns = NULL;     /* clear */
-  data->state.async.port = port;
-  data->state.async.ip_version = ip_version;
-  data->state.async.hostname = curlx_strdup(hostname);
-  if(!data->state.async.hostname)
-    return CURLE_OUT_OF_MEMORY;
 #ifdef USE_HTTPSRR
-  if(port != 443) {
-    rrname = curl_maprintf("_%d._https.%s", port, hostname);
+  if(async->port != 443) {
+    rrname = curl_maprintf("_%d._https.%s", async->port, async->hostname);
     if(!rrname)
       return CURLE_OUT_OF_MEMORY;
   }
@@ -746,16 +571,15 @@ CURLcode Curl_async_getaddrinfo(struct Curl_easy *data, const char *hostname,
   }
 #endif
 
-#ifdef HAVE_CARES_GETADDRINFO
   {
     struct ares_addrinfo_hints hints;
     char service[12];
     int pf = PF_INET;
     memset(&hints, 0, sizeof(hints));
 #ifdef CURLRES_IPV6
-    if((ip_version != CURL_IPRESOLVE_V4) && Curl_ipv6works(data)) {
+    if((async->ip_version != CURL_IPRESOLVE_V4) && Curl_ipv6works(data)) {
       /* The stack seems to be IPv6-enabled */
-      if(ip_version == CURL_IPRESOLVE_V6)
+      if(async->ip_version == CURL_IPRESOLVE_V6)
         pf = PF_INET6;
       else
         pf = PF_UNSPEC;
@@ -772,45 +596,22 @@ CURLcode Curl_async_getaddrinfo(struct Curl_easy *data, const char *hostname,
      * accordingly to save a call to getservbyname in inside C-Ares
      */
     hints.ai_flags = ARES_AI_NUMERICSERV;
-    curl_msnprintf(service, sizeof(service), "%d", port);
+    curl_msnprintf(service, sizeof(service), "%d", async->port);
     ares->num_pending = 1;
-    ares_getaddrinfo(ares->channel, data->state.async.hostname,
+    ares_getaddrinfo(ares->channel, async->hostname,
                      service, &hints, async_ares_addrinfo_cb, data);
   }
-#else
 
-#if ARES_VERSION >= 0x010601  /* IPv6 supported since 1.6.1 */
-  if((ip_version != CURL_IPRESOLVE_V4) && Curl_ipv6works(data)) {
-    /* The stack seems to be IPv6-enabled */
-    /* areschannel is already setup in the Curl_open() function */
-    CURL_TRC_DNS(data, "asyn-ares: fire off query for A");
-    ares_gethostbyname(ares->channel, data->state.async.hostname, PF_INET,
-                       async_ares_hostbyname_cb, data);
-    CURL_TRC_DNS(data, "asyn-ares: fire off query for AAAA");
-    ares->num_pending = 2;
-    ares_gethostbyname(ares->channel, data->state.async.hostname, PF_INET6,
-                       async_ares_hostbyname_cb, data);
-  }
-  else
-#endif
-  {
-    /* areschannel is already setup in the Curl_open() function */
-    CURL_TRC_DNS(data, "asyn-ares: fire off query for A");
-    ares->num_pending = 1;
-    ares_gethostbyname(ares->channel, data->state.async.hostname, PF_INET,
-                       async_ares_hostbyname_cb, data);
-  }
-#endif
 #ifdef USE_HTTPSRR
   {
     CURL_TRC_DNS(data, "asyn-ares: fire off query for HTTPSRR: %s",
-                 rrname ? rrname : data->state.async.hostname);
+                 rrname ? rrname : async->hostname);
     memset(&ares->hinfo, 0, sizeof(ares->hinfo));
     ares->hinfo.port = -1;
     ares->hinfo.rrname = rrname;
     ares->num_pending++; /* one more */
     ares_query_dnsrec(ares->channel,
-                      rrname ? rrname : data->state.async.hostname,
+                      rrname ? rrname : async->hostname,
                       ARES_CLASS_IN, ARES_REC_TYPE_HTTPS,
                       async_ares_rr_done, data, NULL);
   }
@@ -828,12 +629,13 @@ CURLcode Curl_async_getaddrinfo(struct Curl_easy *data, const char *hostname,
 static CURLcode async_ares_set_dns_servers(struct Curl_easy *data,
                                            bool reset_on_null)
 {
-  struct async_ares_ctx *ares = &data->state.async.ares;
+  struct Curl_resolv_async *async = data->state.async;
+  struct async_ares_ctx *ares = async ? &async->ares : NULL;
   CURLcode result = CURLE_NOT_BUILT_IN;
   const char *servers = data->set.str[STRING_DNS_SERVERS];
   int ares_result = ARES_SUCCESS;
 
-#if defined(DEBUGBUILD) && defined(HAVE_CARES_SERVERS_CSV)
+#ifdef DEBUGBUILD
   if(getenv("CURL_DNS_SERVER"))
     servers = getenv("CURL_DNS_SERVER");
 #endif
@@ -845,14 +647,9 @@ static CURLcode async_ares_set_dns_servers(struct Curl_easy *data,
     return CURLE_OK;
   }
 
-#ifdef HAVE_CARES_SERVERS_CSV
   /* if channel is not there, this is a parameter check */
-  if(ares->channel)
-#ifdef HAVE_CARES_PORTS_CSV
+  if(ares && ares->channel)
     ares_result = ares_set_servers_ports_csv(ares->channel, servers);
-#else
-    ares_result = ares_set_servers_csv(ares->channel, servers);
-#endif
   switch(ares_result) {
   case ARES_SUCCESS:
     result = CURLE_OK;
@@ -868,10 +665,6 @@ static CURLcode async_ares_set_dns_servers(struct Curl_easy *data,
     result = CURLE_BAD_FUNCTION_ARGUMENT;
     break;
   }
-#else /* c-ares version too old! */
-  (void)data;
-  (void)(ares_result);
-#endif
   return result;
 }
 
@@ -882,28 +675,24 @@ CURLcode Curl_async_ares_set_dns_servers(struct Curl_easy *data)
 
 CURLcode Curl_async_ares_set_dns_interface(struct Curl_easy *data)
 {
-#ifdef HAVE_CARES_LOCAL_DEV
-  struct async_ares_ctx *ares = &data->state.async.ares;
+  struct Curl_resolv_async *async = data->state.async;
+  struct async_ares_ctx *ares = async ? &async->ares : NULL;
   const char *interf = data->set.str[STRING_DNS_INTERFACE];
 
   if(!interf)
     interf = "";
 
   /* if channel is not there, this is a parameter check */
-  if(ares->channel)
+  if(ares && ares->channel)
     ares_set_local_dev(ares->channel, interf);
 
   return CURLE_OK;
-#else /* c-ares version too old! */
-  (void)data;
-  return CURLE_NOT_BUILT_IN;
-#endif
 }
 
 CURLcode Curl_async_ares_set_dns_local_ip4(struct Curl_easy *data)
 {
-#ifdef HAVE_CARES_SET_LOCAL
-  struct async_ares_ctx *ares = &data->state.async.ares;
+  struct Curl_resolv_async *async = data->state.async;
+  struct async_ares_ctx *ares = async ? &async->ares : NULL;
   struct in_addr a4;
   const char *local_ip4 = data->set.str[STRING_DNS_LOCAL_IP4];
 
@@ -918,20 +707,17 @@ CURLcode Curl_async_ares_set_dns_local_ip4(struct Curl_easy *data)
   }
 
   /* if channel is not there yet, this is a parameter check */
-  if(ares->channel)
+  if(ares && ares->channel)
     ares_set_local_ip4(ares->channel, ntohl(a4.s_addr));
 
   return CURLE_OK;
-#else /* c-ares version too old! */
-  (void)data;
-  return CURLE_NOT_BUILT_IN;
-#endif
 }
 
 CURLcode Curl_async_ares_set_dns_local_ip6(struct Curl_easy *data)
 {
-#if defined(HAVE_CARES_SET_LOCAL) && defined(USE_IPV6)
-  struct async_ares_ctx *ares = &data->state.async.ares;
+#ifdef USE_IPV6
+  struct Curl_resolv_async *async = data->state.async;
+  struct async_ares_ctx *ares = async ? &async->ares : NULL;
   unsigned char a6[INET6_ADDRSTRLEN];
   const char *local_ip6 = data->set.str[STRING_DNS_LOCAL_IP6];
 
@@ -947,14 +733,14 @@ CURLcode Curl_async_ares_set_dns_local_ip6(struct Curl_easy *data)
   }
 
   /* if channel is not there, this is a parameter check */
-  if(ares->channel)
+  if(ares && ares->channel)
     ares_set_local_ip6(ares->channel, a6);
 
   return CURLE_OK;
-#else /* c-ares version too old! */
+#else /* no IPv6 support */
   (void)data;
   return CURLE_NOT_BUILT_IN;
 #endif
 }
 
-#endif /* CURLRES_ARES */
+#endif /* USE_RESOLV_ARES */

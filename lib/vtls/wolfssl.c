@@ -1382,9 +1382,15 @@ CURLcode Curl_wssl_ctx_init(struct wssl_ctx *wctx,
       struct ssl_connect_data *connssl = cf->ctx;
       struct Curl_dns_entry *dns = NULL;
 
-      dns = Curl_dnscache_get(data, connssl->peer.hostname, connssl->peer.port,
-                              cf->conn->ip_version);
+      result = Curl_dnscache_get(data, connssl->peer.hostname,
+                                 connssl->peer.port,
+                                 cf->conn->ip_version, &dns);
       if(!dns) {
+        if(result) {
+          failf(data, "ECH: could not resolve %s:%d",
+                connssl->peer.hostname, connssl->peer.port);
+          goto out;
+        }
         infof(data, "ECH: requested but no DNS info available");
         if(data->set.tls_ech & CURLECH_HARD) {
           result = CURLE_SSL_CONNECT_ERROR;
@@ -1420,7 +1426,7 @@ CURLcode Curl_wssl_ctx_init(struct wssl_ctx *wctx,
             goto out;
           }
         }
-        Curl_resolv_unlink(data, &dns);
+        Curl_dns_entry_unlink(data, &dns);
       }
     }
 
@@ -2017,13 +2023,13 @@ static CURLcode wssl_recv(struct Curl_cfilter *cf,
     case WOLFSSL_ERROR_NONE:
     case WOLFSSL_ERROR_WANT_READ:
     case WOLFSSL_ERROR_WANT_WRITE:
-      if(!wssl->io_result && connssl->peer_closed) {
-        CURL_TRC_CF(data, cf, "wssl_recv(len=%zu) -> CLOSED", blen);
-        return CURLE_OK;
+      if(!wssl->io_result && !connssl->peer_closed) {
+        /* there is data pending, re-invoke wolfSSL_read() */
+        CURL_TRC_CF(data, cf, "wssl_recv(len=%zu) -> AGAIN", blen);
+        return CURLE_AGAIN;
       }
-      /* there is data pending, re-invoke wolfSSL_read() */
-      CURL_TRC_CF(data, cf, "wssl_recv(len=%zu) -> AGAIN", blen);
-      return CURLE_AGAIN;
+      /* fall through to default error handling below */
+      FALLTHROUGH();
     default:
       if(wssl->io_result == CURLE_AGAIN) {
         CURL_TRC_CF(data, cf, "wssl_recv(len=%zu) -> AGAIN", blen);

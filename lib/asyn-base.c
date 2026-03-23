@@ -39,10 +39,10 @@
 
 #ifdef USE_ARES
 #include <ares.h>
-#include <ares_version.h> /* really old c-ares did not include it by itself */
 #endif
 
 #include "urldata.h"
+#include "curl_trc.h"
 #include "hostip.h"
 #include "multiif.h"
 #include "select.h"
@@ -55,8 +55,8 @@
 
 #ifdef USE_ARES
 
-#if ARES_VERSION < 0x010600
-#error "requires c-ares 1.6.0 or newer"
+#if ARES_VERSION < 0x011000
+#error "requires c-ares 1.16.0 or newer"
 #endif
 
 /*
@@ -180,30 +180,35 @@ int Curl_ares_perform(ares_channel channel, timediff_t timeout_ms)
 
 void Curl_async_shutdown(struct Curl_easy *data)
 {
-#ifdef CURLRES_ARES
-  Curl_async_ares_shutdown(data);
+  if(data->state.async) {
+    CURL_TRC_DNS(data, "shutdown async");
+#ifdef USE_RESOLV_ARES
+    Curl_async_ares_shutdown(data, data->state.async);
 #endif
-#ifdef CURLRES_THREADED
-  Curl_async_thrdd_shutdown(data);
+#ifdef USE_RESOLV_THREADED
+    Curl_async_thrdd_shutdown(data, data->state.async);
 #endif
 #ifndef CURL_DISABLE_DOH
-  Curl_doh_cleanup(data);
+    Curl_doh_cleanup(data, data->state.async);
 #endif
-  Curl_safefree(data->state.async.hostname);
+  }
 }
 
 void Curl_async_destroy(struct Curl_easy *data)
 {
-#ifdef CURLRES_ARES
-  Curl_async_ares_destroy(data);
+  if(data->state.async) {
+    CURL_TRC_DNS(data, "destroy async");
+#ifdef USE_RESOLV_ARES
+    Curl_async_ares_destroy(data, data->state.async);
 #endif
-#ifdef CURLRES_THREADED
-  Curl_async_thrdd_destroy(data);
+#ifdef USE_RESOLV_THREADED
+    Curl_async_thrdd_destroy(data, data->state.async);
 #endif
 #ifndef CURL_DISABLE_DOH
-  Curl_doh_cleanup(data);
+    Curl_doh_cleanup(data, data->state.async);
 #endif
-  Curl_safefree(data->state.async.hostname);
+    Curl_safefree(data->state.async);
+  }
 }
 
 #endif /* USE_CURL_ASYNC */

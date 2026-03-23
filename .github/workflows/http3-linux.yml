@@ -48,7 +48,7 @@ env:
   # renovate: datasource=github-tags depName=gnutls/gnutls versioning=semver extractVersion=^nettle_?(?<version>.+)_release_.+$ registryUrl=https://github.com
   GNUTLS_VERSION: 3.8.11
   # renovate: datasource=github-tags depName=wolfSSL/wolfssl versioning=semver extractVersion=^v?(?<version>.+)-stable$ registryUrl=https://github.com
-  WOLFSSL_VERSION: 5.8.4
+  WOLFSSL_VERSION: 5.9.0
   # renovate: datasource=github-tags depName=ngtcp2/nghttp3 versioning=semver registryUrl=https://github.com
   NGHTTP3_VERSION: 1.15.0
   # renovate: datasource=github-tags depName=ngtcp2/ngtcp2 versioning=semver registryUrl=https://github.com
@@ -646,7 +646,7 @@ jobs:
             cmake -B bld -G Ninja \
               -DCMAKE_C_COMPILER_TARGET="$(uname -m)-pc-linux-gnu" -DBUILD_STATIC_LIBS=ON \
               -DCURL_WERROR=ON -DENABLE_DEBUG=ON \
-              -DCURL_USE_LIBUV=ON \
+              -DCURL_USE_LIBUV=ON -DCURL_ENABLE_NTLM=ON \
               -DTEST_NGHTTPX=/home/runner/nghttp2/build/bin/nghttpx \
               -DHTTPD_NGHTTPX=/home/runner/nghttp2/build/bin/nghttpx \
               ${MATRIX_GENERATE} ${options}
@@ -654,7 +654,7 @@ jobs:
             [[ "${MATRIX_CONFIGURE}" = *'boringssl'* ]] && export CPPFLAGS="-DCURL_BORINGSSL_VERSION=\\\"${BORINGSSL_VERSION}\\\""
             mkdir bld && cd bld && ../configure --enable-warnings --enable-werror --enable-debug --disable-static \
               --disable-dependency-tracking --enable-option-checking=fatal \
-              --with-libuv \
+              --with-libuv --enable-ntlm \
               --with-test-nghttpx=/home/runner/nghttp2/build/bin/nghttpx \
               ${MATRIX_CONFIGURE}
           fi

@@ -59,6 +59,7 @@
 #include "hostip.h"
 #include "cfilters.h"
 #include "cw-out.h"
+#include "dnscache.h"
 #include "transfer.h"
 #include "sendf.h"
 #include "curl_trc.h"
@@ -490,6 +491,7 @@ CURLcode Curl_pretransfer(struct Curl_easy *data)
   data->state.requests = 0;
   data->state.followlocation = 0; /* reset the location-follow counter */
   data->state.this_is_a_follow = FALSE; /* reset this */
+  data->state.http_ignorecustom = FALSE; /* use custom HTTP method */
   data->state.errorbuf = FALSE; /* no error has occurred */
 #ifndef CURL_DISABLE_HTTP
   Curl_http_neg_init(data, &data->state.http_neg);
