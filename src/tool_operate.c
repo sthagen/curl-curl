@@ -558,7 +558,7 @@ static CURLcode retrycheck(struct OperationConfig *config,
         fflush(outs->stream);
         notef("Throwing away %" CURL_FORMAT_CURL_OFF_T " bytes", outs->bytes);
         /* truncate file at the position where we started appending */
-#if defined(HAVE_FTRUNCATE) && !defined(__DJGPP__) && !defined(__AMIGA__)
+
         if(ftruncate(fileno(outs->stream), outs->init)) {
           /* when truncate fails, we cannot append as then we
              create something strange, bail out */
@@ -568,11 +568,7 @@ static CURLcode retrycheck(struct OperationConfig *config,
         /* now seek to the end of the file, the position where we
            truncated the file in a large file-safe way */
         rc = fseek(outs->stream, 0, SEEK_END);
-#else
-        /* ftruncate is not available, so reposition the file to the location
-           we would have truncated it. */
-        rc = curlx_fseek(outs->stream, outs->init, SEEK_SET);
-#endif
+
         if(rc) {
           errorf("Failed seeking to end of file");
           return CURLE_WRITE_ERROR;
@@ -782,7 +778,7 @@ static CURLcode post_per_transfer(struct per_transfer *per,
     tool_safefree(per->etag_save.filename);
 
   if(outs->alloc_filename)
-    curlx_free(outs->filename);
+    tool_safefree(outs->filename);
   curl_slist_free_all(per->hdrcbdata.headlist);
   per->hdrcbdata.headlist = NULL;
   return result;
@@ -852,8 +848,13 @@ static CURLcode append2query(struct OperationConfig *config,
       if(uerr)
         result = urlerr_cvt(uerr);
       else {
+        /* use our new URL instead! */
         curlx_free(per->url); /* free previous URL */
-        per->url = updated; /* use our new URL instead! */
+        /* make it allocated by tool memory */
+        per->url = curlx_strdup(updated);
+        curl_free(updated);
+        if(!per->url)
+          result = CURLE_OUT_OF_MEMORY;
       }
     }
     curl_url_cleanup(uh);
@@ -880,11 +881,16 @@ static CURLcode etag_compare(struct OperationConfig *config)
 
   if((PARAM_OK == file2string(&etag_from_file, file)) &&
      etag_from_file) {
-    header = curl_maprintf("If-None-Match: %s", etag_from_file);
+    char *h = curl_maprintf("If-None-Match: %s", etag_from_file);
     tool_safefree(etag_from_file);
+    if(h) {
+      /* move it to the right memory */
+      header = curlx_strdup(h);
+      curl_free(h);
+    }
   }
   else
-    header = curl_maprintf("If-None-Match: \"\"");
+    header = curlx_strdup("If-None-Match: \"\"");
 
   if(!header) {
     if(file)
@@ -895,7 +901,7 @@ static CURLcode etag_compare(struct OperationConfig *config)
 
   /* add Etag from file to list of custom headers */
   pe = add2list(&config->headers, header);
-  tool_safefree(header);
+  curlx_free(header);
 
   if(file)
     curlx_fclose(file);
@@ -1046,10 +1052,13 @@ static CURLcode setup_outfile(struct OperationConfig *config,
 
   if(config->output_dir && *config->output_dir) {
     char *d = curl_maprintf("%s/%s", config->output_dir, per->outfile);
-    if(!d)
+    tool_safefree(per->outfile);
+    if(d) {
+      per->outfile = curlx_strdup(d); /* move to right memory */
+      curl_free(d);
+    }
+    if(!d || !per->outfile)
       return CURLE_WRITE_ERROR;
-    curlx_free(per->outfile);
-    per->outfile = d;
   }
   /* Create the directory hierarchy, if not pre-existent to a multiple
      file output call */
