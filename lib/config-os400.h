@@ -69,9 +69,6 @@
 /* Define to 1 if you have the freeaddrinfo function. */
 #define HAVE_FREEADDRINFO       1
 
-/* Define to 1 if you have the ftruncate function. */
-#define HAVE_FTRUNCATE                  1
-
 /* Define to 1 if you have a working getaddrinfo function. */
 #define HAVE_GETADDRINFO                1
 
@@ -137,9 +134,6 @@
 
 /* Define to 1 if you have the 'pipe' function. */
 #define HAVE_PIPE               1
-
-/* if you have <pthread.h> */
-#define HAVE_PTHREAD_H          1
 
 /* Define to 1 if you have the <pwd.h> header file. */
 #define HAVE_PWD_H              1

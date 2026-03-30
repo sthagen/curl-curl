@@ -4086,7 +4086,6 @@ CURL_CHECK_FUNC_CLOSESOCKET_CAMEL
 CURL_CHECK_FUNC_FCNTL
 CURL_CHECK_FUNC_FREEADDRINFO
 CURL_CHECK_FUNC_FSETXATTR
-CURL_CHECK_FUNC_FTRUNCATE
 CURL_CHECK_FUNC_GETADDRINFO
 CURL_CHECK_FUNC_GETHOSTBYNAME_R
 CURL_CHECK_FUNC_GETHOSTNAME
@@ -4194,7 +4193,7 @@ fi
 dnl detect pthreads
 if test "$curl_cv_native_windows" != "yes"; then
   AC_CHECK_HEADER(pthread.h,
-    [ AC_DEFINE(HAVE_PTHREAD_H, 1, [if you have <pthread.h>])
+    [
       save_CFLAGS="$CFLAGS"
       dnl When statically linking against BoringSSL, -lpthread is added to LIBS.
       dnl Make sure to that this does not pass the check below, we really want
