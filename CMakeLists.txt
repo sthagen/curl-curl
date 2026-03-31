@@ -645,8 +645,10 @@ endif()
 
 if(NOT WIN32)
   find_package(Threads)
-  set(HAVE_THREADS_POSIX ${CMAKE_USE_PTHREADS_INIT})
-  list(APPEND CURL_NETWORK_AND_TIME_LIBS ${CMAKE_THREAD_LIBS_INIT})
+  if(CMAKE_USE_PTHREADS_INIT)
+    set(HAVE_THREADS_POSIX 1)
+    list(APPEND CURL_NETWORK_AND_TIME_LIBS Threads::Threads)
+  endif()
 endif()
 
 if(ENABLE_THREADED_RESOLVER)
@@ -845,6 +847,16 @@ if(CURL_USE_OPENSSL)
   cmake_pop_check_state()
 
   if(HAVE_BORINGSSL OR HAVE_AWSLC)
+    if(NOT MSVC AND NOT ANDROID)  # BoringSSL/AWS-LC MSVC builds use native Windows threads
+      find_package(Threads)
+      if(CMAKE_USE_PTHREADS_INIT)
+        set(HAVE_THREADS_POSIX_BORINGSSL 1)
+        list(APPEND CURL_NETWORK_AND_TIME_LIBS Threads::Threads)
+        list(APPEND CMAKE_REQUIRED_LIBRARIES Threads::Threads)
+      elseif(OPENSSL_USE_STATIC_LIBS)
+        message(WARNING "BoringSSL/AWS-LC requires POSIX Threads.")
+      endif()
+    endif()
     if(OPENSSL_USE_STATIC_LIBS AND CMAKE_C_COMPILER_ID MATCHES "Clang")
       list(APPEND CURL_LIBS "stdc++")
       list(APPEND CMAKE_REQUIRED_LIBRARIES "stdc++")
@@ -1555,7 +1567,7 @@ foreach(_variable IN ITEMS
     HAVE_UNISTD_H
 )
   if(${_variable})
-    string(APPEND CURL_TEST_DEFINES " -D${_variable}")
+    list(APPEND CURL_TEST_DEFINES "-D${_variable}")
   endif()
 endforeach()
 
@@ -2152,7 +2164,7 @@ if(NOT CURL_DISABLE_INSTALL)
       curl_collect_target_link_options("${_lib}")  # look into the target recursively
       list(APPEND _explicit_libdirs ${_libdirs})
       list(APPEND _explicit_libs ${_libs})
-      if(NOT _libs AND NOT _libdirs)
+      if(NOT _libs AND NOT _libdirs AND NOT _lib STREQUAL Threads::Threads)
         message(WARNING "Bad lib in library list: ${_lib}")
       endif()
       if(_lib STREQUAL OpenSSL::SSL AND NOT HAVE_BORINGSSL)  # BoringSSL does not provide openssl.pc
@@ -2342,6 +2354,8 @@ if(NOT CURL_DISABLE_INSTALL)
   #   HAVE_GSSAPI
   #   HAVE_LIBIDN2
   #   HAVE_LIBZ ZLIB_VERSION_MAJOR
+  #   HAVE_THREADS_POSIX
+  #   HAVE_THREADS_POSIX_BORINGSSL
   #   HAVE_ZSTD
   #   USE_ARES
   #   USE_BACKTRACE
