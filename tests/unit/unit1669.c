@@ -21,32 +21,38 @@
  * SPDX-License-Identifier: curl
  *
  ***************************************************************************/
-#include "first.h"
+#include "unitcheck.h"
 
-static CURLcode test_lib558(const char *URL)
+#include "urldata.h"
+#include "altsvc.h"
+
+static CURLcode test_unit1669(const char *arg)
 {
-  unsigned char a[] = { 0x2f, 0x3a, 0x3b, 0x3c, 0x3d, 0x3e, 0x3f,
-                        0x91, 0xa2, 0xb3, 0xc4, 0xd5, 0xe6, 0xf7 };
-  CURLcode result = CURLE_OK;
-  char *ptr = NULL;
-  int asize;
+  UNITTEST_BEGIN_SIMPLE
 
-  (void)URL;
+#if !defined(CURL_DISABLE_HTTP) && !defined(CURL_DISABLE_ALTSVC)
+  char outname[256];
+  CURL *curl;
+  CURLcode result;
+  struct altsvcinfo *asi = Curl_altsvc_init();
+  abort_if(!asi, "Curl_altsvc_init");
+  result = Curl_altsvc_load(asi, arg);
+  fail_if(result, "Curl_altsvc_load");
+  if(result)
+    goto fail;
+  curl_global_init(CURL_GLOBAL_ALL);
+  curl = curl_easy_init();
+  fail_if(!curl, "curl_easy_init");
+  if(!curl)
+    goto fail;
+  fail_unless(Curl_llist_count(&asi->list) == MAX_ALTSVC_ENTRIES,
+              "wrong number of entries");
+  curl_msnprintf(outname, sizeof(outname), "%s-out", arg);
 
-  if(curl_global_init(CURL_GLOBAL_ALL) != CURLE_OK) {
-    curl_mfprintf(stderr, "curl_global_init() failed\n");
-    return TEST_ERR_MAJOR_BAD;
-  }
+  curl_easy_cleanup(curl);
+fail:
+  Curl_altsvc_cleanup(&asi);
+#endif
 
-  ptr = curlx_malloc(558);
-  curlx_safefree(ptr);
-
-  asize = (int)sizeof(a);
-  ptr = curl_easy_escape(NULL, (char *)a, asize);
-  if(ptr)
-    curl_free(ptr);
-
-  curl_global_cleanup();
-
-  return result;
+  UNITTEST_END(curl_global_cleanup())
 }

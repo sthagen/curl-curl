@@ -637,14 +637,14 @@ static CURLcode bindlocal(struct Curl_easy *data, struct connectdata *conn,
        * of the connection. The resolve functions should really be changed
        * to take a type parameter instead.
        */
-      uint8_t ip_version = (af == AF_INET) ?
-                           CURL_IPRESOLVE_V4 : CURL_IPRESOLVE_WHATEVER;
+      uint8_t dns_queries = (af == AF_INET) ?
+                            CURL_DNSQ_A : (CURL_DNSQ_A|CURL_DNSQ_AAAA);
 #ifdef USE_IPV6
       if(af == AF_INET6)
-        ip_version = CURL_IPRESOLVE_V6;
+        dns_queries = CURL_DNSQ_AAAA;
 #endif
 
-      (void)Curl_resolv_blocking(data, host, 80, ip_version, transport, &h);
+      (void)Curl_resolv_blocking(data, dns_queries, host, 80, transport, &h);
       if(h) {
         int h_af = h->addr->ai_family;
         /* convert the resolved address, sizeof myhost >= INET_ADDRSTRLEN */
@@ -1735,8 +1735,8 @@ CURLcode Curl_cf_tcp_create(struct Curl_cfilter **pcf,
 out:
   *pcf = (!result) ? cf : NULL;
   if(result) {
-    Curl_safefree(cf);
-    Curl_safefree(ctx);
+    curlx_safefree(cf);
+    curlx_safefree(ctx);
   }
 
   return result;
@@ -1896,8 +1896,8 @@ CURLcode Curl_cf_udp_create(struct Curl_cfilter **pcf,
 out:
   *pcf = (!result) ? cf : NULL;
   if(result) {
-    Curl_safefree(cf);
-    Curl_safefree(ctx);
+    curlx_safefree(cf);
+    curlx_safefree(ctx);
   }
 
   return result;
@@ -1950,8 +1950,8 @@ CURLcode Curl_cf_unix_create(struct Curl_cfilter **pcf,
 out:
   *pcf = (!result) ? cf : NULL;
   if(result) {
-    Curl_safefree(cf);
-    Curl_safefree(ctx);
+    curlx_safefree(cf);
+    curlx_safefree(ctx);
   }
 
   return result;
@@ -2187,8 +2187,8 @@ CURLcode Curl_conn_tcp_listen_set(struct Curl_easy *data,
 
 out:
   if(result) {
-    Curl_safefree(cf);
-    Curl_safefree(ctx);
+    curlx_safefree(cf);
+    curlx_safefree(ctx);
   }
   return result;
 }
