@@ -33,13 +33,12 @@ import subprocess
 import tempfile
 from configparser import ConfigParser, ExtendedInterpolation
 from datetime import timedelta
-from typing import Optional, Dict, List
+from typing import Dict, List, Optional
 
 import pytest
 from filelock import FileLock
 
 from .certs import CertificateSpec, Credentials, TestCA
-
 
 log = logging.getLogger(__name__)
 
@@ -528,18 +527,15 @@ class Env:
         if Env.have_h2_curl():
             if Env.have_h3():
                 return ['http/1.1', 'h2', 'h3']
-            else:
-                return ['http/1.1', 'h2']
-        else:
-            return ['http/1.1']
+            return ['http/1.1', 'h2']
+        return ['http/1.1']
 
     @staticmethod
     def http_h1_h2_protos() -> List[str]:
         # http 1+2 protocols we can test
         if Env.have_h2_curl():
             return ['http/1.1', 'h2']
-        else:
-            return ['http/1.1']
+        return ['http/1.1']
 
     @staticmethod
     def http_mplx_protos() -> List[str]:
@@ -547,10 +543,8 @@ class Env:
         if Env.have_h2_curl():
             if Env.have_h3():
                 return ['h2', 'h3']
-            else:
-                return ['h2']
-        else:
-            return []
+            return ['h2']
+        return []
 
     @staticmethod
     def have_h3() -> bool:
