@@ -158,7 +158,7 @@ static void h2_tunnel_go_state(struct Curl_cfilter *cf,
     /* If a proxy-authorization header was used for the proxy, then we should
        make sure that it is not accidentally used for the document request
        after we have connected. Let's thus free and clear it here. */
-    curlx_safefree(data->state.aptr.proxyuserpwd);
+    curlx_safefree(data->req.proxyuserpwd);
     break;
   }
 }
@@ -627,7 +627,7 @@ static ssize_t tunnel_send_callback(nghttp2_session *session,
   if(ts->closed && Curl_bufq_is_empty(&ts->sendbuf))
     *data_flags = NGHTTP2_DATA_FLAG_EOF;
 
-  CURL_TRC_CF(data, cf, "[%d] tunnel_send_callback -> %zd",
+  CURL_TRC_CF(data, cf, "[%d] tunnel_send_callback -> %zu",
               ts->stream_id, nread);
   return (nread  > SSIZE_MAX) ?
     NGHTTP2_ERR_CALLBACK_FAILURE : (ssize_t)nread;
@@ -675,7 +675,7 @@ static int proxy_h2_on_stream_close(nghttp2_session *session,
   if(stream_id != ctx->tunnel.stream_id)
     return 0;
 
-  CURL_TRC_CF(data, cf, "[%d] proxy_h2_on_stream_close, %s (err %d)",
+  CURL_TRC_CF(data, cf, "[%d] proxy_h2_on_stream_close, %s (err %u)",
               stream_id, nghttp2_http2_strerror(error_code), error_code);
   ctx->tunnel.closed = TRUE;
   ctx->tunnel.error = error_code;
@@ -685,15 +685,16 @@ static int proxy_h2_on_stream_close(nghttp2_session *session,
   return 0;
 }
 
-static CURLcode proxy_h2_submit(int32_t *pstream_id,
-                                struct Curl_cfilter *cf,
-                                struct Curl_easy *data,
-                                nghttp2_session *h2,
-                                struct httpreq *req,
-                                const nghttp2_priority_spec *pri_spec,
-                                void *stream_user_data,
-                               nghttp2_data_source_read_callback read_callback,
-                                void *read_ctx)
+static CURLcode proxy_h2_submit(
+  int32_t *pstream_id,
+  struct Curl_cfilter *cf,
+  struct Curl_easy *data,
+  nghttp2_session *h2,
+  struct httpreq *req,
+  const nghttp2_priority_spec *pri_spec,
+  void *stream_user_data,
+  nghttp2_data_source_read_callback read_callback,
+  void *read_ctx)
 {
   struct dynhds h2_headers;
   nghttp2_nv *nva = NULL;
@@ -1158,7 +1159,7 @@ static CURLcode h2_handle_tunnel_close(struct Curl_cfilter *cf,
 
   *pnread = 0;
   if(ctx->tunnel.error) {
-    failf(data, "HTTP/2 stream %u reset by %s (error 0x%x %s)",
+    failf(data, "HTTP/2 stream %d reset by %s (error 0x%x %s)",
           ctx->tunnel.stream_id, ctx->tunnel.reset ? "server" : "curl",
           ctx->tunnel.error, nghttp2_http2_strerror(ctx->tunnel.error));
     return CURLE_RECV_ERROR;
@@ -1268,7 +1269,7 @@ static CURLcode cf_h2_proxy_send(struct Curl_cfilter *cf,
   }
 
   result = Curl_bufq_write(&ctx->tunnel.sendbuf, buf, len, pnwritten);
-  CURL_TRC_CF(data, cf, "cf_send(), bufq_write %d, %zd", result, *pnwritten);
+  CURL_TRC_CF(data, cf, "cf_send(), bufq_write %d, %zu", result, *pnwritten);
   if(result && (result != CURLE_AGAIN))
     goto out;
 

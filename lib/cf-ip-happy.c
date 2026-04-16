@@ -92,10 +92,10 @@ static cf_ip_connect_create *get_cf_create(uint8_t transport)
 }
 
 #ifdef UNITTESTS
-/* used by unit2600.c */
-UNITTEST void Curl_debug_set_transport_provider(
+/* @unittest 2600 */
+UNITTEST void debug_set_transport_provider(
   uint8_t transport, cf_ip_connect_create *cf_create);
-UNITTEST void Curl_debug_set_transport_provider(
+UNITTEST void debug_set_transport_provider(
   uint8_t transport, cf_ip_connect_create *cf_create)
 {
   size_t i;
@@ -123,9 +123,8 @@ static void cf_ai_iter_init(struct cf_ai_iter *iter,
   iter->n = 0;
 }
 
-static const struct Curl_addrinfo *
-cf_ai_iter_next(struct cf_ai_iter *iter,
-                struct Curl_easy *data)
+static const struct Curl_addrinfo *cf_ai_iter_next(struct cf_ai_iter *iter,
+                                                   struct Curl_easy *data)
 {
   const struct Curl_addrinfo *addr;
 
@@ -297,7 +296,7 @@ static void cf_ip_ballers_clear(struct Curl_cfilter *cf,
   bs->winner = NULL;
 }
 
-static CURLcode cf_ip_ballers_init(struct cf_ip_ballers *bs, int ip_version,
+static CURLcode cf_ip_ballers_init(struct cf_ip_ballers *bs,
                                    struct Curl_cfilter *cf,
                                    cf_ip_connect_create *cf_create,
                                    uint8_t transport,
@@ -320,19 +319,9 @@ static CURLcode cf_ip_ballers_init(struct cf_ip_ballers *bs, int ip_version,
   }
   else { /* TCP/UDP/QUIC */
 #ifdef USE_IPV6
-    if(ip_version == CURL_IPRESOLVE_V6)
-      cf_ai_iter_init(&bs->addr_iter, NULL, AF_INET);
-    else
-      cf_ai_iter_init(&bs->addr_iter, cf, AF_INET);
-
-    if(ip_version == CURL_IPRESOLVE_V4)
-      cf_ai_iter_init(&bs->ipv6_iter, NULL, AF_INET6);
-    else
-      cf_ai_iter_init(&bs->ipv6_iter, cf, AF_INET6);
-#else
-    (void)ip_version;
-    cf_ai_iter_init(&bs->addr_iter, cf, AF_INET);
+    cf_ai_iter_init(&bs->ipv6_iter, cf, AF_INET6);
 #endif
+    cf_ai_iter_init(&bs->addr_iter, cf, AF_INET);
   }
   return CURLE_OK;
 }
@@ -414,7 +403,7 @@ evaluate:
   }
   if(bs->running)
     CURL_TRC_CF(data, cf, "checked connect attempts: "
-                "%d ongoing, %d inconclusive", ongoing, inconclusive);
+                "%u ongoing, %u inconclusive", ongoing, inconclusive);
 
   /* no attempt connected yet, start another one? */
   if(!ongoing) {
@@ -711,7 +700,7 @@ static CURLcode is_connected(struct Curl_cfilter *cf,
         port = conn->conn_to_port;
       else
         port = conn->remote_port;
-      curl_msnprintf(viamsg, sizeof(viamsg), "port %u", port);
+      curl_msnprintf(viamsg, sizeof(viamsg), "port %d", port);
     }
 
     failf(data, "Failed to connect to %s %s %s%s%safter "
@@ -748,7 +737,7 @@ static CURLcode cf_ip_happy_init(struct Curl_cfilter *cf,
 
   CURL_TRC_CF(data, cf, "init ip ballers for transport %u", ctx->transport);
   ctx->started = *Curl_pgrs_now(data);
-  return cf_ip_ballers_init(&ctx->ballers, cf->conn->ip_version, cf,
+  return cf_ip_ballers_init(&ctx->ballers, cf,
                             ctx->cf_create, ctx->transport,
                             data->set.happy_eyeballs_timeout,
                             IP_HE_MAX_CONCURRENT_ATTEMPTS);
@@ -797,7 +786,7 @@ static CURLcode cf_ip_happy_adjust_pollset(struct Curl_cfilter *cf,
 
   if(!cf->connected) {
     result = cf_ip_ballers_pollset(&ctx->ballers, data, ps);
-    CURL_TRC_CF(data, cf, "adjust_pollset -> %d, %d socks", result, ps->n);
+    CURL_TRC_CF(data, cf, "adjust_pollset -> %d, %u socks", result, ps->n);
   }
   return result;
 }

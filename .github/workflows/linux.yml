@@ -39,17 +39,17 @@ env:
   WOLFSSL_VERSION: 5.9.1
   # renovate: datasource=github-tags depName=Mbed-TLS/mbedtls versioning=semver registryUrl=https://github.com
   MBEDTLS_VERSION: 4.0.0
-  # renovate: datasource=github-tags depName=Mbed-TLS/mbedtls versioning=semver:^3.0.0 registryUrl=https://github.com
-  MBEDTLS_VERSION_PREV: 3.6.5
-  MBEDTLS_SHA256_PREV: 4a11f1777bb95bf4ad96721cac945a26e04bf19f57d905f241fe77ebeddf46d8
+  # manually bumped
+  MBEDTLS_PREV_VERSION: 3.6.5
+  MBEDTLS_PREV_SHA256: 4a11f1777bb95bf4ad96721cac945a26e04bf19f57d905f241fe77ebeddf46d8
   # renovate: datasource=github-tags depName=awslabs/aws-lc versioning=semver registryUrl=https://github.com
   AWSLC_VERSION: 1.71.0
   # renovate: datasource=github-tags depName=google/boringssl versioning=semver registryUrl=https://github.com
-  BORINGSSL_VERSION: 0.20260327.0
-  # handled in renovate.json
+  BORINGSSL_VERSION: 0.20260413.0
+  # renovate: datasource=github-releases depName=openssl/openssl versioning=semver extractVersion=^openssl-(?<version>.+)$ registryUrl=https://github.com
   OPENSSL_VERSION: 3.6.2
   # renovate: datasource=github-tags depName=rustls/rustls-ffi versioning=semver registryUrl=https://github.com
-  RUSTLS_VERSION: 0.15.1
+  RUSTLS_VERSION: 0.15.2
   # handled in renovate.json
   OPENLDAP_VERSION: 2.6.10
   # renovate: datasource=github-tags depName=nghttp2/nghttp2 versioning=semver registryUrl=https://github.com
@@ -309,7 +309,8 @@ jobs:
               -Wl,-rpath,/home/runner/rustls/lib
               -Wl,-rpath,/home/linuxbrew/.linuxbrew/opt/gsasl/lib
 
-            PKG_CONFIG_PATH: "/home/runner/wolfssl-opensslextra/lib/pkgconfig:\
+            PKG_CONFIG_PATH: "\
+              /home/runner/wolfssl-opensslextra/lib/pkgconfig:\
               /home/runner/mbedtls/lib/pkgconfig:\
               /home/runner/rustls/lib/pkgconfig:\
               /home/linuxbrew/.linuxbrew/opt/gsasl/lib/pkgconfig"
@@ -330,7 +331,8 @@ jobs:
               -Wl,-rpath,/home/linuxbrew/.linuxbrew/opt/libnghttp3/lib
               -Wl,-rpath,/home/linuxbrew/.linuxbrew/opt/c-ares/lib
 
-            PKG_CONFIG_PATH: "/home/linuxbrew/.linuxbrew/opt/libngtcp2/lib/pkgconfig:\
+            PKG_CONFIG_PATH: "\
+              /home/linuxbrew/.linuxbrew/opt/libngtcp2/lib/pkgconfig:\
               /home/linuxbrew/.linuxbrew/opt/libnghttp3/lib/pkgconfig:\
               /home/linuxbrew/.linuxbrew/opt/c-ares/lib/pkgconfig"
             generate: >-
@@ -343,8 +345,15 @@ jobs:
             install_packages: clang-20 libssl-dev libssh-dev libidn2-dev libnghttp2-dev libubsan1 libasan8 libtsan2
             install_steps: pytest randcurl
             CC: clang-20
-            CFLAGS: -fsanitize=address,undefined,signed-integer-overflow -fno-sanitize-recover=undefined,integer -Wformat -Werror=format-security -Werror=array-bounds -g
-            LDFLAGS: -fsanitize=address,undefined -fno-sanitize-recover=undefined,integer -ldl -lubsan
+            CFLAGS: >-
+              -fsanitize=address,bounds,leak,signed-integer-overflow,undefined
+              -fno-sanitize-recover=address,bounds,leak,signed-integer-overflow,undefined
+              -fPIC
+
+            LDFLAGS: >-
+              -fsanitize=address,bounds,leak,signed-integer-overflow,undefined
+              -fno-sanitize-recover=address,bounds,leak,signed-integer-overflow,undefined -ldl -lubsan
+
             generate: -DENABLE_DEBUG=ON -DCURL_USE_LIBSSH=ON
 
           - name: 'address-sanitizer H3 c-ares'
@@ -352,9 +361,17 @@ jobs:
             install_steps: pytest
             install_steps_brew: openssl libssh2 libngtcp2 libnghttp3 c-ares
             CC: clang-20
-            CFLAGS: -fsanitize=address,undefined,signed-integer-overflow -fno-sanitize-recover=undefined,integer -Wformat -Werror=format-security -Werror=array-bounds -g
-            LDFLAGS: -fsanitize=address,undefined -fno-sanitize-recover=undefined,integer -ldl -lubsan -Wl,-rpath,/home/linuxbrew/.linuxbrew/opt/c-ares/lib
-            PKG_CONFIG_PATH: "/home/linuxbrew/.linuxbrew/opt/libssh2/lib/pkgconfig:\
+            CFLAGS: >-
+              -fsanitize=address,bounds,leak,signed-integer-overflow,undefined
+              -fno-sanitize-recover=address,bounds,leak,signed-integer-overflow,undefined
+
+            LDFLAGS: >-
+              -fsanitize=address,bounds,leak,signed-integer-overflow,undefined
+              -fno-sanitize-recover=address,bounds,leak,signed-integer-overflow,undefined -ldl -lubsan
+              -Wl,-rpath,/home/linuxbrew/.linuxbrew/opt/c-ares/lib
+
+            PKG_CONFIG_PATH: "\
+              /home/linuxbrew/.linuxbrew/opt/libssh2/lib/pkgconfig:\
               /home/linuxbrew/.linuxbrew/opt/libngtcp2/lib/pkgconfig:\
               /home/linuxbrew/.linuxbrew/opt/libnghttp3/lib/pkgconfig:\
               /home/linuxbrew/.linuxbrew/opt/c-ares/lib/pkgconfig"
@@ -437,7 +454,8 @@ jobs:
             ${{ contains(matrix.build.install_steps, 'pytest') && 'apache2 apache2-dev libnghttp2-dev vsftpd dante-server' || '' }}
 
         run: |
-          sudo rm -f /etc/apt/sources.list.d/{azure-cli.sources,microsoft-prod.list,ondrej-ubuntu-php-noble.sources}
+          ls -l /etc/apt/sources.list.d
+          sudo rm -f /etc/apt/sources.list.d/{azure-cli.sources,docker.list,microsoft-prod.list}
           sudo apt-get -o Dpkg::Use-Pty=0 update
           printf "#!/bin/sh
             while [ \$? = 0 ]; do for i in 1 2 3; do timeout 45 \"\$@\" && break 2; echo \"Error: slow server, retry \$i\"; sleep 1
@@ -460,7 +478,7 @@ jobs:
       - name: 'install prereqs (i686)'
         if: ${{ contains(matrix.build.name, 'i686') }}
         run: |
-          sudo rm -f /etc/apt/sources.list.d/{azure-cli.sources,microsoft-prod.list,ondrej-ubuntu-php-noble.sources}
+          sudo rm -f /etc/apt/sources.list.d/{azure-cli.sources,docker.list,microsoft-prod.list}
           sudo dpkg --add-architecture i386
           sudo apt-get -o Dpkg::Use-Pty=0 update
           printf "#!/bin/sh
@@ -678,15 +696,15 @@ jobs:
           cache-name: cache-mbedtls-prev
         with:
           path: ~/mbedtls-prev
-          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ env.MBEDTLS_VERSION_PREV }}
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ env.MBEDTLS_PREV_VERSION }}
 
       - name: 'build mbedtls (prev)'
         if: ${{ contains(matrix.build.install_steps, 'mbedtls-prev') && steps.cache-mbedtls-prev.outputs.cache-hit != 'true' }}
         run: |
           curl --disable --fail --silent --show-error --connect-timeout 15 --max-time 120 --retry 6 --retry-connrefused \
-            --location "https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-${MBEDTLS_VERSION_PREV}/mbedtls-${MBEDTLS_VERSION_PREV}.tar.bz2" --output pkg.bin
-          sha256sum pkg.bin | tee /dev/stderr | grep -qwF -- "${MBEDTLS_SHA256_PREV}" && tar -xjf pkg.bin && rm -f pkg.bin
-          cd "mbedtls-${MBEDTLS_VERSION_PREV}"
+            --location "https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-${MBEDTLS_PREV_VERSION}/mbedtls-${MBEDTLS_PREV_VERSION}.tar.bz2" --output pkg.bin
+          sha256sum pkg.bin | tee /dev/stderr | grep -qwF -- "${MBEDTLS_PREV_SHA256}" && tar -xjf pkg.bin && rm -f pkg.bin
+          cd "mbedtls-${MBEDTLS_PREV_VERSION}"
           ./scripts/config.py set MBEDTLS_THREADING_C
           ./scripts/config.py set MBEDTLS_THREADING_PTHREAD
           cmake -B . -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_INSTALL_PREFIX=/home/runner/mbedtls-prev \

@@ -137,8 +137,8 @@ static CURLcode setstropt_userpwd(const char *option, char **userp,
   DEBUGASSERT(userp);
   DEBUGASSERT(passwdp);
 
-  /* Parse the login details if specified. It not then we treat NULL as a hint
-     to clear the existing data */
+  /* Parse the login details if specified. If not, then we treat NULL as a
+     hint to clear the existing data */
   if(option) {
     size_t len = strlen(option);
     CURLcode result;
@@ -488,7 +488,7 @@ static CURLcode setopt_long_bool(struct Curl_easy *data, CURLoption option,
   case CURLOPT_UPLOAD:
   case CURLOPT_PUT:
     /*
-     * We want to sent data to the remote host. If this is HTTP, that equals
+     * We want to send data to the remote host. If this is HTTP, that equals
      * using the PUT request.
      */
     if(enabled) {
@@ -613,7 +613,7 @@ static CURLcode setopt_long_bool(struct Curl_easy *data, CURLoption option,
 #if defined(HAVE_GSSAPI) || defined(USE_WINDOWS_SSPI)
   case CURLOPT_SOCKS5_GSSAPI_NEC:
     /*
-     * Set flag for NEC SOCK5 support
+     * Set flag for NEC SOCKS5 support
      */
     s->socks5_gssapi_nec = enabled;
     break;
@@ -1455,6 +1455,14 @@ static CURLcode setopt_pointers(struct Curl_easy *data, CURLoption option,
   CURLcode result = CURLE_OK;
   struct UserDefined *s = &data->set;
   switch(option) {
+  case CURLOPT_CURLU:
+    /*
+     * pass CURLU to set URL
+     */
+    Curl_bufref_free(&data->state.url);
+    curlx_safefree(s->str[STRING_SET_URL]);
+    s->uh = va_arg(param, CURLU *);
+    break;
 #ifndef CURL_DISABLE_HTTP
 #ifndef CURL_DISABLE_FORM_API
   case CURLOPT_HTTPPOST:
@@ -1702,12 +1710,12 @@ static CURLcode setopt_cptr_proxy(struct Curl_easy *data, CURLoption option,
     /*
      * Set proxy server:port to use as proxy.
      *
-     * If the proxy is set to "" (and CURLOPT_SOCKS_PROXY is set to "" or NULL)
-     * we explicitly say that we do not want to use a proxy
-     * (even though there might be environment variables saying so).
+     * If the proxy is set to "" (and CURLOPT_PRE_PROXY is set to "" or NULL)
+     * we explicitly say that we do not want to use a proxy (even though there
+     * might be environment variables saying so).
      *
      * Setting it to NULL, means no proxy but allows the environment variables
-     * to decide for us (if CURLOPT_SOCKS_PROXY setting it to NULL).
+     * to decide for us (if CURLOPT_PRE_PROXY setting it to NULL).
      */
     return Curl_setstropt(&s->str[STRING_PROXY], ptr);
   case CURLOPT_PRE_PROXY:
@@ -1950,7 +1958,6 @@ static CURLcode setopt_cptr(struct Curl_easy *data, CURLoption option,
      * String to set in the HTTP Referer: field.
      */
     result = Curl_setstropt(&s->str[STRING_SET_REFERER], ptr);
-    Curl_bufref_set(&data->state.referer, s->str[STRING_SET_REFERER], 0, NULL);
     break;
 
   case CURLOPT_USERAGENT:
@@ -2168,14 +2175,6 @@ static CURLcode setopt_cptr(struct Curl_easy *data, CURLoption option,
      * What range of the file you want to transfer
      */
     return Curl_setstropt(&s->str[STRING_SET_RANGE], ptr);
-  case CURLOPT_CURLU:
-    /*
-     * pass CURLU to set URL
-     */
-    Curl_bufref_free(&data->state.url);
-    curlx_safefree(s->str[STRING_SET_URL]);
-    s->uh = (CURLU *)ptr;
-    break;
   case CURLOPT_SSLCERT:
     /*
      * String that holds filename of the SSL certificate to use
@@ -2877,6 +2876,7 @@ CURLcode Curl_vsetopt(struct Curl_easy *data, CURLoption option, va_list param)
     case CURLOPT_SHARE:            /* CURLSH * */
     case CURLOPT_STREAM_DEPENDS:   /* CURL * */
     case CURLOPT_STREAM_DEPENDS_E: /* CURL * */
+    case CURLOPT_CURLU:            /* CURLU * */
       return setopt_pointers(data, option, param);
     default:
       break;
@@ -2900,21 +2900,21 @@ CURLcode Curl_vsetopt(struct Curl_easy *data, CURLoption option, va_list param)
  */
 
 #undef curl_easy_setopt
-CURLcode curl_easy_setopt(CURL *d, CURLoption tag, ...)
+CURLcode curl_easy_setopt(CURL *curl, CURLoption option, ...)
 {
   va_list arg;
   CURLcode result;
-  struct Curl_easy *data = d;
+  struct Curl_easy *data = curl;
 
   if(!data)
     return CURLE_BAD_FUNCTION_ARGUMENT;
 
-  va_start(arg, tag);
+  va_start(arg, option);
 
-  result = Curl_vsetopt(data, tag, arg);
+  result = Curl_vsetopt(data, option, arg);
 
   va_end(arg);
   if(result == CURLE_BAD_FUNCTION_ARGUMENT)
-    failf(data, "setopt 0x%x got bad argument", tag);
+    failf(data, "setopt 0x%x got bad argument", option);
   return result;
 }

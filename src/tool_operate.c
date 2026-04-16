@@ -576,8 +576,8 @@ static CURLcode retrycheck(struct OperationConfig *config,
         /* We have written data to an output file, we truncate file */
         fflush(outs->stream);
         notef("Throwing away %" CURL_FORMAT_CURL_OFF_T " bytes", outs->bytes);
-        /* truncate file at the position where we started appending */
 
+        /* truncate file at the position where we started appending */
         if(toolx_ftruncate(fileno(outs->stream), outs->init)) {
           /* when truncate fails, we cannot append as then we
              create something strange, bail out */
@@ -1917,9 +1917,15 @@ static CURLcode parallel_transfers(CURLSH *share)
   if(!s->multi)
     return CURLE_OUT_OF_MEMORY;
 
-#ifndef DEBUGBUILD
-  (void)curl_multi_setopt(s->multi, CURLMOPT_QUICK_EXIT, 1L);
+  if(TRUE
+#ifdef DEBUGBUILD
+    && getenv("CURL_QUICK_EXIT")
 #endif
+    ) {
+    /* QUICK_EXIT allows for running threads to be detached and not
+     * joined. Preferably in non-debug runs. */
+    (void)curl_multi_setopt(s->multi, CURLMOPT_QUICK_EXIT, 1L);
+  }
   (void)curl_multi_setopt(s->multi, CURLMOPT_NOTIFYFUNCTION, mnotify);
   (void)curl_multi_setopt(s->multi, CURLMOPT_NOTIFYDATA, s);
   (void)curl_multi_setopt(s->multi, CURLMOPT_MAX_HOST_CONNECTIONS, (long)

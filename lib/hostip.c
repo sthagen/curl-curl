@@ -75,6 +75,15 @@
 #define MAX_DNS_CACHE_SIZE 29999
 
 /*
+ * ipv6works() returns TRUE if IPv6 seems to work.
+ */
+#ifdef USE_IPV6
+static bool ipv6works(struct Curl_easy *data);
+#else
+#define ipv6works(x) FALSE
+#endif
+
+/*
  * hostip.c explained
  * ==================
  *
@@ -111,14 +120,6 @@
  * CURLRES_* defines based on the config*.h and curl_setup.h defines.
  */
 
-/*
- * Curl_printable_address() stores a printable version of the 1st address
- * given in the 'ai' argument. The result will be stored in the buf that is
- * bufsize bytes big.
- *
- * If the conversion fails, the target buffer is empty.
- */
-
 uint8_t Curl_resolv_dns_queries(struct Curl_easy *data, uint8_t ip_version)
 {
   (void)data;
@@ -128,8 +129,8 @@ uint8_t Curl_resolv_dns_queries(struct Curl_easy *data, uint8_t ip_version)
   case CURL_IPRESOLVE_V4:
     return CURL_DNSQ_A;
   default:
-    if(Curl_ipv6works(data))
-      return (CURL_DNSQ_A|CURL_DNSQ_AAAA);
+    if(ipv6works(data))
+      return (CURL_DNSQ_A | CURL_DNSQ_AAAA);
     else
       return CURL_DNSQ_A;
   }
@@ -139,15 +140,15 @@ uint8_t Curl_resolv_dns_queries(struct Curl_easy *data, uint8_t ip_version)
 const char *Curl_resolv_query_str(uint8_t dns_queries)
 {
   switch(dns_queries) {
-  case (CURL_DNSQ_A|CURL_DNSQ_AAAA|CURL_DNSQ_HTTPS):
+  case (CURL_DNSQ_A | CURL_DNSQ_AAAA | CURL_DNSQ_HTTPS):
     return "A+AAAA+HTTPS";
-  case (CURL_DNSQ_A|CURL_DNSQ_AAAA):
+  case (CURL_DNSQ_A | CURL_DNSQ_AAAA):
     return "A+AAAA";
-  case (CURL_DNSQ_AAAA|CURL_DNSQ_HTTPS):
+  case (CURL_DNSQ_AAAA | CURL_DNSQ_HTTPS):
     return "AAAA+HTTPS";
   case (CURL_DNSQ_AAAA):
     return "AAAA";
-  case (CURL_DNSQ_A|CURL_DNSQ_HTTPS):
+  case (CURL_DNSQ_A | CURL_DNSQ_HTTPS):
     return "A+HTTPS";
   case (CURL_DNSQ_A):
     return "A";
@@ -162,6 +163,13 @@ const char *Curl_resolv_query_str(uint8_t dns_queries)
 }
 #endif
 
+/*
+ * Curl_printable_address() stores a printable version of the 1st address
+ * given in the 'ai' argument. The result will be stored in the buf that is
+ * bufsize bytes big.
+ *
+ * If the conversion fails, the target buffer is empty.
+ */
 void Curl_printable_address(const struct Curl_addrinfo *ai, char *buf,
                             size_t bufsize)
 {
@@ -293,9 +301,9 @@ CURLcode Curl_probeipv6(struct Curl_multi *multi)
 }
 
 /*
- * Curl_ipv6works() returns TRUE if IPv6 seems to work.
+ * ipv6works() returns TRUE if IPv6 seems to work.
  */
-bool Curl_ipv6works(struct Curl_easy *data)
+static bool ipv6works(struct Curl_easy *data)
 {
   DEBUGASSERT(data);
   DEBUGASSERT(data->multi);
@@ -335,7 +343,7 @@ static bool can_resolve_dns_queries(struct Curl_easy *data,
                                     uint8_t dns_queries)
 {
   (void)data;
-  if((CURL_DNSQ_IP(dns_queries) == CURL_DNSQ_AAAA) && !Curl_ipv6works(data))
+  if((CURL_DNSQ_IP(dns_queries) == CURL_DNSQ_AAAA) && !ipv6works(data))
     return FALSE;
   return TRUE;
 }
@@ -360,13 +368,12 @@ CURLcode Curl_resolv_announce_start(struct Curl_easy *data,
 }
 
 #ifdef USE_CURL_ASYNC
-static struct Curl_resolv_async *
-hostip_async_new(struct Curl_easy *data,
-                 uint8_t dns_queries,
-                 const char *hostname,
-                 uint16_t port,
-                 uint8_t transport,
-                 timediff_t timeout_ms)
+static struct Curl_resolv_async *hostip_async_new(struct Curl_easy *data,
+                                                  uint8_t dns_queries,
+                                                  const char *hostname,
+                                                  uint16_t port,
+                                                  uint8_t transport,
+                                                  timediff_t timeout_ms)
 {
   struct Curl_resolv_async *async;
   size_t hostlen = strlen(hostname);
@@ -442,14 +449,22 @@ static CURLcode hostip_resolv_take_result(struct Curl_easy *data,
   return result;
 }
 
-const struct Curl_addrinfo *
-Curl_resolv_get_ai(struct Curl_easy *data, uint32_t resolv_id,
-                   int ai_family, unsigned int index)
+const struct Curl_addrinfo *Curl_resolv_get_ai(struct Curl_easy *data,
+                                               uint32_t resolv_id,
+                                               int ai_family,
+                                               unsigned int index)
 {
 #ifdef CURLRES_ASYNCH
   struct Curl_resolv_async *async = Curl_async_get(data, resolv_id);
-  if(async)
+  if(async) {
+    if((ai_family == AF_INET) && !(async->dns_queries & CURL_DNSQ_A))
+      return NULL;
+#ifdef USE_IPV6
+    if((ai_family == AF_INET6) && !(async->dns_queries & CURL_DNSQ_AAAA))
+      return NULL;
+#endif
     return Curl_async_get_ai(data, async, ai_family, index);
+  }
 #else
   (void)data;
   (void)resolv_id;
@@ -908,10 +923,10 @@ clean_up:
  * is ignored.
  *
  * Return codes:
- * CURLE_OK = success, *entry set to non-NULL
- * CURLE_AGAIN = resolving in progress, *entry == NULL
- * CURLE_COULDNT_RESOLVE_HOST = error, *entry == NULL
- * CURLE_OPERATION_TIMEDOUT = timeout expired, *entry == NULL
+ * CURLE_OK = success, *pdns set to non-NULL
+ * CURLE_AGAIN = resolving in progress, *pdns == NULL
+ * CURLE_COULDNT_RESOLVE_HOST = error, *pdns == NULL
+ * CURLE_OPERATION_TIMEDOUT = timeout expired, *pdns == NULL
  */
 CURLcode Curl_resolv(struct Curl_easy *data,
                      uint8_t dns_queries,
@@ -920,11 +935,11 @@ CURLcode Curl_resolv(struct Curl_easy *data,
                      uint8_t transport,
                      timediff_t timeout_ms,
                      uint32_t *presolv_id,
-                     struct Curl_dns_entry **entry)
+                     struct Curl_dns_entry **pdns)
 {
   DEBUGASSERT(hostname && *hostname);
   *presolv_id = 0;
-  *entry = NULL;
+  *pdns = NULL;
 
   if(timeout_ms < 0)
     /* got an already expired timeout */
@@ -939,7 +954,7 @@ CURLcode Curl_resolv(struct Curl_easy *data,
   }
   if(timeout_ms && !Curl_doh_wanted(data)) {
     return resolv_alarm_timeout(data, dns_queries, hostname, port, transport,
-                                timeout_ms, presolv_id, entry);
+                                timeout_ms, presolv_id, pdns);
   }
 #endif /* !USE_ALARM_TIMEOUT */
 
@@ -949,9 +964,8 @@ CURLcode Curl_resolv(struct Curl_easy *data,
 #endif
 
   return hostip_resolv(data, dns_queries, hostname, port, transport,
-                       timeout_ms, TRUE, presolv_id, entry);
+                       timeout_ms, TRUE, presolv_id, pdns);
 }
-
 
 #ifdef USE_CURL_ASYNC
 

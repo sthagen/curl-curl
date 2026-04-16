@@ -279,7 +279,7 @@ static CURLcode get_pkey_rsa(struct Curl_easy *data,
 #else
   RSA_get0_key(rsa, &n, &e, NULL);
 #endif /* HAVE_EVP_PKEY_GET_PARAMS */
-  BIO_printf(mem, "%d", n ? BN_num_bits(n) : 0);
+  BIO_printf(mem, "%d", (int)(n ? BN_num_bits(n) : 0));
   result = push_certinfo(data, mem, "RSA Public Key", i);
   if(!result) {
     result = print_pubkey_BN(rsa, n, i);
@@ -384,7 +384,7 @@ static CURLcode ossl_certchain(struct Curl_easy *data, SSL *ssl)
 
   numcerts = sk_X509_num(sk);
   if(numcerts > MAX_ALLOWED_CERT_AMOUNT) {
-    failf(data, "%d certificates is more than allowed (%u)", (int)numcerts,
+    failf(data, "%d certificates is more than allowed (%d)", (int)numcerts,
           MAX_ALLOWED_CERT_AMOUNT);
     return CURLE_SSL_CONNECT_ERROR;
   }
@@ -2946,7 +2946,7 @@ static CURLcode ossl_windows_load_anchors(struct Curl_cfilter *cf,
   /* Import certificates from the Windows root certificate store if
      requested.
      https://stackoverflow.com/questions/9507184/
-     https://github.com/d3x0r/SACK/blob/master/src/netlib/ssl_layer.c#L1037
+     https://github.com/d3x0r/SACK/blob/ff15424d3c581b86d40f818532e5a400c516d39d/src/netlib/ssl_layer.c#L1410
      https://datatracker.ietf.org/doc/html/rfc5280 */
   const char *win_stores[] = {
     "ROOT",   /* Trusted Root Certification Authorities */
