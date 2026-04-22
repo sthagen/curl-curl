@@ -1076,8 +1076,9 @@ static CURLcode setup_outfile(struct OperationConfig *config,
     }
   }
   else {
-    per->outfile = u->outfile;
-    u->outfile = NULL;
+    per->outfile = curlx_strdup(u->outfile);
+    if(!per->outfile)
+      return CURLE_OUT_OF_MEMORY;
   }
 
   DEBUGASSERT(per->outfile);
@@ -1363,6 +1364,7 @@ static CURLcode create_single(struct OperationConfig *config,
       glob_cleanup(&state->inglob);
       state->upidx = 0;
       state->urlnode = u->next; /* next node */
+      state->upnum = 1;
       continue;
     }
 
