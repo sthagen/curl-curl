@@ -935,6 +935,33 @@ clean_up:
 
 #endif /* USE_ALARM_TIMEOUT */
 
+#ifdef USE_UNIX_SOCKETS
+static CURLcode resolv_unix(struct Curl_easy *data,
+                            const char *unix_path,
+                            bool abstract_path,
+                            struct Curl_dns_entry **pdns)
+{
+  struct Curl_addrinfo *addr;
+  CURLcode result;
+
+  DEBUGASSERT(unix_path);
+  *pdns = NULL;
+
+  result = Curl_unix2addr(unix_path, abstract_path, &addr);
+  if(result) {
+    if(result == CURLE_TOO_LARGE) {
+      /* Long paths are not supported for now */
+      failf(data, "Unix socket path too long: '%s'", unix_path);
+      result = CURLE_COULDNT_RESOLVE_HOST;
+    }
+    return result;
+  }
+
+  *pdns = Curl_dnscache_mk_entry(data, 0, &addr, NULL, 0);
+  return *pdns ? CURLE_OK : CURLE_OUT_OF_MEMORY;
+}
+#endif /* USE_UNIX_SOCKETS */
+
 /*
  * Curl_resolv() is the main name resolve function within libcurl. It resolves
  * a name and returns a pointer to the entry in the 'entry' argument. This
@@ -956,16 +983,14 @@ clean_up:
  * any other CURLcode error, *pdns == NULL
  */
 CURLcode Curl_resolv(struct Curl_easy *data,
+                     struct Curl_peer *peer,
                      uint8_t dns_queries,
-                     const char *hostname,
-                     uint16_t port,
                      uint8_t transport,
                      bool for_proxy,
                      timediff_t timeout_ms,
                      uint32_t *presolv_id,
                      struct Curl_dns_entry **pdns)
 {
-  DEBUGASSERT(hostname && *hostname);
   *presolv_id = 0;
   *pdns = NULL;
 
@@ -975,14 +1000,23 @@ CURLcode Curl_resolv(struct Curl_easy *data,
   else if(!timeout_ms)
     timeout_ms = CURL_TIMEOUT_RESOLVE_MS;
 
+#ifdef USE_UNIX_SOCKETS
+  if(peer->unix_socket)
+    return resolv_unix(data, peer->hostname, (bool)peer->abstract_uds, pdns);
+#else
+  if(peer->unix_socket)
+    return hostip_resolv_failed(data, peer->hostname, for_proxy);
+#endif
+
 #ifdef USE_ALARM_TIMEOUT
   if(timeout_ms && data->set.no_signal) {
     /* Cannot use ALARM when signals are disabled */
     timeout_ms = 0;
   }
   if(timeout_ms && !Curl_doh_wanted(data)) {
-    return resolv_alarm_timeout(data, dns_queries, hostname, port, transport,
-                                for_proxy, timeout_ms, presolv_id, pdns);
+    return resolv_alarm_timeout(data, dns_queries, peer->hostname, peer->port,
+                                transport, for_proxy, timeout_ms, presolv_id,
+                                pdns);
   }
 #endif /* !USE_ALARM_TIMEOUT */
 
@@ -991,8 +1025,9 @@ CURLcode Curl_resolv(struct Curl_easy *data,
     infof(data, "timeout on name lookup is not supported");
 #endif
 
-  return hostip_resolv(data, dns_queries, hostname, port, transport,
-                       for_proxy, timeout_ms, TRUE, presolv_id, pdns);
+  return hostip_resolv(data, dns_queries, peer->hostname, peer->port,
+                       transport, for_proxy, timeout_ms, TRUE, presolv_id,
+                       pdns);
 }
 
 #ifdef USE_CURL_ASYNC
@@ -1101,30 +1136,3 @@ void Curl_resolv_destroy_all(struct Curl_easy *data)
 }
 
 #endif /* USE_CURL_ASYNC */
-
-#ifdef USE_UNIX_SOCKETS
-CURLcode Curl_resolv_unix(struct Curl_easy *data,
-                          const char *unix_path,
-                          bool abstract_path,
-                          struct Curl_dns_entry **pdns)
-{
-  struct Curl_addrinfo *addr;
-  CURLcode result;
-
-  DEBUGASSERT(unix_path);
-  *pdns = NULL;
-
-  result = Curl_unix2addr(unix_path, abstract_path, &addr);
-  if(result) {
-    if(result == CURLE_TOO_LARGE) {
-      /* Long paths are not supported for now */
-      failf(data, "Unix socket path too long: '%s'", unix_path);
-      result = CURLE_COULDNT_RESOLVE_HOST;
-    }
-    return result;
-  }
-
-  *pdns = Curl_dnscache_mk_entry(data, 0, &addr, NULL, 0);
-  return *pdns ? CURLE_OK : CURLE_OUT_OF_MEMORY;
-}
-#endif /* USE_UNIX_SOCKETS */
