@@ -105,6 +105,12 @@ typedef enum {
   FOLLOW_REDIR /* a full true redirect */
 } followtype;
 
+typedef enum {
+  DOMORE_GOBACK = -1,
+  DOMORE_INCOMPLETE = 0,
+  DOMORE_DONE = 1
+} domore;
+
 /*
  * Specific protocol handler, an implementation of one or more URI schemes.
  */
@@ -120,9 +126,13 @@ struct Curl_protocol {
 
   /* If the curl_do() function is better made in two halves, this
    * curl_do_more() function will be called afterwards, if set. For example
-   * for doing the FTP stuff after the PASV/PORT command.
+   * for doing the FTP stuff after the PASV/PORT command. The second
+   * argument is an output parameter that MUST be set to one of the
+   * DOMORE_* values: DOMORE_INCOMPLETE if more do_more work remains,
+   * DOMORE_DONE when the second phase is complete, or DOMORE_GOBACK
+   * to return to the regular DO/DOING handling.
    */
-  CURLcode (*do_more)(struct Curl_easy *, int *);
+  CURLcode (*do_more)(struct Curl_easy *, domore *);
 
   /* This function *MAY* be set to a protocol-dependent function that is run
    * after the connect() and everything is done, as a step in the connection.

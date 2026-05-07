@@ -682,19 +682,6 @@ CURLcode Curl_conn_upkeep(struct Curl_easy *data,
   return result;
 }
 
-#ifdef USE_SSH
-static bool ssh_config_matches(struct connectdata *one,
-                               struct connectdata *two)
-{
-  struct ssh_conn *sshc1, *sshc2;
-
-  sshc1 = Curl_conn_meta_get(one, CURL_META_SSH_CONN);
-  sshc2 = Curl_conn_meta_get(two, CURL_META_SSH_CONN);
-  return sshc1 && sshc2 && Curl_safecmp(sshc1->rsa, sshc2->rsa) &&
-         Curl_safecmp(sshc1->rsa_pub, sshc2->rsa_pub);
-}
-#endif
-
 struct url_conn_match {
   struct connectdata *found;
   struct Curl_easy *data;
@@ -704,7 +691,11 @@ struct url_conn_match {
   BIT(want_proxy_ntlm_http);
   BIT(want_nego_http);
   BIT(want_proxy_nego_http);
-  BIT(req_tls); /* require TLS use from a clear-text start */
+  BIT(may_tls); /* May upgrade clear-text connection to TLS, can only reuse
+                 * connections that have matching TLS configuration.
+                 * Always TRUE if `req_tls` is TRUE. */
+  BIT(require_tls); /* Requires TLS use from a clear-text start, can only
+                 * reuse connections that have TLS. */
   BIT(wait_pipe);
   BIT(force_reuse);
   BIT(seen_pending_conn);
@@ -837,7 +828,7 @@ static bool url_match_ssl_use(struct connectdata *conn,
        (get_protocol_family(conn->scheme) != m->needle->scheme->protocol))
       return FALSE;
   }
-  else if(m->req_tls)
+  else if(m->require_tls)
     /* a clear-text STARTTLS protocol with required TLS */
     return FALSE;
   return TRUE;
@@ -947,12 +938,6 @@ static bool url_match_proto_config(struct connectdata *conn,
   if(!url_match_http_version(conn, m))
     return FALSE;
 
-#ifdef USE_SSH
-  if(get_protocol_family(m->needle->scheme) & PROTO_FAMILY_SSH) {
-    if(!ssh_config_matches(m->needle, conn))
-      return FALSE;
-  }
-#endif
 #ifndef CURL_DISABLE_FTP
   else if(get_protocol_family(m->needle->scheme) & PROTO_FAMILY_FTP) {
     if(!ftp_conns_match(m->needle, conn))
@@ -1024,8 +1009,8 @@ static bool url_match_destination(struct connectdata *conn,
 static bool url_match_ssl_config(struct connectdata *conn,
                                  struct url_conn_match *m)
 {
-  /* If talking TLS, conn needs to use the same SSL options. */
-  if((m->needle->scheme->flags & PROTOPT_SSL) &&
+  /* If talking/upgrading to TLS, conn needs to use the same SSL options. */
+  if(((m->needle->scheme->flags & PROTOPT_SSL) || m->may_tls) &&
      !Curl_ssl_conn_config_match(m->data, conn, FALSE)) {
     DEBUGF(infof(m->data, "Connection #%" FMT_OFF_T
                  " has different SSL parameters, cannot reuse",
@@ -1297,7 +1282,8 @@ static bool url_attach_existing(struct Curl_easy *data,
     (needle->scheme->protocol & PROTO_FAMILY_HTTP);
 #endif
 #endif
-  match.req_tls = data->set.use_ssl >= CURLUSESSL_CONTROL;
+  match.require_tls = data->set.use_ssl >= CURLUSESSL_CONTROL;
+  match.may_tls = data->set.use_ssl > CURLUSESSL_NONE;
 
   /* Find a connection in the pool that matches what "data + needle"
    * requires. If a suitable candidate is found, it is attached to "data". */
@@ -3021,8 +3007,7 @@ CURLcode Curl_connect(struct Curl_easy *data, bool *pconnected)
     *pconnected = TRUE;
   }
   else {
-    result = Curl_conn_setup(data, conn, FIRSTSOCKET, NULL,
-                             CURL_CF_SSL_DEFAULT);
+    result = Curl_conn_setup(data, conn, FIRSTSOCKET, CURL_CF_SSL_DEFAULT);
     if(!result)
       result = Curl_headers_init(data);
     CURL_TRC_M(data, "Curl_conn_setup() -> %d", result);

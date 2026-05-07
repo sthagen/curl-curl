@@ -1773,16 +1773,16 @@ static CURLcode multi_do(struct Curl_easy *data, bool *done)
  * stage DO state which (wrongly) was introduced to support FTP's second
  * connection.
  *
- * 'complete' can return 0 for incomplete, 1 for done and -1 for go back to
- * DOING state there is more work to do!
+ * 'complete' can return DOMORE_INCOMPLETE, DOMORE_DONE or DOMORE_GOBACK
+ * (to DOING state when there is more work to do)
  */
 
-static CURLcode multi_do_more(struct Curl_easy *data, int *complete)
+static CURLcode multi_do_more(struct Curl_easy *data, domore *complete)
 {
   CURLcode result = CURLE_OK;
   struct connectdata *conn = data->conn;
 
-  *complete = 0;
+  *complete = DOMORE_INCOMPLETE;
 
   if(conn->scheme->run->do_more)
     result = conn->scheme->run->do_more(data, complete);
@@ -2596,7 +2596,7 @@ static CURLMcode multistate_doing_more(struct Curl_easy *data,
                                        bool *stream_error,
                                        CURLcode *result)
 {
-  int control;
+  domore control;
 
   /*
    * When we are connected, DOING MORE and then go DID
@@ -2605,10 +2605,10 @@ static CURLMcode multistate_doing_more(struct Curl_easy *data,
   *result = multi_do_more(data, &control);
 
   if(!(*result)) {
-    if(control) {
-      /* if positive, advance to DO_DONE
-         if negative, go back to DOING */
-      multistate(data, control == 1 ? MSTATE_DID : MSTATE_DOING);
+    if(control != DOMORE_INCOMPLETE) {
+      /* if DONE, advance to DO_DONE
+         if GOBACK, go back to DOING */
+      multistate(data, control == DOMORE_DONE ? MSTATE_DID : MSTATE_DOING);
       return CURLM_CALL_MULTI_PERFORM;
     }
     /* else
