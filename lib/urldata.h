@@ -55,6 +55,7 @@
 
 #include "asyn.h"
 #include "cookie.h"
+#include "creds.h"
 #include "psl.h"
 #include "formdata.h"
 #include "http_chunks.h" /* for the structs and enum stuff */
@@ -206,10 +207,9 @@ struct digestdata {
   BYTE *input_token;
   size_t input_token_len;
   CtxtHandle *http_context;
-  /* copy of user/passwd used to make the identity for http_context.
-     either may be NULL. */
-  char *user;
-  char *passwd;
+  /* linked credentials used to make the identity for http_context.
+     may be NULL. */
+  struct Curl_creds *creds;
 #else
   char *nonce;
   char *cnonce;
@@ -249,7 +249,6 @@ struct ConnectBits {
 #ifndef CURL_DISABLE_PROXY
   BIT(httpproxy);  /* if set, this transfer is done through an HTTP proxy */
   BIT(socksproxy); /* if set, this transfer is done through a socks proxy */
-  BIT(proxy_user_passwd); /* user+password for the proxy? */
   BIT(tunnel_proxy);  /* if CONNECT is used to "tunnel" through the proxy.
                          This is implicit when SSL-protocols are used through
                          proxies, but can also be enabled explicitly by
@@ -275,9 +274,6 @@ struct ConnectBits {
                          EPRT does not work we disable it for the forthcoming
                          requests */
   BIT(ftp_use_data_ssl); /* Enabled SSL for the data connection */
-#endif
-#ifndef CURL_DISABLE_NETRC
-  BIT(netrc);         /* name+password provided by netrc */
 #endif
   BIT(bound); /* set true if bind() has already been done on this socket/
                  connection */
@@ -328,9 +324,8 @@ struct ip_quadruple {
 
 struct proxy_info {
   struct Curl_peer *peer; /* proxy to this peer */
+  struct Curl_creds *creds; /* use these credentials, maybe NULL */
   uint8_t proxytype; /* what kind of proxy that is in use */
-  char *user;    /* proxy username string, allocated */
-  char *passwd;  /* proxy password string, allocated */
 };
 
 /*
@@ -370,11 +365,8 @@ struct connectdata {
   struct proxy_info socks_proxy;
   struct proxy_info http_proxy;
 #endif
-  char *user;    /* username string, allocated */
-  char *passwd;  /* password string, allocated */
+  struct Curl_creds *creds; /* When connection itself is tied to credentials */
   char *options; /* options string, allocated */
-  char *sasl_authzid;     /* authorization identity string, allocated */
-  char *oauth_bearer; /* OAUTH2 bearer, allocated */
   struct curltime created; /* creation time */
   struct curltime lastused; /* when returned to the connection pool as idle */
 
@@ -586,8 +578,6 @@ struct auth {
                  actual request */
   BIT(multipass); /* TRUE if this is not yet authenticated but within the
                      auth multipass negotiation */
-  BIT(iestyle); /* TRUE if digest should be done IE-style or FALSE if it
-                   should be RFC compliant */
 };
 
 #ifdef USE_NGHTTP2
@@ -654,11 +644,6 @@ struct urlpieces {
   char *query;
 };
 
-#define CREDS_NONE   0
-#define CREDS_URL    1 /* from URL */
-#define CREDS_OPTION 2 /* set with a CURLOPT_ */
-#define CREDS_NETRC  3 /* found in netrc */
-
 struct UrlState {
   /* buffers to store authentication data in, as parsed from input options */
   struct curltime keeps_speed; /* for the progress meter really */
@@ -674,10 +659,10 @@ struct UrlState {
   curl_off_t current_speed;  /* the ProgressShow() function sets this,
                                 bytes / second */
 
-  /* origin of the first (not followed) request.
-     if set, this is the origin we sent authorization to, none else.
-     Used to make Location: following not keep sending user+password. */
-  struct Curl_peer *first_origin;
+  /* Origin of the initial (e.g. not followed) request of a transfer.
+     Credentials from CURLOPT_* are only valid for this origin.
+     Always set once a transfer starts searching for connections. */
+  struct Curl_peer *initial_origin;
 
   int os_errno;  /* filled in with errno whenever an error occurs */
   int requests; /* request counter: redirects + authentication retakes */
@@ -767,6 +752,8 @@ struct UrlState {
   struct store_netrc netrc;
 #endif
 
+  struct Curl_creds *creds; /* Credentials for the origin only */
+
   /* Dynamically allocated strings, MUST be freed before this struct is
      killed. */
   struct dynamically_allocated_data {
@@ -778,14 +765,6 @@ struct UrlState {
 #ifndef CURL_DISABLE_RTSP
     char *rtsp_transport;
 #endif
-
-    /* transfer credentials */
-    char *user;
-    char *passwd;
-#ifndef CURL_DISABLE_PROXY
-    char *proxyuser;
-    char *proxypasswd;
-#endif
   } aptr;
 #ifndef CURL_DISABLE_HTTP
   struct http_negotiation http_neg;
@@ -795,8 +774,6 @@ struct UrlState {
                                CONN_MAX_RETRIES */
   uint8_t httpreq; /* Curl_HttpReq; what kind of HTTP request (if any)
                             is this */
-  unsigned int creds_from:2; /* where is the server credentials originating
-                                from, see the CREDS_* defines above */
 
   /* when curl_easy_perform() is called, the multi handle is "owned" by
      the easy handle so curl_easy_cleanup() on such an easy handle will
@@ -1193,9 +1170,8 @@ struct UserDefined {
   uint8_t ipver; /* the CURL_IPRESOLVE_* defines in the public header
                           file 0 - whatever, 1 - v2, 2 - v6 */
   uint8_t upload_flags; /* flags set by CURLOPT_UPLOAD_FLAGS */
-#ifdef HAVE_GSSAPI
-  /* GSS-API credential delegation, see the documentation of
-     CURLOPT_GSSAPI_DELEGATION */
+#if defined(HAVE_GSSAPI) || defined(USE_WINDOWS_SSPI)
+  /* GSS-API/SSPI credential delegation, see CURLOPT_GSSAPI_DELEGATION */
   uint8_t gssapi_delegation;
 #endif
   uint8_t http_follow_mode; /* follow HTTP redirects */

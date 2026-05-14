@@ -28,6 +28,7 @@
 #ifndef CURL_DISABLE_PROXY
 
 struct Curl_peer;
+struct Curl_creds;
 
 /*
  * Helper read-from-socket functions. Does the same as Curl_read() but it
@@ -46,7 +47,8 @@ CURLcode Curl_blockread_all(struct Curl_cfilter *cf,
  * This function handles the SOCKS5 GSS-API negotiation and initialization
  */
 CURLcode Curl_SOCKS5_gssapi_negotiate(struct Curl_cfilter *cf,
-                                      struct Curl_easy *data);
+                                      struct Curl_easy *data,
+                                      struct Curl_creds *creds);
 #endif
 
 /* Insert a SOCKS filter after `cf_at` for connecting to `dest`.
@@ -58,8 +60,7 @@ CURLcode Curl_cf_socks_proxy_insert_after(struct Curl_cfilter *cf_at,
                                           struct Curl_peer *dest,
                                           uint8_t ip_version,
                                           uint8_t proxy_type,
-                                          const char *user,
-                                          const char *passwd);
+                                          struct Curl_creds *creds);
 
 extern struct Curl_cftype Curl_cft_socks_proxy;
 

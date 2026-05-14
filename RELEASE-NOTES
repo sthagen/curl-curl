@@ -4,24 +4,44 @@ curl and libcurl 8.21.0
  Command line options:         273
  curl_easy_setopt() options:   308
  Public functions in libcurl:  100
- Authors:                      1464
- Contributors:                 3665
+ Authors:                      1465
+ Contributors:                 3668
 
 This release includes the following changes:
 
+ o lib: drop support for CURLAUTH_DIGEST_IE [4]
 
 This release includes the following bugfixes:
 
  o asyn-thrdd: fix result processing without wakeup socketpair [2]
+ o cmake: auto-select static nghttp2/nghttp3/ngtcp2 Config [8]
+ o cmake: fix zstd CMake config name [5]
+ o cookie: simplify strstore(), remove outdated comment [12]
+ o CURLOPT_ECH.md: simplify the description language [18]
+ o CURLOPT_HAPROXYPROTOCOL.md: only sent for newly setup connections [32]
+ o ECH: cleanups [20]
+ o ftp: avoid accessing EPSV response one byte past the NULL [9]
+ o ftp: remove 2 Curl_resolv_blocking() calls [30]
+ o ftp: remove bits.ftp_use_control_ssl [28]
  o gtls: fix some typos [15]
+ o ldap: fix minor leak on write callback error [24]
  o lib: two minor typos [16]
  o libcurl-easy.md: minor clarifications [19]
+ o mbedtls: null terminate the private key blob [36]
  o mqtt: validate PINGRESP and DISCONNECT have remaining_length == 0 [7]
+ o schannel_verify: avoid out of blob access [11]
  o setopt: changing the proxy port is also a proxy change [23]
+ o setopt: gate a few proxy TLS options by checking backend support [35]
  o show-headers.md: mention bold headers and --no-styled-output [17]
+ o tests: fix unit1636 with --disable-progress-meter [37]
  o tool_formparse.c: fix two minor comment typos [25]
  o tool_formparse: polish error message + make two functions static [1]
+ o tool_formparse: tool2curlparts is no longer recursive [33]
+ o tool_urlglob: avoid overflow at end of range [22]
+ o url: fix connection reuse for starttls protocols [27]
+ o url: remove ssh_config_matches [31]
  o user-agent.md: mention double quotes too [3]
+ o x509asn1: fix operator order in do_pubkey [21]
 
 This release includes the following known bugs:
 
@@ -43,19 +63,40 @@ Planned upcoming removals include:
 This release would not have looked like this without help, code, reports and
 advice from friends like these:
 
-  Daniel Stenberg, dependabot[bot], Jeremy Nicoll, Raymond Steen,
+  Andrew Nesbitt, Dan Fandrich, Daniel Stenberg, dependabot[bot], Elise Vance,
+  Jeremy Nicoll, Kai Pastor, parasol-aser, Raymond Steen, renovate[bot],
   Sollace on github, Stefan Eissing, Viktor Szakats
-  (7 contributors)
+  (13 contributors)
 
 References to bug reports and discussions on issues:
 
  [1] = https://curl.se/bug/?i=21510
  [2] = https://curl.se/bug/?i=21476
  [3] = https://curl.se/mail/archive-2026-04/0029.html
+ [4] = https://curl.se/bug/?i=21486
+ [5] = https://curl.se/bug/?i=21538
  [7] = https://hackerone.com/reports/3702718
+ [8] = https://curl.se/bug/?i=21470
+ [9] = https://curl.se/bug/?i=21545
+ [11] = https://curl.se/bug/?i=21543
+ [12] = https://curl.se/bug/?i=21541
  [15] = https://curl.se/bug/?i=21498
  [16] = https://curl.se/bug/?i=21496
  [17] = https://curl.se/bug/?i=21495
+ [18] = https://curl.se/bug/?i=21536
  [19] = https://curl.se/bug/?i=21491
+ [20] = https://curl.se/bug/?i=21532
+ [21] = https://curl.se/bug/?i=21533
+ [22] = https://curl.se/bug/?i=21529
  [23] = https://curl.se/bug/?i=21485
+ [24] = https://curl.se/bug/?i=21530
  [25] = https://curl.se/bug/?i=21480
+ [27] = https://curl.se/bug/?i=21522
+ [28] = https://curl.se/bug/?i=21521
+ [30] = https://curl.se/bug/?i=21512
+ [31] = https://curl.se/bug/?i=21519
+ [32] = https://curl.se/bug/?i=21517
+ [33] = https://curl.se/bug/?i=21518
+ [35] = https://curl.se/bug/?i=21514
+ [36] = https://curl.se/bug/?i=21515
+ [37] = https://curl.se/bug/?i=21500

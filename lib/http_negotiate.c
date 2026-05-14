@@ -40,8 +40,10 @@ static void http_auth_nego_reset(struct connectdata *conn,
 {
   if(proxy)
     conn->proxy_negotiate_state = GSS_AUTHNONE;
-  else
+  else {
     conn->http_negotiate_state = GSS_AUTHNONE;
+    Curl_creds_unlink(&conn->creds);
+  }
   if(neg_ctx)
     Curl_auth_cleanup_spnego(neg_ctx);
 }
@@ -52,10 +54,8 @@ CURLcode Curl_input_negotiate(struct Curl_easy *data, struct connectdata *conn,
   CURLcode result;
   size_t len;
 
-  /* Point to the username, password, service and host */
-  const char *userp;
-  const char *passwdp;
-  const char *service;
+  /* Point to credentials and host */
+  struct Curl_creds *creds = NULL;
   const char *host;
 
   /* Point to the correct struct with this */
@@ -64,10 +64,7 @@ CURLcode Curl_input_negotiate(struct Curl_easy *data, struct connectdata *conn,
 
   if(proxy) {
 #ifndef CURL_DISABLE_PROXY
-    userp = conn->http_proxy.user;
-    passwdp = conn->http_proxy.passwd;
-    service = data->set.str[STRING_PROXY_SERVICE_NAME] ?
-              data->set.str[STRING_PROXY_SERVICE_NAME] : "HTTP";
+    creds = conn->http_proxy.creds;
     host = conn->http_proxy.peer->hostname;
     state = conn->proxy_negotiate_state;
 #else
@@ -75,10 +72,7 @@ CURLcode Curl_input_negotiate(struct Curl_easy *data, struct connectdata *conn,
 #endif
   }
   else {
-    userp = conn->user;
-    passwdp = conn->passwd;
-    service = data->set.str[STRING_SERVICE_NAME] ?
-              data->set.str[STRING_SERVICE_NAME] : "HTTP";
+    creds = data->state.creds;
     host = conn->origin->hostname;
     state = conn->http_negotiate_state;
   }
@@ -86,13 +80,6 @@ CURLcode Curl_input_negotiate(struct Curl_easy *data, struct connectdata *conn,
   neg_ctx = Curl_auth_nego_get(conn, proxy);
   if(!neg_ctx)
     return CURLE_OUT_OF_MEMORY;
-
-  /* Not set means empty */
-  if(!userp)
-    userp = "";
-
-  if(!passwdp)
-    passwdp = "";
 
   /* Obtain the input token, if any */
   header += strlen("Negotiate");
@@ -135,7 +122,7 @@ CURLcode Curl_input_negotiate(struct Curl_easy *data, struct connectdata *conn,
 #endif /* GSS_C_CHANNEL_BOUND_FLAG */
 
   /* Initialize the security context and decode our challenge */
-  result = Curl_auth_decode_spnego_message(data, userp, passwdp, service,
+  result = Curl_auth_decode_spnego_message(data, creds, "HTTP",
                                            host, header, neg_ctx);
 
 #ifdef GSS_C_CHANNEL_BOUND_FLAG
@@ -144,6 +131,16 @@ CURLcode Curl_input_negotiate(struct Curl_easy *data, struct connectdata *conn,
 
   if(result)
     http_auth_nego_reset(conn, neg_ctx, proxy);
+
+  if(!proxy) {
+    /* Start it up. From this time onwards, the connection is tied
+     * tp the credentials used. */
+    if(conn->creds && !Curl_creds_same(creds, conn->creds)) {
+      DEBUGASSERT(0); /* should not happen. */
+      return CURLE_FAILED_INIT;
+    }
+    Curl_creds_link(&conn->creds, creds);
+  }
 
   return result;
 }

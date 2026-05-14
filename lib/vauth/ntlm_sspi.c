@@ -76,9 +76,8 @@ bool Curl_auth_is_ntlm_supported(void)
  * Returns CURLE_OK on success.
  */
 CURLcode Curl_auth_create_ntlm_type1_message(struct Curl_easy *data,
-                                             const char *userp,
-                                             const char *passwdp,
-                                             const char *service,
+                                             struct Curl_creds *creds,
+                                             const char *default_service,
                                              const char *host,
                                              struct ntlmdata *ntlm,
                                              struct bufref *out)
@@ -88,6 +87,8 @@ CURLcode Curl_auth_create_ntlm_type1_message(struct Curl_easy *data,
   SecBufferDesc type_1_desc;
   SECURITY_STATUS status;
   unsigned long attrs;
+  const char *service = Curl_creds_has_sasl_service(creds) ?
+    Curl_creds_sasl_service(creds) : default_service;
 
   /* Clean up any former leftovers and initialise to defaults */
   Curl_auth_cleanup_ntlm(ntlm);
@@ -111,11 +112,12 @@ CURLcode Curl_auth_create_ntlm_type1_message(struct Curl_easy *data,
   if(!ntlm->output_token)
     return CURLE_OUT_OF_MEMORY;
 
-  if(userp && *userp) {
+  if(Curl_creds_has_user(creds)) {
     CURLcode result;
 
     /* Populate our identity structure */
-    result = Curl_create_sspi_identity(userp, passwdp, &ntlm->identity);
+    result = Curl_create_sspi_identity(
+      creds->user, creds->passwd, &ntlm->identity);
     if(result)
       return result;
 
@@ -227,8 +229,7 @@ CURLcode Curl_auth_decode_ntlm_type2_message(struct Curl_easy *data,
  * Returns CURLE_OK on success.
  */
 CURLcode Curl_auth_create_ntlm_type3_message(struct Curl_easy *data,
-                                             const char *userp,
-                                             const char *passwdp,
+                                             struct Curl_creds *creds,
                                              struct ntlmdata *ntlm,
                                              struct bufref *out)
 {
@@ -240,8 +241,7 @@ CURLcode Curl_auth_create_ntlm_type3_message(struct Curl_easy *data,
   SECURITY_STATUS status;
   unsigned long attrs;
 
-  (void)passwdp;
-  (void)userp;
+  (void)creds;
 
   /* Setup the type-2 "input" security buffer */
   type_2_desc.ulVersion     = SECBUFFER_VERSION;

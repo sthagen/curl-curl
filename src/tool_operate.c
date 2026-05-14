@@ -1052,11 +1052,13 @@ static CURLcode setup_outfile(struct OperationConfig *config,
       return result;
     }
   }
-  else if(glob_inuse(&state->urlglob)) {
-    /* fill '#1' ... '#9' terms from URL pattern */
+  else if(glob_inuse(&state->urlglob) || glob_inuse(&state->inglob)) {
+    /* expand '#1' ... '#9' references from URL pattern and named references
+       from the upload file glob */
     SANITIZEcode sc;
     CURLcode result =
-      glob_match_url(&per->outfile, u->outfile, &state->urlglob, &sc);
+      glob_match_url(&per->outfile, u->outfile, &state->urlglob,
+                     glob_inuse(&state->inglob) ? &state->inglob : NULL, &sc);
 
     if(sc) {
       if(sc == SANITIZE_ERR_OUT_OF_MEMORY)
@@ -1067,7 +1069,12 @@ static CURLcode setup_outfile(struct OperationConfig *config,
     }
     else if(result) {
       /* bad globbing */
-      warnf("bad output glob");
+      if(state->urlglob.error) {
+        glob_show_error(&state->urlglob, u->outfile, tool_stderr, result);
+        config->synthetic_error = TRUE;
+      }
+      else
+        warnf("bad output glob");
       return result;
     }
     if(!*per->outfile) {

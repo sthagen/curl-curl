@@ -78,9 +78,8 @@ bool Curl_auth_is_spnego_supported(void)
  * Returns CURLE_OK on success.
  */
 CURLcode Curl_auth_decode_spnego_message(struct Curl_easy *data,
-                                         const char *user,
-                                         const char *password,
-                                         const char *service,
+                                         struct Curl_creds *creds,
+                                         const char *default_service,
                                          const char *host,
                                          const char *chlg64,
                                          struct negotiatedata *nego)
@@ -105,6 +104,8 @@ CURLcode Curl_auth_decode_spnego_message(struct Curl_easy *data,
 
   if(!nego->spn) {
     /* Generate our SPN */
+    const char *service = Curl_creds_has_sasl_service(creds) ?
+      Curl_creds_sasl_service(creds) : default_service;
     nego->spn = Curl_auth_build_spn(service, host, NULL);
     if(!nego->spn)
       return CURLE_OUT_OF_MEMORY;
@@ -133,9 +134,10 @@ CURLcode Curl_auth_decode_spnego_message(struct Curl_easy *data,
 
   if(!nego->credentials) {
     /* Do we have credentials to use or are we using single sign-on? */
-    if(user && *user) {
+    if(Curl_creds_has_user(creds)) {
       /* Populate our identity structure */
-      result = Curl_create_sspi_identity(user, password, &nego->identity);
+      result = Curl_create_sspi_identity(creds->user, creds->passwd,
+                                         &nego->identity);
       if(result)
         return result;
 
@@ -223,15 +225,20 @@ CURLcode Curl_auth_decode_spnego_message(struct Curl_easy *data,
   resp_buf.cbBuffer   = curlx_uztoul(nego->token_max);
 
   /* Generate our challenge-response message */
-  nego->status =
-    Curl_pSecFn->InitializeSecurityContext(nego->credentials,
-                                           chlg ? nego->context : NULL,
-                                           nego->spn,
-                                           ISC_REQ_CONFIDENTIALITY,
-                                           0, SECURITY_NATIVE_DREP,
-                                           chlg ? &chlg_desc : NULL,
-                                           0, nego->context,
-                                           &resp_desc, &attrs, NULL);
+  {
+    DWORD sspi_flags = ISC_REQ_CONFIDENTIALITY;
+    if(data->set.gssapi_delegation & CURLGSSAPI_DELEGATION_FLAG)
+      sspi_flags |= ISC_REQ_DELEGATE | ISC_REQ_MUTUAL_AUTH;
+    nego->status =
+      Curl_pSecFn->InitializeSecurityContext(nego->credentials,
+                                             chlg ? nego->context : NULL,
+                                             nego->spn,
+                                             sspi_flags,
+                                             0, SECURITY_NATIVE_DREP,
+                                             chlg ? &chlg_desc : NULL,
+                                             0, nego->context,
+                                             &resp_desc, &attrs, NULL);
+  }
 
   /* Free the decoded challenge as it is not required anymore */
   curlx_free(chlg);

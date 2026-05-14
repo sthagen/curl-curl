@@ -45,7 +45,7 @@
 
 #ifdef USE_WIN32_LDAP           /* Use Windows LDAP implementation. */
 #  include <winldap.h>
-/* Undefine indirect <wincrypt.h> symbols conflicting with BoringSSL/AWS-LC. */
+/* Undefine indirect <wincrypt.h> symbols conflicting with AWS-LC/BoringSSL. */
 #  undef X509_NAME
 #  undef X509_EXTENSIONS
 #  undef PKCS7_ISSUER_AND_SERIAL
@@ -252,8 +252,10 @@ static CURLcode ldap_do(struct Curl_easy *data, bool *done)
 #else
   char *host = NULL;
 #endif
-  char *user = NULL;
-  char *passwd = NULL;
+  const char *user = Curl_creds_has_user(data->state.creds) ?
+    data->state.creds->user : NULL;
+  const char *passwd = Curl_creds_has_passwd(data->state.creds) ?
+    data->state.creds->passwd : NULL;
   struct ip_quadruple ipquad;
   bool is_ipv6;
   BerElement *ber = NULL;
@@ -294,11 +296,6 @@ static CURLcode ldap_do(struct Curl_easy *data, bool *done)
 #else
   host = conn->origin->hostname;
 #endif
-
-  if(data->state.aptr.user) {
-    user = conn->user;
-    passwd = conn->passwd;
-  }
 
 #ifdef USE_WIN32_LDAP
   if(ldap_ssl)
@@ -477,6 +474,7 @@ static CURLcode ldap_do(struct Curl_easy *data, bool *done)
 #ifdef USE_WIN32_LDAP
       char *attr = curlx_convert_tchar_to_UTF8(attribute);
       if(!attr) {
+        ldap_memfree(attribute);
         result = CURLE_OUT_OF_MEMORY;
         goto quit;
       }

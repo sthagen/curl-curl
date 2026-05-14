@@ -28,6 +28,7 @@
 
 #if defined(USE_WINDOWS_SSPI) && !defined(CURL_DISABLE_DIGEST_AUTH)
 
+#include "creds.h"
 #include "vauth/vauth.h"
 #include "vauth/digest.h"
 #include "curlx/multibyte.h"
@@ -83,9 +84,8 @@ bool Curl_auth_is_digest_supported(void)
  */
 CURLcode Curl_auth_create_digest_md5_message(struct Curl_easy *data,
                                              const struct bufref *chlg,
-                                             const char *userp,
-                                             const char *passwdp,
-                                             const char *service,
+                                             struct Curl_creds *creds,
+                                             const char *default_service,
                                              struct bufref *out)
 {
   CURLcode result = CURLE_OK;
@@ -103,6 +103,8 @@ CURLcode Curl_auth_create_digest_md5_message(struct Curl_easy *data,
   SecBufferDesc resp_desc;
   SECURITY_STATUS status;
   unsigned long attrs;
+  const char *service = Curl_creds_has_sasl_service(creds) ?
+    Curl_creds_sasl_service(creds) : default_service;
 
   /* Ensure we have a valid challenge message */
   if(!Curl_bufref_len(chlg)) {
@@ -137,9 +139,10 @@ CURLcode Curl_auth_create_digest_md5_message(struct Curl_easy *data,
     return CURLE_OUT_OF_MEMORY;
   }
 
-  if(userp && *userp) {
+  if(Curl_creds_has_user(creds)) {
     /* Populate our identity structure */
-    result = Curl_create_sspi_identity(userp, passwdp, &identity);
+    result = Curl_create_sspi_identity(creds->user, creds->passwd,
+                                       &identity);
     if(result) {
       curlx_free(spn);
       curlx_free(output_token);
@@ -381,8 +384,7 @@ CURLcode Curl_auth_decode_digest_http_message(const char *chlg,
  * Returns CURLE_OK on success.
  */
 CURLcode Curl_auth_create_digest_http_message(struct Curl_easy *data,
-                                              const char *userp,
-                                              const char *passwdp,
+                                              struct Curl_creds *creds,
                                               const unsigned char *request,
                                               const unsigned char *uripath,
                                               struct digestdata *digest,
@@ -421,16 +423,12 @@ CURLcode Curl_auth_create_digest_http_message(struct Curl_easy *data,
 
   /* If the user/passwd that was used to make the identity for http_context
      has changed then delete that context. */
-  if((userp && !digest->user) || (!userp && digest->user) ||
-     (passwdp && !digest->passwd) || (!passwdp && digest->passwd) ||
-     (userp && digest->user && Curl_timestrcmp(userp, digest->user)) ||
-     (passwdp && digest->passwd && Curl_timestrcmp(passwdp, digest->passwd))) {
+  if(!Curl_creds_same(creds, digest->creds)) {
     if(digest->http_context) {
       Curl_pSecFn->DeleteSecurityContext(digest->http_context);
       curlx_safefree(digest->http_context);
     }
-    curlx_safefree(digest->user);
-    curlx_safefree(digest->passwd);
+    Curl_creds_unlink(&digest->creds);
   }
 
   if(digest->http_context) {
@@ -473,13 +471,13 @@ CURLcode Curl_auth_create_digest_http_message(struct Curl_easy *data,
     unsigned long attrs;
     TCHAR *spn;
 
-    /* free the copy of user/passwd used to make the previous identity */
-    curlx_safefree(digest->user);
-    curlx_safefree(digest->passwd);
+    /* free the credentials used to make the previous identity */
+    Curl_creds_unlink(&digest->creds);
 
-    if(userp && *userp) {
+    if(Curl_creds_has_user(creds)) {
       /* Populate our identity structure */
-      if(Curl_create_sspi_identity(userp, passwdp, &identity)) {
+      if(Curl_create_sspi_identity(creds->user, creds->passwd,
+                                   &identity)) {
         curlx_free(output_token);
         return CURLE_OUT_OF_MEMORY;
       }
@@ -499,26 +497,8 @@ CURLcode Curl_auth_create_digest_http_message(struct Curl_easy *data,
       /* Use the current Windows user */
       p_identity = NULL;
 
-    if(userp) {
-      digest->user = curlx_strdup(userp);
-
-      if(!digest->user) {
-        curlx_free(output_token);
-        Curl_sspi_free_identity(p_identity);
-        return CURLE_OUT_OF_MEMORY;
-      }
-    }
-
-    if(passwdp) {
-      digest->passwd = curlx_strdup(passwdp);
-
-      if(!digest->passwd) {
-        curlx_free(output_token);
-        Curl_sspi_free_identity(p_identity);
-        curlx_safefree(digest->user);
-        return CURLE_OUT_OF_MEMORY;
-      }
-    }
+    if(creds)
+      Curl_creds_link(&digest->creds, creds);
 
     /* Acquire our credentials handle */
     status = Curl_pSecFn->AcquireCredentialsHandle(NULL,
@@ -649,8 +629,7 @@ void Curl_auth_digest_cleanup(struct digestdata *digest)
   }
 
   /* Free the copy of user/passwd used to make the identity for http_context */
-  curlx_safefree(digest->user);
-  curlx_safefree(digest->passwd);
+  Curl_creds_unlink(&digest->creds);
 }
 
 #endif /* USE_WINDOWS_SSPI && !CURL_DISABLE_DIGEST_AUTH */
