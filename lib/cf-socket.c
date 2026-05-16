@@ -49,11 +49,6 @@
 #include <inet.h>
 #endif
 
-#ifdef __DragonFly__
-/* Required for __DragonFly_version */
-#include <sys/param.h>
-#endif
-
 #include "urldata.h"
 #include "curl_trc.h"
 #include "if2ip.h"
@@ -132,14 +127,15 @@ static void tcpkeepalive(struct Curl_cfilter *cf,
                                     VERSION_GREATER_THAN_EQUAL)) {
       CURL_TRC_CF(data, cf, "Set TCP_KEEP* on fd=%" FMT_SOCKET_T, sockfd);
       optval = curlx_sltosi(data->set.tcp_keepidle);
-/* Offered by mingw-w64 v12+. MS SDK 6.0A+. */
+/* Offered by mingw-w64 v12+, MS SDK 6.0A/VS2008+ */
 #ifndef TCP_KEEPALIVE
 #define TCP_KEEPALIVE 3
 #endif
-/* Offered by mingw-w64 v12+. MS SDK ~10+/~VS2017+. */
+/* Offered by mingw-w64 v12+, MS SDK 10.0.15063.0/VS2017 15.1+ */
 #ifndef TCP_KEEPCNT
 #define TCP_KEEPCNT 16
 #endif
+/* Offered by mingw-w64 v12+, MS SDK 10.0.16299.0/VS2017 15.4+ */
 #ifndef TCP_KEEPIDLE
 #define TCP_KEEPIDLE TCP_KEEPALIVE
 #endif
@@ -1369,7 +1365,7 @@ static CURLcode cf_socket_adjust_pollset(struct Curl_cfilter *cf,
 
 #ifdef USE_WINSOCK
 
-/* Offered by mingw-w64 v13+. MS SDK 7.0A+. */
+/* Offered by mingw-w64 v13+, MS SDK 7.0A/VS2010+ */
 #ifndef SIO_IDEAL_SEND_BACKLOG_QUERY
 #define SIO_IDEAL_SEND_BACKLOG_QUERY 0x4004747B
 #endif

@@ -337,7 +337,7 @@ static CURLcode cr_send(struct Curl_cfilter *cf, struct Curl_easy *data,
     }
     else
       blen = 0;
-    *pnwritten += (ssize_t)backend->plain_out_buffered;
+    *pnwritten += backend->plain_out_buffered;
     backend->plain_out_buffered = 0;
   }
 
@@ -370,7 +370,7 @@ static CURLcode cr_send(struct Curl_cfilter *cf, struct Curl_easy *data,
     goto out;
   }
   else
-    *pnwritten += (ssize_t)plainwritten;
+    *pnwritten += plainwritten;
 
 out:
   CURL_TRC_CF(data, cf, "rustls_send(len=%zu) -> %d, %zu",
@@ -1042,6 +1042,12 @@ static CURLcode cr_init_backend(struct Curl_cfilter *cf,
       config_builder, cr_verify_none);
   }
   else if(ssl_config->native_ca_store) {
+    if(conn_config->CRLfile) {
+      failf(data, "rustls: CRL file not supported with native CA store; "
+            "the platform verifier has no CRL attachment API");
+      rustls_client_config_builder_free(config_builder);
+      return CURLE_NOT_BUILT_IN;
+    }
     result = init_config_builder_platform_verifier(data, config_builder);
     if(result != CURLE_OK) {
       rustls_client_config_builder_free(config_builder);

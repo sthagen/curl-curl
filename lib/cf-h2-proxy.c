@@ -561,7 +561,7 @@ static int proxy_h2_on_header(nghttp2_session *session,
     struct http_resp *resp;
 
     /* status: always comes first, we might get more than one response,
-     * link the previous ones for keepers */
+     * discard previous, interim responses */
     result = Curl_http_decode_status(&http_status,
                                     (const char *)value, valuelen);
     if(result)
@@ -569,7 +569,8 @@ static int proxy_h2_on_header(nghttp2_session *session,
     result = Curl_http_resp_make(&resp, http_status, NULL);
     if(result)
       return NGHTTP2_ERR_CALLBACK_FAILURE;
-    resp->prev = ctx->tunnel.resp;
+    if(ctx->tunnel.resp)
+      Curl_http_resp_free(ctx->tunnel.resp);
     ctx->tunnel.resp = resp;
     CURL_TRC_CF(data, cf, "[%d] status: HTTP/2 %03d",
                 stream_id, ctx->tunnel.resp->status);

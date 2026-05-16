@@ -58,19 +58,23 @@ extern int unitfail; /* for unittests */
 #include <sys/select.h>
 #endif
 
+#ifndef UNITTESTS
 #define test_setopt(A, B, C)            \
   do {                                  \
     result = curl_easy_setopt(A, B, C); \
     if(result != CURLE_OK)              \
       goto test_cleanup;                \
   } while(0)
+#endif /* !UNITTESTS */
 
+#if 0
 #define test_multi_setopt(A, B, C)       \
   do {                                   \
     result = curl_multi_setopt(A, B, C); \
     if(result != CURLE_OK)               \
       goto test_cleanup;                 \
   } while(0)
+#endif
 
 extern const char *libtest_arg2; /* set by first.c to the argv[2] or NULL */
 extern const char *libtest_arg3; /* set by first.c to the argv[3] or NULL */
@@ -104,8 +108,10 @@ void ws_close(CURL *curl);  /* just close the connection */
  *
  * For portability reasons TEST_ERR_* values should be less than 127.
  */
-
+#if !defined(UNITTESTS) || defined(BUILDING_LIBCURL)
 #define TEST_ERR_MAJOR_BAD    CURLE_OBSOLETE20
+#endif
+#ifndef UNITTESTS
 #define TEST_ERR_RUNS_FOREVER CURLE_OBSOLETE24
 #define TEST_ERR_EASY_INIT    CURLE_OBSOLETE29
 #define TEST_ERR_MULTI        CURLE_OBSOLETE32
@@ -236,8 +242,10 @@ void ws_close(CURL *curl);  /* just close the connection */
     }                                                    \
   } while(0)
 
+#if 0
 #define res_multi_setopt(A, B, C) \
   exe_multi_setopt(A, B, C, __FILE__, __LINE__)
+#endif
 
 #define chk_multi_setopt(A, B, C, Y, Z) \
   do {                                  \
@@ -290,8 +298,10 @@ void ws_close(CURL *curl);  /* just close the connection */
     }                                                           \
   } while(0)
 
+#if 0
 #define res_multi_remove_handle(A, B) \
   exe_multi_remove_handle(A, B, __FILE__, __LINE__)
+#endif
 
 #define chk_multi_remove_handle(A, B, Y, Z) \
   do {                                      \
@@ -426,8 +436,10 @@ void ws_close(CURL *curl);  /* just close the connection */
     }                                                           \
   } while(0)
 
+#if 0
 #define res_multi_poll(A, B, C, D, E) \
   exe_multi_poll(A, B, C, D, E, __FILE__, __LINE__)
+#endif
 
 #define chk_multi_poll(A, B, C, D, E, Y, Z) \
   do {                                      \
@@ -456,6 +468,7 @@ void ws_close(CURL *curl);  /* just close the connection */
 #define res_multi_wakeup(A) \
   exe_multi_wakeup(A, __FILE__, __LINE__)
 
+#if 0
 #define chk_multi_wakeup(A, Y, Z) \
   do {                            \
     exe_multi_wakeup(A, Y, Z);    \
@@ -465,6 +478,7 @@ void ws_close(CURL *curl);  /* just close the connection */
 
 #define multi_wakeup(A) \
   chk_multi_wakeup(A, __FILE__, __LINE__)
+#endif
 
 /* ---------------------------------------------------------------- */
 
@@ -518,8 +532,10 @@ void ws_close(CURL *curl);  /* just close the connection */
 #define res_test_timedout() \
   exe_test_timedout(TEST_HANG_TIMEOUT, __FILE__, __LINE__)
 
+#if 0
 #define res_test_timedout_custom(T) \
   exe_test_timedout(T, __FILE__, __LINE__)
+#endif
 
 #define chk_test_timedout(T, Y, Z) \
   do {                             \
@@ -533,6 +549,15 @@ void ws_close(CURL *curl);  /* just close the connection */
 
 #define abort_on_test_timeout_custom(T) \
   chk_test_timedout(T, __FILE__, __LINE__)
+
+#define NUM_HANDLES 4  /* global default */
+
+#define res_global_init(A) \
+  exe_global_init(A, __FILE__, __LINE__)
+
+#endif /* !UNITTESTS */
+
+#if !defined(UNITTESTS) || defined(BUILDING_LIBCURL)
 
 /* ---------------------------------------------------------------- */
 
@@ -548,9 +573,6 @@ void ws_close(CURL *curl);  /* just close the connection */
     }                                                   \
   } while(0)
 
-#define res_global_init(A) \
-  exe_global_init(A, __FILE__, __LINE__)
-
 #define chk_global_init(A, Y, Z) \
   do {                           \
     exe_global_init(A, Y, Z);    \
@@ -564,13 +586,6 @@ void ws_close(CURL *curl);  /* just close the connection */
 #define global_init(A) \
   chk_global_init(A, __FILE__, __LINE__)
 
-#define NO_SUPPORT_BUILT_IN                     \
-  {                                             \
-    (void)URL;                                  \
-    curl_mfprintf(stderr, "Missing support\n"); \
-    return CURLE_UNSUPPORTED_PROTOCOL;          \
-  }
-
-#define NUM_HANDLES 4  /* global default */
+#endif /* !UNITTESTS || BUILDING_LIBCURL */
 
 #endif /* HEADER_LIBTEST_FIRST_H */

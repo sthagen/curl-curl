@@ -639,7 +639,7 @@ static struct TerminalSettings {
   LONG valid;
 } TerminalSettings;
 
-/* Offered by mingw-w64 v7+. MS SDK ~10.16299/~VS2017+. */
+/* Offered by mingw-w64 v7+, MS SDK 10.0.10586.0/VS2015 Update 1+ */
 #ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
 #define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
 #endif
@@ -804,7 +804,7 @@ curl_socket_t win32_stdin_read_thread(void)
       break;
     }
 
-    /* Bind to any available loopback port */
+    /* Retrieve the assigned loopback port/address */
     if(getsockname(tdata->socket_l, (struct sockaddr *)&selfaddr, &socksize)) {
       errorf("getsockname error: %d", SOCKERRNO);
       break;

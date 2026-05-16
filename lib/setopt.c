@@ -1280,8 +1280,16 @@ static CURLcode setopt_long_misc(struct Curl_easy *data, CURLoption option,
           return CURLE_OUT_OF_MEMORY;
       }
     }
-    else
+    else if(!data->share || !data->share->hsts) {
+      /* throw away the HSTS cache unless shared */
       Curl_hsts_cleanup(&data->hsts);
+      /* flush all the entries */
+      curl_slist_free_all(data->state.hstslist);
+      data->state.hstslist = NULL;
+    }
+    else
+      /* detach from shared HSTS cache without freeing it */
+      data->hsts = NULL;
     break;
 #endif
 #ifndef CURL_DISABLE_ALTSVC
@@ -2342,6 +2350,12 @@ static CURLcode setopt_cptr(struct Curl_easy *data, CURLoption option,
      * for validation purposes.
      */
     return Curl_setstropt(&s->str[STRING_SSH_HOST_PUBLIC_KEY_MD5], ptr);
+  case CURLOPT_SSH_HOST_PUBLIC_KEY_SHA256:
+    /*
+     * Option to allow for the SHA256 of the host public key to be checked
+     * for validation purposes.
+     */
+    return Curl_setstropt(&s->str[STRING_SSH_HOST_PUBLIC_KEY_SHA256], ptr);
   case CURLOPT_SSH_KNOWNHOSTS:
     /*
      * Store the filename to read known hosts from.
@@ -2349,12 +2363,6 @@ static CURLcode setopt_cptr(struct Curl_easy *data, CURLoption option,
     return Curl_setstropt(&s->str[STRING_SSH_KNOWNHOSTS], ptr);
 #endif
 #ifdef USE_LIBSSH2
-  case CURLOPT_SSH_HOST_PUBLIC_KEY_SHA256:
-    /*
-     * Option to allow for the SHA256 of the host public key to be checked
-     * for validation purposes.
-     */
-    return Curl_setstropt(&s->str[STRING_SSH_HOST_PUBLIC_KEY_SHA256], ptr);
   case CURLOPT_SSH_HOSTKEYDATA:
     /*
      * Custom client data to pass to the SSH keyfunc callback
@@ -2834,8 +2842,10 @@ static CURLcode setopt_blob(struct Curl_easy *data, CURLoption option,
      * Specify entire PEM of the CA certificate
      */
 #ifdef USE_SSL
-    if(Curl_ssl_supports(data, SSLSUPP_CAINFO_BLOB))
+    if(Curl_ssl_supports(data, SSLSUPP_CAINFO_BLOB)) {
+      s->proxy_ssl.custom_cablob = TRUE;
       return Curl_setblobopt(&s->blobs[BLOB_CAINFO_PROXY], blob);
+    }
 #endif
     return CURLE_NOT_BUILT_IN;
   case CURLOPT_PROXY_ISSUERCERT_BLOB:

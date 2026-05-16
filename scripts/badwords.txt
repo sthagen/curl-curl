@@ -17,10 +17,18 @@ tool-chain:toolchain
 wild-card:wildcard
 wild card:wildcard
 thread safe:thread-safe
+thread safety:thread-safety
 thread unsafe:thread-unsafe
 multi thread:multi-thread
+nul terminate:null-terminate
+null terminate:null-terminate
+zero terminate:null-terminate
+nul terminated:null-terminated
 null terminated:null-terminated
 zero terminated:null-terminated
+nul terminator:null-terminator
+null terminator:null-terminator
+zero terminator:null-terminator
 it's:it is
 aren't:are not
 can't:cannot
@@ -96,6 +104,7 @@ will:rewrite to present tense
 16-bits:16 bits
 32-bits:32 bits
 64-bits:64 bits
+initialise:initialize
 very:rephrase using an alternative word
 just:rephrase using an alternative word
 simply:rephrase using an alternative word

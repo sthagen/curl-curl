@@ -80,7 +80,7 @@ if test "x$OPT_OPENSSL" != "xno"; then
       dnl the user told us to look
       OPENSSL_PCDIR="$OPT_OPENSSL/lib/pkgconfig"
       if test -f "$OPENSSL_PCDIR/openssl.pc"; then
-        AC_MSG_NOTICE([PKG_CONFIG_LIBDIR will be set to "$OPENSSL_PCDIR"])
+        AC_MSG_NOTICE([PKG_CONFIG_LIBDIR is set to "$OPENSSL_PCDIR"])
         PKGTEST="yes"
       fi
 
@@ -88,7 +88,7 @@ if test "x$OPT_OPENSSL" != "xno"; then
         dnl try lib64 instead
         OPENSSL_PCDIR="$OPT_OPENSSL/lib64/pkgconfig"
         if test -f "$OPENSSL_PCDIR/openssl.pc"; then
-          AC_MSG_NOTICE([PKG_CONFIG_LIBDIR will be set to "$OPENSSL_PCDIR"])
+          AC_MSG_NOTICE([PKG_CONFIG_LIBDIR is set to "$OPENSSL_PCDIR"])
           PKGTEST="yes"
         fi
       fi
@@ -385,14 +385,14 @@ if test "$OPENSSL_ENABLED" = "1"; then
   ])
 
   dnl ---
-  dnl Whether the OpenSSL configuration will be loaded automatically
+  dnl Whether the OpenSSL configuration is loaded automatically
   dnl ---
   AC_ARG_ENABLE(openssl-auto-load-config,
 AS_HELP_STRING([--enable-openssl-auto-load-config],[Enable automatic loading of OpenSSL configuration])
 AS_HELP_STRING([--disable-openssl-auto-load-config],[Disable automatic loading of OpenSSL configuration]),
   [ if test "x$enableval" = "xno"; then
       AC_MSG_NOTICE([automatic loading of OpenSSL configuration disabled])
-      AC_DEFINE(CURL_DISABLE_OPENSSL_AUTO_LOAD_CONFIG, 1, [if the OpenSSL configuration will not be loaded automatically])
+      AC_DEFINE(CURL_DISABLE_OPENSSL_AUTO_LOAD_CONFIG, 1, [if the OpenSSL configuration is not loaded automatically])
     fi
   ])
 

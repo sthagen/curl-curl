@@ -196,20 +196,19 @@ static const struct testcase get_parts_list[] = {
     "http://host:00080/",
     "http | [11] | [12] | [13] | host | 80 | / | [16] | [17]",
     0, 0, CURLUE_OK },
-  { /* Single dot host - technically valid in some contexts but often
-       rejected */
+  { /* Single dot host - not ok */
     "http://./",
-    "http | [11] | [12] | [13] | . | [15] | / | [16] | [17]",
-    0, 0, CURLUE_OK },
+    "",
+    0, 0, CURLUE_BAD_HOSTNAME },
   { /* Host starting with a dash (RFC 1123 technically allows it, but many
        parsers don't) */
     "http://-atest/",
     "http | [11] | [12] | [13] | -atest | [15] | / | [16] | [17]",
     0, 0, CURLUE_OK },
-  { /* Multiple trailing dots, not okay in DNS but works in /etc/hosts */
+  { /* Multiple trailing dots is not okey */
     "http://example.com../",
-    "http | [11] | [12] | [13] | example.com.. | [15] | / | [16] | [17]",
-    0, 0, CURLUE_OK },
+    "",
+    0, 0, CURLUE_BAD_HOSTNAME },
   {  /* Empty IPv6 Zone ID */
     "http://[fe80::1%]/",
     "", 0, 0, CURLUE_BAD_IPV6 },
@@ -626,6 +625,30 @@ static const struct testcase get_parts_list[] = {
 };
 
 static const struct urltestcase get_url_list[] = {
+  {"https://127.1.", "https://127.0.0.1/", 0, 0, CURLUE_OK},
+  {"https://127.1.:443", "https://127.0.0.1:443/", 0, 0, CURLUE_OK},
+  {"https://127.1.?moo", "https://127.0.0.1/?moo", 0, 0, CURLUE_OK},
+  {"https://127.1.#moo", "https://127.0.0.1/#moo", 0, 0, CURLUE_OK},
+  {"https://127.1.a", "https://127.1.a/", 0, 0, CURLUE_OK},
+  {"https://127.1..", "", 0, 0, CURLUE_BAD_HOSTNAME},
+  {"https://127.1..:443", "", 0, 0, CURLUE_BAD_HOSTNAME},
+  {"https://127.1..?moo", "", 0, 0, CURLUE_BAD_HOSTNAME},
+  {"https://127.1..#moo", "", 0, 0, CURLUE_BAD_HOSTNAME},
+  {"https://127.1.1.", "https://127.1.0.1/", 0, 0, CURLUE_OK},
+  {"https://127.1.1./foo", "https://127.1.0.1/foo", 0, 0, CURLUE_OK},
+  {"https://127.1.1.1.", "https://127.1.1.1/", 0, 0, CURLUE_OK},
+  {"https://127.1", "https://127.0.0.1/", 0, 0, CURLUE_OK},
+  {"https://127.0.0.1.", "https://127.0.0.1/", 0, 0, CURLUE_OK},
+  {"https://127.0.0.0xff.", "https://127.0.0.255/", 0, 0, CURLUE_OK},
+  {"https://127.0.0.1..", "", 0, 0, CURLUE_BAD_HOSTNAME},
+  {"https://127.0.0.256..", "", 0, 0, CURLUE_BAD_HOSTNAME},
+  {"http://hej./", "http://hej./", 0, 0, CURLUE_OK},
+  {"http://hej../", "", 0, 0, CURLUE_BAD_HOSTNAME},
+  {"http://hej.../", "", 0, 0, CURLUE_BAD_HOSTNAME},
+  {"http://hej..../index.html", "", 0, 0, CURLUE_BAD_HOSTNAME},
+  {"http://.", "", 0, 0, CURLUE_BAD_HOSTNAME},
+  {"http://..", "", 0, 0, CURLUE_BAD_HOSTNAME},
+  {"http://...", "", 0, 0, CURLUE_BAD_HOSTNAME},
   {"018.0.0.0", "http://018.0.0.0/", CURLU_GUESS_SCHEME, 0, CURLUE_OK},
   {"08", "http://08/", CURLU_GUESS_SCHEME, 0, CURLUE_OK},
   {"0", "http://0.0.0.0/", CURLU_GUESS_SCHEME, 0, CURLUE_OK},
@@ -737,9 +760,9 @@ static const struct urltestcase get_url_list[] = {
   {"https://16843009", "https://1.1.1.1/", 0, 0, CURLUE_OK},
   {"https://0177.1", "https://127.0.0.1/", 0, 0, CURLUE_OK},
   {"https://0111.02.0x3", "https://73.2.0.3/", 0, 0, CURLUE_OK},
-  {"https://0111.02.0x3.", "https://0111.02.0x3./", 0, 0, CURLUE_OK},
+  {"https://0111.02.0x3.", "https://73.2.0.3/", 0, 0, CURLUE_OK},
   {"https://0111.02.030", "https://73.2.0.24/", 0, 0, CURLUE_OK},
-  {"https://0111.02.030.", "https://0111.02.030./", 0, 0, CURLUE_OK},
+  {"https://0111.02.030.", "https://73.2.0.24/", 0, 0, CURLUE_OK},
   {"https://0xff.0xff.0377.255", "https://255.255.255.255/", 0, 0, CURLUE_OK},
   {"https://1.0xffffff", "https://1.255.255.255/", 0, 0, CURLUE_OK},
   /* IPv4 numerical overflows or syntax errors will not normalize */

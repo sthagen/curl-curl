@@ -321,6 +321,7 @@ jobs:
             install_steps: skiprun mbedtls-latest-intel rustls wolfssl-opensslextra-intel
             install_steps_brew: openssl@4 gsasl
             CC: clang-20
+            CFLAGS: -Wunused-macros
             LDFLAGS: >-
               -Wl,-rpath,/home/runner/wolfssl-opensslextra/lib
               -Wl,-rpath,/home/runner/mbedtls/lib
@@ -345,6 +346,7 @@ jobs:
             install_steps: skiprun
             install_steps_brew: libngtcp2 libnghttp3 c-ares
             CC: clang-20
+            CFLAGS: -Wunused-macros
             LDFLAGS: >-
               -Wl,-rpath,/home/linuxbrew/.linuxbrew/opt/openssl/lib
               -Wl,-rpath,/home/linuxbrew/.linuxbrew/opt/libngtcp2/lib
@@ -440,15 +442,15 @@ jobs:
             # https://ftpmirror.infania.net/slackware/slackware64-current/source/n/curl/curl.SlackBuild
             configure: --enable-debug --without-ssl --with-libssh2 --with-gssapi --enable-ares --without-ca-bundle --with-ca-path=/etc/ssl/certs
             # Docker Hub image that `container-job` executes in
-            container: 'andy5995/slackware-build-essential:15.0'
+            container: andy5995/slackware-build-essential:15.0@sha256:f4f2242999038a2c2deb4e5727187caaae92502a7daf8353068932621e1ec92f
 
           - name: 'Alpine MUSL https-rr'
             configure: --enable-debug --with-ssl --with-libssh2 --with-libidn2 --with-gssapi --enable-ldap --with-libpsl --enable-httpsrr --enable-ares --enable-threaded-resolver
-            container: 'alpine:3.20'
+            container: alpine:3.23@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11 # 3.23.4
 
           - name: 'Alpine MUSL https-rr c-ares'
             configure: --enable-debug --with-ssl --with-libssh2 --with-libidn2 --with-gssapi --enable-ldap --with-libpsl --enable-httpsrr --enable-ares --disable-threaded-resolver
-            container: 'alpine:3.20'
+            container: alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc # 3.20.10
 
     steps:
       - name: 'install prereqs'

@@ -522,11 +522,9 @@ jobs:
             fi
           fi
           if [ -n "${MATRIX_OPENSSH}" ]; then  # OpenSSH-Windows
-            TFLAGS+=' ~601 ~603 ~617 ~619 ~621 ~641 ~665 ~2004'  # SCP
+            TFLAGS+=' ~601 ~603 ~617 ~619 ~621 ~641 ~665 ~2004 ~3022'  # SCP
             if [[ "${MATRIX_INSTALL} " = *'libssh '* ]]; then
               TFLAGS+=' ~614'  # 'SFTP pre-quote chmod' SFTP, pre-quote, directory
-            else
-              TFLAGS+=' ~3022'  # 'SCP correct sha256 host key' SCP, server sha256 key check
             fi
           fi
           if [ "${MATRIX_OPENSSH}" = 'OpenSSH-Windows' ]; then
@@ -784,7 +782,7 @@ jobs:
         include:
           - { build: 'autotools', compiler: 'gcc' }
           - { build: 'cmake'    , compiler: 'gcc' }
-          - { build: 'cmake'    , compiler: 'clang-tidy', install_packages: 'clang-20 clang-tidy-20' }
+          - { build: 'cmake'    , compiler: 'clang-tidy', install_packages: 'clang-20 clang-tidy-20', CFLAGS: '-Wunused-macros' }
     steps:
       - name: 'install packages'
         timeout-minutes: 2
@@ -803,6 +801,8 @@ jobs:
         run: autoreconf -fi
 
       - name: 'configure'
+        env:
+          CFLAGS: '${{ matrix.CFLAGS }}'
         run: |
           if [ "${MATRIX_BUILD}" = 'cmake' ]; then
             if [ "${MATRIX_COMPILER}" = 'clang-tidy' ]; then

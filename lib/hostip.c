@@ -507,7 +507,6 @@ const struct Curl_addrinfo *Curl_resolv_get_ai(struct Curl_easy *data,
   return Curl_async_get_ai(data, async, ai_family, index);
 }
 
-
 #ifdef USE_HTTPSRR
 const struct Curl_https_rrinfo *
 Curl_resolv_get_https(struct Curl_easy *data, uint32_t resolv_id)
@@ -525,7 +524,6 @@ bool Curl_resolv_knows_https(struct Curl_easy *data, uint32_t resolv_id)
     return TRUE;
   return Curl_async_knows_https(data, async);
 }
-
 #endif /* USE_HTTPSRR */
 
 #endif /* USE_CURL_ASYNC */
@@ -791,9 +789,6 @@ CURL_NORETURN static void alarmfunc(int sig)
   (void)sig;
   siglongjmp(curl_jmpenv, 1);
 }
-#endif /* USE_ALARM_TIMEOUT */
-
-#ifdef USE_ALARM_TIMEOUT
 
 static CURLcode resolv_alarm_timeout(struct Curl_easy *data,
                                      uint8_t dns_queries,

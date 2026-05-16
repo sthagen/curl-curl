@@ -44,7 +44,7 @@
 #    define USE_OPENSSL_SHA512_256          1
 #    define HAS_SHA512_256_IMPLEMENTATION   1
 #    ifdef __NetBSD__
-/* Some NetBSD versions has a bug in SHA-512/256.
+/* Some NetBSD versions have a bug in SHA-512/256.
  * See https://gnats.netbsd.org/cgi-bin/query-pr-single.pl?number=58039
  * The problematic versions:
  * - NetBSD before 9.4
@@ -54,7 +54,6 @@
  * NetBSD 10.99.11 development.
  * It is safe to apply the workaround even if the bug is not present, as
  * the workaround reduces performance slightly. */
-#      include <sys/param.h>
 #      if  __NetBSD_Version__ <   904000000 ||  \
           (__NetBSD_Version__ >=  999000000 &&  \
            __NetBSD_Version__ <  1000000000) || \
@@ -103,7 +102,7 @@
 typedef EVP_MD_CTX *Curl_sha512_256_ctx;
 
 /**
- * Initialise structure for SHA-512/256 calculation.
+ * Initialize structure for SHA-512/256 calculation.
  *
  * @param context the calculation context
  * @return CURLE_OK if succeed,
@@ -173,7 +172,7 @@ static CURLcode Curl_sha512_256_finish(unsigned char *digest, void *context)
                            tmp_digest, NULL) ? CURLE_OK : CURLE_SSL_CIPHER;
   if(result == CURLE_OK)
     memcpy(digest, tmp_digest, CURL_SHA512_256_DIGEST_SIZE);
-  explicit_memset(tmp_digest, 0, sizeof(tmp_digest));
+  curlx_memzero(tmp_digest, sizeof(tmp_digest));
 #else /* !NEED_NETBSD_SHA512_256_WORKAROUND */
   result = EVP_DigestFinal_ex(*ctx, digest, NULL) ?
     CURLE_OK : CURLE_SSL_CIPHER;
@@ -232,7 +231,7 @@ static CURLcode Curl_sha512_256_finish(unsigned char *digest, void *ctx)
 typedef struct sha512_256_ctx Curl_sha512_256_ctx;
 
 /**
- * Initialise structure for SHA-512/256 calculation.
+ * Initialize structure for SHA-512/256 calculation.
  *
  * @param context the calculation context
  * @return always CURLE_OK
@@ -301,7 +300,7 @@ static CURLcode Curl_sha512_256_finish(unsigned char *digest, void *context)
 
 #ifdef __GNUC__
 #  if defined(__has_attribute) && defined(__STDC_VERSION__)
-#    if __has_attribute(always_inline) && __STDC_VERSION__ >= 199901
+#    if __has_attribute(always_inline) && __STDC_VERSION__ >= 199901L
 #      define CURL_FORCEINLINE CURL_INLINE __attribute__((always_inline))
 #    endif
 #  endif
@@ -435,7 +434,7 @@ struct Curl_sha512_256ctx {
 typedef struct Curl_sha512_256ctx Curl_sha512_256_ctx;
 
 /**
- * Initialise structure for SHA-512/256 calculation.
+ * Initialize structure for SHA-512/256 calculation.
  *
  * @param context the calculation context
  * @return always CURLE_OK
@@ -461,7 +460,7 @@ static CURLcode Curl_sha512_256_init(void *context)
   ctx->H[6] = UINT64_C(0x2B0199FC2C85B8AA);
   ctx->H[7] = UINT64_C(0x0EB72DDC81C52CA2);
 
-  /* Initialise number of bytes and high part of number of bits. */
+  /* Initialize number of bytes and high part of number of bits. */
   ctx->count = UINT64_C(0);
   ctx->count_bits_hi = UINT64_C(0);
 
