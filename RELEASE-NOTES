@@ -4,43 +4,94 @@ curl and libcurl 8.21.0
  Command line options:         273
  curl_easy_setopt() options:   308
  Public functions in libcurl:  100
- Authors:                      1465
- Contributors:                 3668
+ Authors:                      1473
+ Contributors:                 3680
 
 This release includes the following changes:
 
+ o curl: named globs in output file name for upload glob references [77]
  o lib: drop support for CURLAUTH_DIGEST_IE [4]
+ o libssh: add support for SHA256 host public keys [57]
+ o tool_urlglob: add named globs [92]
 
 This release includes the following bugfixes:
 
  o asyn-thrdd: fix result processing without wakeup socketpair [2]
+ o cf-h2-proxy: drop interim responses [47]
  o cmake: auto-select static nghttp2/nghttp3/ngtcp2 Config [8]
+ o cmake: export/forward `NGTCP2_CRYPTO_BACKEND` [99]
  o cmake: fix zstd CMake config name [5]
+ o cookie: compare path case sensitively [52]
  o cookie: simplify strstore(), remove outdated comment [12]
+ o cookie: trim trailing dots when checking PSL [39]
+ o creds: add sasl service name [75]
+ o curl_ntlm_core: fix nettle 4+ builds in certain MultiSSL combos [87]
+ o curl_ntlm_core: propagate DES `CryptEncrypt()` error [84]
  o CURLOPT_ECH.md: simplify the description language [18]
  o CURLOPT_HAPROXYPROTOCOL.md: only sent for newly setup connections [32]
+ o CURLOPT_MAXFILESIZE: clarify this also works for on-going transfers [78]
+ o CURLOPT_SHARE: warn about early remove [51]
+ o CURLOPT_SSH_HOSTKEYFUNCTION.md: for new connections only [48]
+ o delta: harden external command invocations [98]
+ o docs: end "...can be used several times..." sentences with period [34]
+ o docs: fix --follow doc typo [97]
+ o docs: fix a couple of typos [62]
+ o docs: fix grammar and wording in FAQ [66]
  o ECH: cleanups [20]
+ o event: fix wakeup consumption [93]
  o ftp: avoid accessing EPSV response one byte past the NULL [9]
  o ftp: remove 2 Curl_resolv_blocking() calls [30]
  o ftp: remove bits.ftp_use_control_ssl [28]
+ o gnutls: allow building with nettle 4.0 [96]
+ o gnutls: fix more nettle 4+ compatibility issues [94]
+ o gsasl: fix potential double free [56]
  o gtls: fix some typos [15]
+ o hostip: remove unused MAX_HOSTCACHE_LEN and MAX_DNS_CACHE_SIZE [101]
+ o idn: replace header guards with forward declaration [100]
  o ldap: fix minor leak on write callback error [24]
+ o ldap: fix to not leak `attribute` on OOM (WinLDAP) [79]
+ o lib678: fix to not be perma-skipped [10]
+ o lib: make `__STDC_VERSION__` literals `L` (where missing)
  o lib: two minor typos [16]
  o libcurl-easy.md: minor clarifications [19]
  o mbedtls: null-terminate the private key blob [36]
  o mqtt: validate PINGRESP and DISCONNECT have remaining_length == 0 [7]
+ o pythonlint.sh: make it fail on error, fix ruff warnings in pytest [67]
+ o rtsp: bump buf after rtsp_filter_rtp() [88]
+ o runner.pm: set `CURL_TESTNUM` for `precheck` commands [13]
+ o rustls: error on CURLOPT_CRLFILE with native CA store [59]
+ o schannel: enforce Extended Key Usage for custom CA roots [29]
  o schannel_verify: avoid out of blob access [11]
  o setopt: changing the proxy port is also a proxy change [23]
+ o setopt: fix to honor `CURLOPT_PROXY_CAINFO_BLOB` over Native CA [26]
  o setopt: gate a few proxy TLS options by checking backend support [35]
+ o setopt: more careful cleanup of the HSTS cache [45]
  o show-headers.md: mention bold headers and --no-styled-output [17]
+ o snpego_sspi: preserve distinction btw policy-only and uncond delegation [74]
+ o spnego_sspi: honor CURLOPT_GSSAPI_DELEGATION for Windows SSPI [89]
+ o src: fix comment typos [83]
+ o SSLCERTS: document 8.19.0 default Native CA builds (Windows) [14]
  o tests: fix unit1636 with --disable-progress-meter [37]
+ o tftp: stricter option name checks [90]
  o tool_formparse.c: fix two minor comment typos [25]
  o tool_formparse: polish error message + make two functions static [1]
  o tool_formparse: tool2curlparts is no longer recursive [33]
  o tool_urlglob: avoid overflow at end of range [22]
+ o tool_urlglob: better 'Duplicate glob name' position [82]
+ o tool_urlglob: make globbing error reported for correct position [91]
+ o unix-sockets: ignore proxy settings [6]
+ o url: compare full origin when setting credentials [42]
  o url: fix connection reuse for starttls protocols [27]
+ o url: keep the question mark for empty queries [73]
  o url: remove ssh_config_matches [31]
+ o url: url_match_destination fix [43]
+ o urlapi: change more lowercase percent-encoded to uppercase [71]
+ o urlapi: consume trailing dots after IPv4 numerical addresses [50]
+ o urlapi: deny hostnames with more than one trailing dot [58]
+ o urlapi: handle redirect without set scheme with default-scheme [38]
  o user-agent.md: mention double quotes too [3]
+ o windows: update MS SDK versions in comments [60]
+ o x509asn1: fix DH public key parameter extraction [44]
  o x509asn1: fix operator order in do_pubkey [21]
 
 This release includes the following known bugs:
@@ -63,10 +114,14 @@ Planned upcoming removals include:
 This release would not have looked like this without help, code, reports and
 advice from friends like these:
 
-  Andrew Nesbitt, Dan Fandrich, Daniel Stenberg, dependabot[bot], Elise Vance,
-  Jeremy Nicoll, Kai Pastor, parasol-aser, Raymond Steen, renovate[bot],
-  Sollace on github, Stefan Eissing, Viktor Szakats
-  (13 contributors)
+  0xN3R3K3, Alan De Smet, amitbidlan, Andrei Rybak, Andrew Nesbitt,
+  Bastian Jesuiter, Bill Mill, chrizilla on github, Dan Fandrich,
+  Daniel Stenberg, dependabot[bot], Earnestly on github, Elise Vance,
+  Emanuel Krollmann, Fabian Keil, jeffhuang, Jeremy Nicoll, Joshua Rogers,
+  Kai Pastor, mulan_dh on hackerone, parasol-aser, Raymond Steen,
+  renovate[bot], Sergio Correia, Sollace on github, Song X. Gao,
+  Stefan Eissing, Tim Martin, Viktor Szakats, Xi Ruoyao, x-xiang on github
+  (31 contributors)
 
 References to bug reports and discussions on issues:
 
@@ -75,11 +130,15 @@ References to bug reports and discussions on issues:
  [3] = https://curl.se/mail/archive-2026-04/0029.html
  [4] = https://curl.se/bug/?i=21486
  [5] = https://curl.se/bug/?i=21538
+ [6] = https://curl.se/bug/?i=21630
  [7] = https://hackerone.com/reports/3702718
  [8] = https://curl.se/bug/?i=21470
  [9] = https://curl.se/bug/?i=21545
+ [10] = https://curl.se/bug/?i=21641
  [11] = https://curl.se/bug/?i=21543
  [12] = https://curl.se/bug/?i=21541
+ [13] = https://curl.se/bug/?i=21640
+ [14] = https://curl.se/bug/?i=21634
  [15] = https://curl.se/bug/?i=21498
  [16] = https://curl.se/bug/?i=21496
  [17] = https://curl.se/bug/?i=21495
@@ -91,12 +150,58 @@ References to bug reports and discussions on issues:
  [23] = https://curl.se/bug/?i=21485
  [24] = https://curl.se/bug/?i=21530
  [25] = https://curl.se/bug/?i=21480
+ [26] = https://curl.se/bug/?i=21631
  [27] = https://curl.se/bug/?i=21522
  [28] = https://curl.se/bug/?i=21521
+ [29] = https://curl.se/bug/?i=21629
  [30] = https://curl.se/bug/?i=21512
  [31] = https://curl.se/bug/?i=21519
  [32] = https://curl.se/bug/?i=21517
  [33] = https://curl.se/bug/?i=21518
+ [34] = https://curl.se/bug/?i=21644
  [35] = https://curl.se/bug/?i=21514
  [36] = https://curl.se/bug/?i=21515
  [37] = https://curl.se/bug/?i=21500
+ [38] = https://curl.se/bug/?i=21632
+ [39] = https://curl.se/bug/?i=21636
+ [42] = https://curl.se/bug/?i=21575
+ [43] = https://curl.se/bug/?i=21573
+ [44] = https://curl.se/bug/?i=21595
+ [45] = https://curl.se/bug/?i=21615
+ [47] = https://curl.se/bug/?i=21626
+ [48] = https://curl.se/bug/?i=21606
+ [50] = https://curl.se/bug/?i=21635
+ [51] = https://curl.se/bug/?i=21633
+ [52] = https://curl.se/bug/?i=21616
+ [56] = https://curl.se/bug/?i=21609
+ [57] = https://curl.se/bug/?i=21605
+ [58] = https://curl.se/bug/?i=21622
+ [59] = https://curl.se/bug/?i=21614
+ [60] = https://curl.se/bug/?i=21621
+ [62] = https://curl.se/bug/?i=21617
+ [66] = https://curl.se/bug/?i=21593
+ [67] = https://curl.se/bug/?i=21597
+ [71] = https://curl.se/bug/?i=21592
+ [73] = https://curl.se/bug/?i=21544
+ [74] = https://curl.se/bug/?i=21583
+ [75] = https://curl.se/bug/?i=21585
+ [77] = https://curl.se/bug/?i=21407
+ [78] = https://curl.se/bug/?i=21582
+ [79] = https://curl.se/bug/?i=21576
+ [82] = https://curl.se/bug/?i=21567
+ [83] = https://curl.se/bug/?i=21570
+ [84] = https://curl.se/bug/?i=21569
+ [87] = https://curl.se/bug/?i=21562
+ [88] = https://curl.se/bug/?i=21563
+ [89] = https://curl.se/bug/?i=21528
+ [90] = https://curl.se/bug/?i=21560
+ [91] = https://curl.se/bug/?i=21561
+ [92] = https://curl.se/bug/?i=21409
+ [93] = https://curl.se/bug/?i=21547
+ [94] = https://curl.se/bug/?i=21557
+ [96] = https://curl.se/bug/?i=21169
+ [97] = https://curl.se/bug/?i=21553
+ [98] = https://curl.se/bug/?i=21104
+ [99] = https://curl.se/bug/?i=21523
+ [100] = https://curl.se/bug/?i=21551
+ [101] = https://curl.se/bug/?i=21550

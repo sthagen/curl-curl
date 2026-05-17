@@ -2200,10 +2200,9 @@ static CURLcode override_login(struct Curl_easy *data,
           if(result)
             goto out;
         }
-        else if(data->state.creds) {
+        else
           /* only search when something is still missing */
           Curl_creds_link(&ncreds_in, data->state.creds);
-        }
         break;
       default:
         /* ignore credentials from other sources */
@@ -2627,10 +2626,13 @@ static CURLcode url_create_needle(struct Curl_easy *data,
   }
 
 #ifndef CURL_DISABLE_PROXY
-  /* After the Unix socket init but before the proxy vars are used, parse and
-   * initialize the proxy settings.
-   * Any UDS `via_peer` disables proxies. */
-  if(network_scheme && !(needle->via_peer && needle->via_peer->unix_socket)) {
+  /* Going via a unix socket ignores any proxy settings */
+  if(needle->via_peer && needle->via_peer->unix_socket) {
+    needle->bits.socksproxy = FALSE;
+    needle->bits.httpproxy = FALSE;
+    needle->bits.proxy = FALSE;
+  }
+  else if(network_scheme) {
     result = url_set_conn_proxies(data, needle);
     if(result)
       goto out;
