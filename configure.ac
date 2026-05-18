@@ -694,8 +694,10 @@ dnl **********************************************************************
 
 CURL_CHECK_WIN32_CRYPTO
 
+curl_cv_android='no'
 curl_cv_apple='no'
 case $host in
+  *-*-android*) curl_cv_android='yes';;
   *-apple-*) curl_cv_apple='yes';;
 esac
 
@@ -1512,7 +1514,10 @@ else
     dnl replace 'HAVE_LIBZ' in the automake makefile.ams
     AMFIXLIB="1"
     AC_MSG_NOTICE([found both libz and libz.h header])
-    LIBCURL_PC_REQUIRES_PRIVATE="$LIBCURL_PC_REQUIRES_PRIVATE zlib"
+    dnl Android does not provide zlib.pc
+    if test "$curl_cv_android" = "no"; then
+      LIBCURL_PC_REQUIRES_PRIVATE="$LIBCURL_PC_REQUIRES_PRIVATE zlib"
+    fi
     curl_zlib_msg="enabled"
   fi
 fi
