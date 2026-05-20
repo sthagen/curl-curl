@@ -920,10 +920,10 @@ static CURLcode wssl_client_cert(struct Curl_easy *data,
 #ifndef NO_FILESYSTEM
   if(ssl_config->primary.cert_blob || ssl_config->primary.clientcert) {
     const char *cert_file = ssl_config->primary.clientcert;
-    const char *key_file = ssl_config->key;
+    const char *key_file = ssl_config->primary.key;
     const struct curl_blob *cert_blob = ssl_config->primary.cert_blob;
-    const struct curl_blob *key_blob = ssl_config->key_blob;
-    int file_type = wssl_do_file_type(ssl_config->cert_type);
+    const struct curl_blob *key_blob = ssl_config->primary.key_blob;
+    int file_type = wssl_do_file_type(ssl_config->primary.cert_type);
     int rc;
 
     switch(file_type) {
@@ -954,7 +954,7 @@ static CURLcode wssl_client_cert(struct Curl_easy *data,
       key_file = cert_file;
     }
     else
-      file_type = wssl_do_file_type(ssl_config->key_type);
+      file_type = wssl_do_file_type(ssl_config->primary.key_type);
 
     rc = key_blob ?
       wolfSSL_CTX_use_PrivateKey_buffer(wctx->ssl_ctx, key_blob->data,
@@ -968,8 +968,8 @@ static CURLcode wssl_client_cert(struct Curl_easy *data,
 #else /* NO_FILESYSTEM */
   if(ssl_config->primary.cert_blob) {
     const struct curl_blob *cert_blob = ssl_config->primary.cert_blob;
-    const struct curl_blob *key_blob = ssl_config->key_blob;
-    int file_type = wssl_do_file_type(ssl_config->cert_type);
+    const struct curl_blob *key_blob = ssl_config->primary.key_blob;
+    int file_type = wssl_do_file_type(ssl_config->primary.cert_type);
     int rc;
 
     switch(file_type) {
@@ -994,7 +994,7 @@ static CURLcode wssl_client_cert(struct Curl_easy *data,
     if(!key_blob)
       key_blob = cert_blob;
     else
-      file_type = wssl_do_file_type(ssl_config->key_type);
+      file_type = wssl_do_file_type(ssl_config->primary.key_type);
 
     if(wolfSSL_CTX_use_PrivateKey_buffer(wctx->ssl_ctx, key_blob->data,
                                          (long)key_blob->len,
@@ -1440,7 +1440,7 @@ CURLcode Curl_wssl_ctx_init(struct wssl_ctx *wctx,
     result = (*data->set.ssl.fsslctx)(data, wctx->ssl_ctx,
                                       data->set.ssl.fsslctxp);
     if(result) {
-      failf(data, "error signaled by ssl ctx callback");
+      failf(data, "error signaled by SSL ctx callback");
       goto out;
     }
   }

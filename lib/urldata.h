@@ -150,9 +150,14 @@ struct ssl_primary_config {
   char *signature_algorithms; /* list of signature algorithms to use */
   char *pinned_key;
   char *CRLfile;         /* CRL to check certificate revocation */
+  char *cert_type;       /* format for certificate (default: PEM) */
+  char *key;             /* private key filename */
+  char *key_type;        /* format for private key (default: PEM) */
+  char *key_passwd;      /* plain text private key password */
   struct curl_blob *cert_blob;
   struct curl_blob *ca_info_blob;
   struct curl_blob *issuercert_blob;
+  struct curl_blob *key_blob;
 #ifdef USE_TLS_SRP
   char *username; /* TLS username (for, e.g., SRP) */
   char *password; /* TLS password (for, e.g., SRP) */
@@ -170,13 +175,8 @@ struct ssl_primary_config {
 struct ssl_config_data {
   struct ssl_primary_config primary;
   long certverifyresult; /* result from the certificate verification */
-  curl_ssl_ctx_callback fsslctx; /* function to initialize ssl ctx */
+  curl_ssl_ctx_callback fsslctx; /* function to initialize SSL ctx */
   void *fsslctxp;        /* parameter for call back */
-  char *cert_type; /* format for certificate (default: PEM) */
-  char *key; /* private key filename */
-  struct curl_blob *key_blob;
-  char *key_type; /* format for private key (default: PEM) */
-  char *key_passwd; /* plain text private key password */
   BIT(certinfo);     /* gather lots of certificate info */
   BIT(earlydata);    /* use TLS 1.3 early data */
   BIT(enable_beast); /* allow this flaw for interoperability's sake */
@@ -671,6 +671,7 @@ struct UrlState {
   void (*prev_signal)(int sig);
 #endif
 #ifndef CURL_DISABLE_DIGEST_AUTH
+  char *envproxy; /* last proxy string used for proxy-related state */
   struct digestdata digest;      /* state data for host Digest auth */
   struct digestdata proxydigest; /* state data for proxy Digest auth */
 #endif
@@ -886,7 +887,7 @@ enum dupstring {
   STRING_SET_REFERER,     /* custom string for the HTTP referer field */
   STRING_SET_URL,         /* what original URL to work on */
   STRING_USERAGENT,       /* User-Agent string */
-  STRING_SSL_ENGINE,      /* name of ssl engine */
+  STRING_SSL_ENGINE,      /* name of SSL engine */
   STRING_USERNAME,        /* <username>, if used */
   STRING_PASSWORD,        /* <password>, if used */
   STRING_OPTIONS,         /* <options>, if used */
