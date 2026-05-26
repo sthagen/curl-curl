@@ -45,14 +45,14 @@ env:
   # renovate: datasource=github-tags depName=gnutls/gnutls versioning=semver extractVersion=^nettle_?(?<version>.+)_release_.+$ registryUrl=https://github.com
   GNUTLS_VERSION: 3.8.11
   # renovate: datasource=github-tags depName=libressl/portable versioning=semver registryUrl=https://github.com
-  LIBRESSL_VERSION: 4.3.1
+  LIBRESSL_VERSION: 4.3.2
   # renovate: datasource=github-releases depName=openssl/openssl versioning=semver extractVersion=^openssl-(?<version>.+)$ registryUrl=https://github.com
   OPENSSL_VERSION: 4.0.0
   # manually bumped
   OPENSSL_PREV_VERSION: 3.6.2
   OPENSSL_PREV_SHA256: aaf51a1fe064384f811daeaeb4ec4dce7340ec8bd893027eee676af31e83a04f
   # renovate: datasource=github-tags depName=cloudflare/quiche versioning=semver registryUrl=https://github.com
-  QUICHE_VERSION: 0.24.7
+  QUICHE_VERSION: 0.29.0
   # renovate: datasource=github-tags depName=wolfSSL/wolfssl versioning=semver extractVersion=^v?(?<version>.+)-stable$ registryUrl=https://github.com
   WOLFSSL_VERSION: 5.9.1
   # renovate: datasource=github-tags depName=ngtcp2/nghttp3 versioning=semver registryUrl=https://github.com
@@ -189,19 +189,19 @@ jobs:
 
       - id: settings
         if: >-
-          ${{ steps.cache-awslc.outputs.cache-hit != 'true' ||
-              steps.cache-boringssl.outputs.cache-hit != 'true' ||
-              steps.cache-nettle.outputs.cache-hit != 'true' ||
-              steps.cache-gnutls.outputs.cache-hit != 'true' ||
-              steps.cache-libressl.outputs.cache-hit != 'true' ||
-              steps.cache-openssl-http3-no-deprecated.outputs.cache-hit != 'true' ||
-              steps.cache-openssl-prev-http3-no-deprecated.outputs.cache-hit != 'true' ||
-              steps.cache-wolfssl.outputs.cache-hit != 'true' ||
-              steps.cache-nghttp3.outputs.cache-hit != 'true' ||
-              steps.cache-ngtcp2-boringssl.outputs.cache-hit != 'true' ||
-              steps.cache-ngtcp2-openssl-prev.outputs.cache-hit != 'true' ||
-              steps.cache-ngtcp2.outputs.cache-hit != 'true' ||
-              steps.cache-nghttp2.outputs.cache-hit != 'true' }}
+          ${{ !steps.cache-awslc.outputs.cache-hit ||
+              !steps.cache-boringssl.outputs.cache-hit ||
+              !steps.cache-nettle.outputs.cache-hit ||
+              !steps.cache-gnutls.outputs.cache-hit ||
+              !steps.cache-libressl.outputs.cache-hit ||
+              !steps.cache-openssl-http3-no-deprecated.outputs.cache-hit ||
+              !steps.cache-openssl-prev-http3-no-deprecated.outputs.cache-hit ||
+              !steps.cache-wolfssl.outputs.cache-hit ||
+              !steps.cache-nghttp3.outputs.cache-hit ||
+              !steps.cache-ngtcp2-boringssl.outputs.cache-hit ||
+              !steps.cache-ngtcp2-openssl-prev.outputs.cache-hit ||
+              !steps.cache-ngtcp2.outputs.cache-hit ||
+              !steps.cache-nghttp2.outputs.cache-hit }}
 
         run: echo 'needs-build=true' >> "$GITHUB_OUTPUT"
 
@@ -222,7 +222,7 @@ jobs:
           echo 'CXX=g++-12' >> "$GITHUB_ENV"
 
       - name: 'build awslc'
-        if: ${{ steps.cache-awslc.outputs.cache-hit != 'true' }}
+        if: ${{ !steps.cache-awslc.outputs.cache-hit }}
         run: |
           cd ~
           curl --disable --fail --silent --show-error --connect-timeout 15 --max-time 120 --retry 6 --retry-connrefused \
@@ -234,7 +234,7 @@ jobs:
           cmake --install .
 
       - name: 'build boringssl'
-        if: ${{ steps.cache-boringssl.outputs.cache-hit != 'true' }}
+        if: ${{ !steps.cache-boringssl.outputs.cache-hit }}
         run: |
           mkdir boringssl-src
           cd boringssl-src
@@ -246,7 +246,7 @@ jobs:
           cmake --install .
 
       - name: 'build nettle'
-        if: ${{ steps.cache-nettle.outputs.cache-hit != 'true' }}
+        if: ${{ !steps.cache-nettle.outputs.cache-hit }}
         run: |
           cd ~
           curl --disable --fail --silent --show-error --connect-timeout 15 --max-time 120 --retry 6 --retry-connrefused \
@@ -259,7 +259,7 @@ jobs:
           make install
 
       - name: 'build gnutls'
-        if: ${{ steps.cache-gnutls.outputs.cache-hit != 'true' }}
+        if: ${{ !steps.cache-gnutls.outputs.cache-hit }}
         run: |
           cd ~
           curl --disable --fail --silent --show-error --connect-timeout 15 --max-time 120 --retry 6 --retry-connrefused \
@@ -276,11 +276,11 @@ jobs:
           make install
 
       - name: 'build libressl'
-        if: ${{ steps.cache-libressl.outputs.cache-hit != 'true' }}
+        if: ${{ !steps.cache-libressl.outputs.cache-hit }}
         run: |
           cd ~
           curl --disable --fail --silent --show-error --connect-timeout 15 --max-time 120 --retry 6 --retry-connrefused \
-            --location "https://github.com/libressl/portable/releases/download/v${LIBRESSL_VERSION}/libressl-${LIBRESSL_VERSION}.tar.gz" --output pkg.bin
+            "https://ftp.openbsd.org/pub/OpenBSD/LibreSSL/libressl-${LIBRESSL_VERSION}.tar.gz" --output pkg.bin
           sha256sum pkg.bin && tar -xzf pkg.bin && rm -f pkg.bin
           cd "libressl-${LIBRESSL_VERSION}"
           cmake -B . -G Ninja -DLIBRESSL_APPS=OFF -DLIBRESSL_TESTS=OFF -DCMAKE_INSTALL_PREFIX=/home/runner/libressl/build
@@ -288,7 +288,7 @@ jobs:
           cmake --install .
 
       - name: 'build openssl'
-        if: ${{ steps.cache-openssl-http3-no-deprecated.outputs.cache-hit != 'true' }}
+        if: ${{ !steps.cache-openssl-http3-no-deprecated.outputs.cache-hit }}
         run: |
           cd ~
           git clone --quiet --depth 1 --branch "openssl-${OPENSSL_VERSION}" https://github.com/openssl/openssl
@@ -298,7 +298,7 @@ jobs:
           make -j1 install_sw
 
       - name: 'build openssl-prev'
-        if: ${{ steps.cache-openssl-prev-http3-no-deprecated.outputs.cache-hit != 'true' }}
+        if: ${{ !steps.cache-openssl-prev-http3-no-deprecated.outputs.cache-hit }}
         run: |
           cd ~
           curl --disable --fail --silent --show-error --connect-timeout 15 --max-time 120 --retry 6 --retry-connrefused \
@@ -310,7 +310,7 @@ jobs:
           make -j1 install_sw
 
       - name: 'build wolfssl'
-        if: ${{ steps.cache-wolfssl.outputs.cache-hit != 'true' }}
+        if: ${{ !steps.cache-wolfssl.outputs.cache-hit }}
         run: |
           cd ~
           git clone --quiet --depth 1 --branch "v${WOLFSSL_VERSION}-stable" https://github.com/wolfSSL/wolfssl
@@ -322,7 +322,7 @@ jobs:
           make install
 
       - name: 'build nghttp3'
-        if: ${{ steps.cache-nghttp3.outputs.cache-hit != 'true' }}
+        if: ${{ !steps.cache-nghttp3.outputs.cache-hit }}
         run: |
           cd ~
           git clone --quiet --depth 1 --branch "v${NGHTTP3_VERSION}" https://github.com/ngtcp2/nghttp3
@@ -334,7 +334,7 @@ jobs:
           make install
 
       - name: 'build ngtcp2'
-        if: ${{ steps.cache-ngtcp2.outputs.cache-hit != 'true' }}
+        if: ${{ !steps.cache-ngtcp2.outputs.cache-hit }}
         # building twice to get crypto libs for ossl, libressl and awslc installed
         run: |
           cd ~
@@ -357,7 +357,7 @@ jobs:
           make install
 
       - name: 'build ngtcp2 openssl-prev'
-        if: ${{ steps.cache-ngtcp2-openssl-prev.outputs.cache-hit != 'true' }}
+        if: ${{ !steps.cache-ngtcp2-openssl-prev.outputs.cache-hit }}
         run: |
           cd ~
           git clone --quiet --depth 1 --branch "v${NGTCP2_VERSION}" https://github.com/ngtcp2/ngtcp2 ngtcp2-openssl-prev
@@ -369,7 +369,7 @@ jobs:
           make install
 
       - name: 'build ngtcp2 boringssl'
-        if: ${{ steps.cache-ngtcp2-boringssl.outputs.cache-hit != 'true' }}
+        if: ${{ !steps.cache-ngtcp2-boringssl.outputs.cache-hit }}
         run: |
           cd ~
           git clone --quiet --depth 1 --branch "v${NGTCP2_VERSION}" https://github.com/ngtcp2/ngtcp2 ngtcp2-boringssl
@@ -382,7 +382,7 @@ jobs:
           make install
 
       - name: 'build nghttp2'
-        if: ${{ steps.cache-nghttp2.outputs.cache-hit != 'true' }}
+        if: ${{ !steps.cache-nghttp2.outputs.cache-hit }}
         run: |
           cd ~
           git clone --quiet --depth 1 --branch "v${NGHTTP2_VERSION}" https://github.com/nghttp2/nghttp2
@@ -520,7 +520,7 @@ jobs:
             LDFLAGS: -Wl,-rpath,/home/runner/quiche/target/release
             PKG_CONFIG_PATH: /home/runner/nghttp2/build/lib/pkgconfig
             configure: >-
-              --with-openssl=/home/runner/quiche/quiche/deps/boringssl/src
+              --with-openssl=/home/runner/quiche/boringssl
               --with-quiche=/home/runner/quiche/target/release
               --with-ca-fallback
               --enable-unity
@@ -528,7 +528,7 @@ jobs:
           - name: 'quiche'
             PKG_CONFIG_PATH: /home/runner/nghttp2/build/lib/pkgconfig:/home/runner/quiche/target/release
             generate: >-
-              -DOPENSSL_ROOT_DIR=/home/runner/quiche/quiche/deps/boringssl/src
+              -DOPENSSL_ROOT_DIR=/home/runner/quiche/boringssl
               -DUSE_QUICHE=ON
               -DCURL_CA_FALLBACK=ON
 
@@ -721,24 +721,22 @@ jobs:
           key: ${{ runner.os }}-http3-build-${{ env.cache-name }}-${{ env.QUICHE_VERSION }}
 
       - name: 'build quiche and boringssl'
-        if: ${{ contains(matrix.build.name, 'quiche') && steps.cache-quiche.outputs.cache-hit != 'true' }}
+        if: ${{ contains(matrix.build.name, 'quiche') && !steps.cache-quiche.outputs.cache-hit }}
         run: |
           cd ~
           git clone --quiet --depth 1 --branch "${QUICHE_VERSION}" --recursive https://github.com/cloudflare/quiche
           cd quiche
-          #### Work-around https://github.com/curl/curl/issues/7927 #######
-          #### See https://github.com/alexcrichton/cmake-rs/issues/131 ####
-          sed -i -e 's/cmake = "0.1"/cmake = "=0.1.45"/' quiche/Cargo.toml
-
           cargo build -v --package quiche --release --features ffi,pkg-config-meta,qlog --verbose
           ln -s libquiche.so target/release/libquiche.so.0
-          mkdir -v quiche/deps/boringssl/src/lib
-          find target/release \( -name libcrypto.a -o -name libssl.a \) -exec ln -vnf -- '{}' quiche/deps/boringssl/src/lib \;
+          cd ..
+          mkdir -p quiche/boringssl/lib
+          find quiche/target/release \( -name libcrypto.a -o -name libssl.a \) -exec ln -vnf -- '{}' quiche/boringssl/lib \;
+          find quiche/target/release/build/boring-sys-*/out/boringssl/src -maxdepth 1 \( -name include \) -exec ln -vsf -- '../../{}' quiche/boringssl \;
 
           # include dir
-          # /home/runner/quiche/quiche/deps/boringssl/src/include
+          # /home/runner/quiche/boringssl/include
           # lib dir
-          # /home/runner/quiche/quiche/deps/boringssl/src/lib
+          # /home/runner/quiche/boringssl/lib
 
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
