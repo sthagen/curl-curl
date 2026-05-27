@@ -205,7 +205,7 @@ static const struct testcase get_parts_list[] = {
     "http://-atest/",
     "http | [11] | [12] | [13] | -atest | [15] | / | [16] | [17]",
     0, 0, CURLUE_OK },
-  { /* Multiple trailing dots is not okey */
+  { /* Multiple trailing dots is not okay */
     "http://example.com../",
     "",
     0, 0, CURLUE_BAD_HOSTNAME },
@@ -326,6 +326,7 @@ static const struct testcase get_parts_list[] = {
   {"https://user@example.net?he l lo",
    "https | user | [12] | [13] | example.net | [15] | / | he l lo | [17]",
    CURLU_ALLOW_SPACE, 0, CURLUE_OK},
+  {"https://exam|ple.net", "", 0, 0, CURLUE_BAD_HOSTNAME},
   {"https://exam{}[]ple.net", "", 0, 0, CURLUE_BAD_HOSTNAME},
   {"https://exam{ple.net", "", 0, 0, CURLUE_BAD_HOSTNAME},
   {"https://exam}ple.net", "", 0, 0, CURLUE_BAD_HOSTNAME},

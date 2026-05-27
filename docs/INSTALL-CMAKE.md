@@ -103,16 +103,6 @@ arguments in the build.
 
 Building statically is not for the faint of heart.
 
-### Fallback for CMake before version 3.13
-
-CMake before version 3.13 does not support the `--build` option. In that
-case, you have to `cd` to the build directory and use the building tool that
-corresponds to the build files that CMake generated for you. This example
-assumes that CMake generates `Makefile`:
-
-    $ cd ../curl-build
-    $ make
-
 # Testing
 
 (The test suite does not yet work with the cmake build)
@@ -128,16 +118,6 @@ by the `curl-config` script is determined at CMake configure time. If you want
 to set a custom install prefix for curl, set
 [`CMAKE_INSTALL_PREFIX`](https://cmake.org/cmake/help/latest/variable/CMAKE_INSTALL_PREFIX.html)
 when configuring the CMake build.
-
-### Fallback for CMake before version 3.15
-
-CMake before version 3.15 does not support the `--install` option. In that
-case, you have to `cd` to the build directory and use the building tool that
-corresponds to the build files that CMake generated for you. This example
-assumes that CMake generates `Makefile`:
-
-    $ cd ../curl-build
-    $ make install
 
 # CMake usage
 
@@ -262,6 +242,7 @@ target_link_libraries(my_target PRIVATE CURL::libcurl)
 ## Enabling features
 
 - `CURL_ENABLE_NTLM`:                       Enable NTLM support. Default: `OFF`
+- `CURL_ENABLE_SMB`:                        Enable SMB. Default: `OFF`
 - `CURL_ENABLE_SSL`:                        Enable SSL support. Default: `ON`
 - `CURL_WINDOWS_SSPI`:                      Enable SSPI on Windows. Default: =`CURL_USE_SCHANNEL`
 - `ENABLE_IPV6`:                            Enable IPv6 support. Default: `ON` if target supports IPv6.
@@ -274,6 +255,7 @@ target_link_libraries(my_target PRIVATE CURL::libcurl)
 - `USE_SSLS_EXPORT`:                        Enable experimental SSL session import/export. Default: `OFF`
 - `USE_WIN32_IDN`:                          Use WinIDN for IDN support. Default: `OFF`
 - `USE_WIN32_LDAP`:                         Use Windows LDAP implementation. Default: `ON`
+- `USE_PROXY_HTTP3`:                        Enable experimental HTTP/3 proxy support. Default: `OFF`
 
 ## Disabling features
 
@@ -315,7 +297,6 @@ target_link_libraries(my_target PRIVATE CURL::libcurl)
 - `CURL_DISABLE_RTSP`:                      Disable RTSP. Default: `OFF`
 - `CURL_DISABLE_SHA512_256`:                Disable SHA-512/256 hash algorithm. Default: `OFF`
 - `CURL_DISABLE_SHUFFLE_DNS`:               Disable shuffle DNS feature. Default: `OFF`
-- `CURL_ENABLE_SMB`:                        Enable SMB. Default: `OFF`
 - `CURL_DISABLE_SMTP`:                      Disable SMTP. Default: `OFF`
 - `CURL_DISABLE_SOCKETPAIR`:                Disable use of socketpair for curl_multi_poll(). Default: `OFF`
 - `CURL_DISABLE_SRP`:                       Disable TLS-SRP support. Default: `OFF`
@@ -501,11 +482,12 @@ Examples:
 
 - `APXS`:                                   Absolute path. Default: search for `apxs`
 - `CADDY`:                                  Absolute path. Default: search for `caddy`
+- `H2O`:                                    Absolute path. Default: search for `h2o`
 - `HTTPD_NGHTTPX`:                          Absolute path. Default: search for `nghttpx`
 - `HTTPD`:                                  Absolute path. Default: search for `apache2`
 - `DANTED`:                                 Absolute path. Default: search for `danted`
 - `TEST_NGHTTPX`:                           Absolute path. Default: search for `nghttpx`
-- `VSFTPD`:                                 Absolute path. Default: search for `vsftps`
+- `VSFTPD`:                                 Absolute path. Default: search for `vsftpd`
 - `SSHD`:                                   Absolute path. Default: search for `sshd`
 - `SFTPD`:                                  Absolute path. Default: search for `sftp-server`
 

@@ -26,7 +26,7 @@
  * but vtls.c should ever call or use these functions.
  *
  * Note: do not use the GnuTLS' *_t variable type names in this source code,
- * since they were not present in 1.0.X.
+ * since they were not present in 1.0.x.
  */
 #include "curl_setup.h"
 
@@ -1429,7 +1429,7 @@ static CURLcode gtls_verify_ocsp_status(struct Curl_easy *data,
 {
   gnutls_ocsp_resp_t ocsp_resp = NULL;
   gnutls_datum_t status_request;
-  gnutls_ocsp_cert_status_t status;
+  gnutls_ocsp_cert_status_t status = GNUTLS_OCSP_CERT_UNKNOWN;
   gnutls_x509_crl_reason_t reason;
   CURLcode result = CURLE_OK;
   int rc;
@@ -1461,8 +1461,13 @@ static CURLcode gtls_verify_ocsp_status(struct Curl_easy *data,
     goto out;
   }
 
-  (void)gnutls_ocsp_resp_get_single(ocsp_resp, 0, NULL, NULL, NULL, NULL,
-                                    &status, NULL, NULL, NULL, &reason);
+  rc = gnutls_ocsp_resp_get_single(ocsp_resp, 0, NULL, NULL, NULL, NULL,
+                                   &status, NULL, NULL, NULL, &reason);
+  if(rc < 0) {
+    failf(data, "Invalid OCSP response received");
+    result = CURLE_SSL_INVALIDCERTSTATUS;
+    goto out;
+  }
 
   switch(status) {
   case GNUTLS_OCSP_CERT_GOOD:
@@ -2244,7 +2249,8 @@ static CURLcode gtls_recv(struct Curl_cfilter *cf,
   }
 
 out:
-  CURL_TRC_CF(data, cf, "gtls_recv(len=%zu) -> 0, %zd", blen, nread);
+  CURL_TRC_CF(data, cf, "gtls_recv(len=%zu) -> %d, %zd", blen,
+              (int)result, nread);
   return result;
 }
 
@@ -2263,14 +2269,19 @@ static CURLcode gtls_random(struct Curl_easy *data,
   return rc ? CURLE_FAILED_INIT : CURLE_OK;
 }
 
-static CURLcode gtls_sha256sum(const unsigned char *tmp, /* input */
-                               size_t tmplen,
+static CURLcode gtls_sha256sum(const unsigned char *input,
+                               size_t len,
                                unsigned char *sha256sum, /* output */
                                size_t sha256len)
 {
   struct sha256_ctx SHA256pw;
   sha256_init(&SHA256pw);
-  sha256_update(&SHA256pw, (unsigned int)tmplen, tmp);
+  do {
+    unsigned int ilen = (unsigned int)CURLMIN(len, UINT_MAX);
+    sha256_update(&SHA256pw, ilen, input);
+    len -= ilen;
+    input += ilen;
+  } while(len);
 #if NETTLE_VERSION_MAJOR >= 4
   (void)sha256len;
   sha256_digest(&SHA256pw, sha256sum);
