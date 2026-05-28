@@ -48,7 +48,7 @@ static void check_capsule_hdr(size_t payload_len,
   size_t hdr_len;
 
   memset(hdr, 0xA5, sizeof(hdr));
-  hdr_len = Curl_capsule_encap_udp_hdr(hdr, sizeof(hdr), payload_len);
+  hdr_len = capsule_encap_udp_hdr(hdr, sizeof(hdr), payload_len);
   fail_unless(hdr_len == expected_len, "capsule header length mismatch");
   fail_unless(!memcmp(hdr, expected, expected_len),
               "capsule header bytes mismatch");
@@ -220,8 +220,7 @@ static void test_capsule_decode_paths(void)
   fail_unless(err == CURLE_RECV_ERROR,
               "expected RECV_ERROR for short output buffer");
   fail_unless(nread == 0, "expected zero read on short output buffer");
-  fail_unless(Curl_bufq_is_empty(&q),
-              "oversized capsule must be discarded");
+  fail_unless(Curl_bufq_is_empty(&q), "oversized capsule must be discarded");
 
   /* zero-length UDP payload is accepted and consumed */
   Curl_bufq_reset(&q);
@@ -249,8 +248,6 @@ static void test_capsule_decode_paths(void)
 static CURLcode test_unit3400(const char *arg)
 {
   UNITTEST_BEGIN_SIMPLE
-
-  (void)arg;
 
 #if defined(USE_PROXY_HTTP3) && \
   !defined(CURL_DISABLE_PROXY) && !defined(CURL_DISABLE_HTTP)

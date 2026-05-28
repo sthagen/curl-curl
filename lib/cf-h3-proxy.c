@@ -28,6 +28,7 @@
   defined(USE_NGTCP2) && defined(USE_OPENSSL)
 
 #include <ngtcp2/ngtcp2.h>
+#include <ngtcp2/ngtcp2_crypto.h>
 
 #ifdef USE_OPENSSL
 #include <openssl/err.h>
@@ -52,6 +53,7 @@
 #include "sendf.h"
 #include "multiif.h"
 #include "cfilters.h"
+#include "cf-capsule.h"
 #include "cf-socket.h"
 #include "connect.h"
 #include "progress.h"
@@ -777,7 +779,7 @@ static int cb_h3_proxy_recv_data(nghttp3_conn *conn, int64_t stream3_id,
 
   stream->tun_data_recvd += (curl_off_t)buflen;
   CURL_TRC_CF(data, cf, "[cb_h3_proxy_recv_data] "
-              "[%" PRIu64 "] DATA len=%zu, total=%zd",
+              "[%" PRId64 "] DATA len=%zu, total=%" FMT_OFF_T,
               H3_STREAM_ID(stream), buflen, stream->tun_data_recvd);
 
   result = Curl_bufq_write(&proxy_ctx->inbufq, buf, buflen, &nwritten);
@@ -1062,8 +1064,8 @@ static nghttp3_ssize cb_h3_read_data_for_tunnel_stream(nghttp3_conn *conn,
   }
 
   CURL_TRC_CF(data, cf, "[%" PRId64 "] read req body -> "
-              "%d vecs%s with %zd (buffered=%zu, left=%" FMT_OFF_T ")",
-              H3_STREAM_ID(stream), (int)nvecs,
+              "%zu vecs%s with %zu (buffered=%zu, left=%" FMT_OFF_T ")",
+              H3_STREAM_ID(stream), nvecs,
               *pflags == NGHTTP3_DATA_FLAG_EOF ? " EOF" : "",
               nwritten, Curl_bufq_len(&stream->sendbuf),
               stream->upload_left);
@@ -1230,8 +1232,7 @@ static int cb_ngtcp2_proxy_handshake_completed(ngtcp2_conn *tconn,
     rp = ngtcp2_conn_get_remote_transport_params(ctx->qconn);
     CURL_TRC_CF(data, cf, "handshake complete after %" FMT_TIMEDIFF_T
                 "ms, remote transport[max_udp_payload=%" PRIu64
-                ", initial_max_data=%" PRIu64
-                "]",
+                ", initial_max_data=%" PRIu64 "]",
                curlx_ptimediff_ms(&ctx->handshake_at, &ctx->started_at),
                rp->max_udp_payload_size, rp->initial_max_data);
   }
@@ -1497,8 +1498,7 @@ static int cb_ngtcp2_extend_max_stream_data(ngtcp2_conn *tconn,
   }
   stream = H3_PROXY_STREAM_CTX(ctx, s_data);
   if(stream && stream->quic_flow_blocked) {
-    CURL_TRC_CF(s_data, cf, "[%" PRId64 "] unblock quic flow",
-                stream_id);
+    CURL_TRC_CF(s_data, cf, "[%" PRId64 "] unblock quic flow", stream_id);
     stream->quic_flow_blocked = FALSE;
     Curl_multi_mark_dirty(s_data);
   }
@@ -2325,8 +2325,7 @@ static CURLcode cf_h3_proxy_recv(struct Curl_cfilter *cf,
   if(!*pnread && !Curl_bufq_is_empty(&proxy_ctx->inbufq)) {
     result = Curl_bufq_cread(&proxy_ctx->inbufq, buf, len, pnread);
     if(result) {
-      CURL_TRC_CF(data, cf, "[%" PRId64 "] read inbufq(len=%zu) "
-                            "-> %zd, %d",
+      CURL_TRC_CF(data, cf, "[%" PRId64 "] read inbufq(len=%zu) -> %zu, %d",
                   stream->id, len, *pnread, result);
       goto out;
     }
@@ -2459,8 +2458,7 @@ static void proxy_h3_submit(int64_t *pstream_id,
     switch(rc) {
     case NGHTTP3_ERR_CONN_CLOSING:
       CURL_TRC_CF(data, cf, "h3sid[%" PRId64 "] failed to send, "
-                            "connection is closing",
-                  H3_STREAM_ID(stream));
+                  "connection is closing", H3_STREAM_ID(stream));
       break;
     default:
       CURL_TRC_CF(data, cf, "h3sid[%" PRId64 "] failed to send -> %d (%s)",
@@ -3057,6 +3055,10 @@ static CURLcode cf_h3_proxy_quic_connect(struct Curl_cfilter *cf,
   }
 
   *done = FALSE;
+  if(!proxy_ctx->dest) {
+    Curl_peer_link(&proxy_ctx->dest,
+                   Curl_conn_get_destination(cf->conn, cf->sockindex));
+  }
 
   if(!proxy_ctx->ngtcp2_ctx) {
     result = cf_h3_proxy_ctx_init(cf, data);
@@ -3413,6 +3415,63 @@ struct Curl_cftype Curl_cft_h3_proxy = {
   Curl_cf_def_conn_keep_alive,
   cf_h3_proxy_query,
 };
+
+CURLcode Curl_cf_h3_proxy_create(struct Curl_cfilter **pcf,
+                                 struct Curl_easy *data,
+                                 struct connectdata *conn,
+                                 struct Curl_sockaddr_ex *addr,
+                                 uint8_t transport_in,
+                                 uint8_t transport_out)
+{
+  struct Curl_cfilter *cf = NULL;
+  struct cf_h3_proxy_ctx *ctx;
+  CURLcode result = CURLE_OUT_OF_MEMORY;
+
+  if((transport_out != TRNSPRT_QUIC) || (!conn->http_proxy.peer))
+    return CURLE_FAILED_INIT;
+
+  ctx = curlx_calloc(1, sizeof(*ctx));
+  if(!ctx) {
+    result = CURLE_OUT_OF_MEMORY;
+    goto out;
+  }
+  ctx->udp_tunnel = (transport_in == TRNSPRT_QUIC);
+
+  result = Curl_cf_create(&cf, &Curl_cft_h3_proxy, ctx);
+  if(result)
+    goto out;
+  cf->conn = conn;
+
+  result = Curl_cf_udp_create(&cf->next, data, conn, addr,
+                              TRNSPRT_QUIC, TRNSPRT_QUIC);
+  if(result)
+    goto out;
+  cf->next->conn = cf->conn;
+  cf->next->sockindex = cf->sockindex;
+
+  if(ctx->udp_tunnel) {
+    struct Curl_cfilter *cf_caps = NULL;
+    result = Curl_cf_capsule_create(&cf_caps, data, conn);
+    if(result)
+      goto out;
+    cf_caps->conn = conn;
+    cf_caps->sockindex = cf->sockindex;
+    cf_caps->next = cf;
+    cf = cf_caps;
+  }
+
+out:
+  *pcf = (!result) ? cf : NULL;
+  if(result) {
+    if(cf)
+      Curl_conn_cf_discard_chain(&cf, data);
+    else if(ctx)
+      cf_h3_proxy_ctx_free(ctx);
+  }
+  else
+    CURL_TRC_CF(data, cf, "created, udp_tunnel=%d", ctx->udp_tunnel);
+  return result;
+}
 
 CURLcode Curl_cf_h3_proxy_insert_after(struct Curl_cfilter *cf_at,
                                        struct Curl_easy *data,

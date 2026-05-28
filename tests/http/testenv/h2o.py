@@ -160,6 +160,12 @@ class H2o:
             )
         return True
 
+    def kill(self, wait_dead=True):
+        if self._process:
+            self._process.kill()
+            return True
+        return False
+
     def restart(self):
         self.stop()
         return self.start()
@@ -241,6 +247,11 @@ class H2oServer(H2o):
         super().__init__(
             env=env, name="h2o-server", domain=env.domain1, cred_name=env.domain1
         )
+        self._docs_dir = os.path.join(self.env.gen_dir, "docs")
+
+    @property
+    def docs_dir(self):
+        return self._docs_dir
 
     def initial_start(self):
         super().initial_start()
@@ -261,11 +272,10 @@ class H2oServer(H2o):
     def write_config(self):
         creds = self.env.get_credentials(self._cred_name)
         assert creds  # convince pytype this is not None
-        doc_root = os.path.join(self.env.gen_dir, "docs")
-        self._mkpath(doc_root)
+        self._mkpath(self._docs_dir)
         self._mkpath(self._run_dir)
         # Create a simple test file
-        with open(os.path.join(doc_root, "data.json"), "w") as f:
+        with open(os.path.join(self._docs_dir, "data.json"), "w") as f:
             f.write('{"message": "Hello from h2o HTTP/3 server"}\n')
         with open(self._conf_file, "w") as fd:
             fd.write(f"""# h2o HTTP/3 server configuration
@@ -289,7 +299,7 @@ hosts:
   "{self._domain}":
     paths:
       "/":
-        file.dir: {doc_root}
+        file.dir: {self._docs_dir}
 
 http2-reprioritize-blocking-assets: ON
 
@@ -313,9 +323,9 @@ class H2oProxy(H2o):
         super().initial_start()
 
         def startup(ports: Dict[str, int]) -> bool:
-            self._port = ports["h3proxys"]
-            self._h2_port = ports["h2proxys"]
-            self._h1_port = ports["proxys"]
+            self._port = ports["h2o_h3proxys"]
+            self._h2_port = ports["h2o_h2proxys"]
+            self._h1_port = ports["h2o_proxys"]
             if self.start():
                 self.env.update_ports(ports)
                 return True
@@ -327,9 +337,9 @@ class H2oProxy(H2o):
 
         return alloc_ports_and_do(
             {
-                "h3proxys": socket.SOCK_DGRAM,
-                "h2proxys": socket.SOCK_STREAM,
-                "proxys": socket.SOCK_STREAM,
+                "h2o_h3proxys": socket.SOCK_DGRAM,
+                "h2o_h2proxys": socket.SOCK_STREAM,
+                "h2o_proxys": socket.SOCK_STREAM,
             },
             startup,
             self.env.gen_root,

@@ -1555,7 +1555,7 @@ static nghttp3_ssize cb_h3_read_req_body(nghttp3_conn *conn, int64_t stream_id,
   struct cf_ngtcp2_ctx *ctx = cf->ctx;
   struct Curl_easy *data = stream_user_data;
   struct h3_stream_ctx *stream = H3_STREAM_CTX(ctx, data);
-  ssize_t nwritten = 0;
+  size_t nwritten = 0;
   size_t nvecs = 0;
   (void)cf;
   (void)conn;
@@ -1602,8 +1602,8 @@ static nghttp3_ssize cb_h3_read_req_body(nghttp3_conn *conn, int64_t stream_id,
   }
 
   CURL_TRC_CF(data, cf, "[%" PRId64 "] read req body -> "
-              "%d vecs%s with %zd (buffered=%zu, left=%" FMT_OFF_T ")",
-              stream->id, (int)nvecs,
+              "%zu vecs%s with %zu (buffered=%zu, left=%" FMT_OFF_T ")",
+              stream->id, nvecs,
               *pflags == NGHTTP3_DATA_FLAG_EOF ? " EOF" : "",
               nwritten, Curl_bufq_len(&stream->sendbuf),
               stream->upload_left);
@@ -1918,7 +1918,7 @@ static CURLcode cf_progress_ingress(struct Curl_cfilter *cf,
   if(ctx->q.sockfd != CURL_SOCKET_BAD) {
     /* Direct UDP socket (via happy eyeballs) */
     return vquic_recv_packets(cf, data, &ctx->q, 1000,
-                            cf_ngtcp2_recv_pkts, &rctx);
+                              cf_ngtcp2_recv_pkts, &rctx);
   }
   else {
     /* Tunneled QUIC (CONNECT-UDP through proxy) */
@@ -3120,7 +3120,8 @@ CURLcode Curl_cf_ngtcp2_create(struct Curl_cfilter **pcf,
     goto out;
   cf->conn = conn;
 
-  result = Curl_cf_udp_create(&cf->next, data, conn, addr, TRNSPRT_QUIC);
+  result = Curl_cf_udp_create(&cf->next, data, conn, addr,
+                              TRNSPRT_QUIC, TRNSPRT_QUIC);
   if(result)
     goto out;
   cf->next->conn = cf->conn;

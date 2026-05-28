@@ -1014,8 +1014,8 @@ static bool url_match_auth_ntlm(struct connectdata *conn,
          that can be reused and "upgraded" to NTLM if it does
          not have any auth ongoing. */
 #ifdef USE_SPNEGO
-      if((conn->http_ntlm_state == NTLMSTATE_NONE)
-         && (conn->http_negotiate_state == GSS_AUTHNONE)) {
+      if((conn->http_ntlm_state == NTLMSTATE_NONE) &&
+         (conn->http_negotiate_state == GSS_AUTHNONE)) {
 #else
       if(conn->http_ntlm_state == NTLMSTATE_NONE) {
 #endif
@@ -1317,12 +1317,7 @@ static struct connectdata *allocate_conn(struct Curl_easy *data)
 #endif
   conn->ip_version = data->set.ipver;
   conn->bits.connect_only = (bool)data->set.connect_only;
-#ifndef CURL_DISABLE_PROXY
-  if(conn->http_proxy.proxytype == CURLPROXY_HTTPS3)
-    conn->transport_wanted = TRNSPRT_QUIC;
-  else
-#endif
-    conn->transport_wanted = TRNSPRT_TCP; /* most of them are TCP streams */
+  conn->transport_wanted = TRNSPRT_TCP; /* most of them are TCP streams */
 
   /* Store the local bind parameters that will be used for this connection */
   if(data->set.str[STRING_DEVICE]) {

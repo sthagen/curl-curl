@@ -690,7 +690,9 @@ bool Curl_conn_is_ip_connected(struct Curl_easy *data, int sockindex)
 static bool cf_is_ssl(struct Curl_cfilter *cf)
 {
   for(; cf; cf = cf->next) {
-    if(cf->cft->flags & CF_TYPE_SSL)
+    /* A tunneling proxy does not offer end2end encryption, even if
+     * it does SSL itself (e.g. QUIC H3 proxy) */
+    if((cf->cft->flags & CF_TYPE_SSL) && !(cf->cft->flags & CF_TYPE_PROXY))
       return TRUE;
     if(cf->cft->flags & CF_TYPE_IP_CONNECT)
       return FALSE;
@@ -1028,8 +1030,8 @@ const char *Curl_conn_cf_get_alpn_negotiated(struct Curl_cfilter *cf,
   return NULL;
 }
 
-static const struct Curl_sockaddr_ex *
-cf_get_remote_addr(struct Curl_cfilter *cf, struct Curl_easy *data)
+static const struct Curl_sockaddr_ex *cf_get_remote_addr(
+  struct Curl_cfilter *cf, struct Curl_easy *data)
 {
   const struct Curl_sockaddr_ex *remote_addr = NULL;
   if(cf &&
@@ -1067,8 +1069,8 @@ curl_socket_t Curl_conn_get_first_socket(struct Curl_easy *data)
   return data->conn->sock[FIRSTSOCKET];
 }
 
-const struct Curl_sockaddr_ex *
-Curl_conn_get_remote_addr(struct Curl_easy *data, int sockindex)
+const struct Curl_sockaddr_ex *Curl_conn_get_remote_addr(
+  struct Curl_easy *data, int sockindex)
 {
   struct Curl_cfilter *cf =
     (data->conn && CONN_SOCK_IDX_VALID(sockindex)) ?
