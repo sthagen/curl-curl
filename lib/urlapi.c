@@ -480,7 +480,7 @@ static CURLUcode hostname_check(struct Curl_URL *u, char *hostname,
       /* more than one trailing dot is not allowed */
       return CURLUE_BAD_HOSTNAME;
     else if((hlen == 1) && (hostname[0] == '.'))
-      /* just a single dot is not allowed */
+      /* a single dot alone is not allowed */
       return CURLUE_BAD_HOSTNAME;
   }
   return CURLUE_OK;
@@ -520,7 +520,7 @@ UNITTEST int ipv4_normalize(struct dynbuf *host)
     int rc;
     curl_off_t l;
     if(*c == '0') {
-      if(c[1] == 'x') {
+      if(Curl_raw_tolower(c[1]) == 'x') {
         c += 2; /* skip the prefix */
         rc = curlx_str_hex(&c, &l, UINT_MAX);
         if(rc)
@@ -1721,8 +1721,11 @@ static CURLUcode set_url(CURLU *u, const char *url, size_t part_size,
        and this is a redirect */
     uc = curl_url_get(u, CURLUPART_URL, &oldurl, flags);
     if(!uc) {
-      /* success, meaning the "" is a fine relative URL, but nothing
-         changes */
+      /* success, meaning the "" is a fine relative URL, and the new URL
+         inherits scheme/authority/path/query, but not fragment, from the
+         existing URL (RFC 3986 section 5.2.2) */
+      curlx_safefree(u->fragment);
+      u->fragment_present = FALSE;
       curlx_free(oldurl);
       return CURLUE_OK;
     }

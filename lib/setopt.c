@@ -847,9 +847,9 @@ static CURLcode setopt_long_net(struct Curl_easy *data, CURLoption option,
     s->dns_cache_timeout_ms = -1;
     break;
   case CURLOPT_MAXCONNECTS:
-    result = value_range(&arg, 1, 1, INT_MAX);
+    result = value_range(&arg, 0, 0, INT_MAX);
     if(!result)
-      s->maxconnects = (uint32_t)arg;
+      s->maxconnects = arg ? (uint32_t)arg : DEFAULT_CONNCACHE_SIZE;
     break;
   case CURLOPT_SERVER_RESPONSE_TIMEOUT:
     return setopt_set_timeout_sec(&s->server_response_timeout, arg);
@@ -2024,6 +2024,7 @@ static CURLcode setopt_cptr(struct Curl_easy *data, CURLoption option,
     /*
      * String to set in the HTTP Referer: field.
      */
+    Curl_bufref_free(&data->state.referer);
     result = Curl_setstropt(&s->str[STRING_SET_REFERER], ptr);
     break;
 
@@ -2773,7 +2774,7 @@ static CURLcode setopt_offt(struct Curl_easy *data, CURLoption option,
     break;
   case CURLOPT_MAX_SEND_SPEED_LARGE:
     /*
-     * When transfer uploads are faster then CURLOPT_MAX_SEND_SPEED_LARGE
+     * When transfer uploads are faster than CURLOPT_MAX_SEND_SPEED_LARGE
      * bytes per second the transfer is throttled..
      */
     if(offt < 0)

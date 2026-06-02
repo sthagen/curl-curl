@@ -227,7 +227,7 @@ exec $CC "$@"
 EOF
 
 dnl **********************************************************************
-dnl See which TLS backend(s) that are requested. Just do all the
+dnl See which TLS backend(s) that are requested. Do all the
 dnl TLS AC_ARG_WITH() invokes here and do the checks later
 dnl **********************************************************************
 OPT_SCHANNEL=no
@@ -1610,7 +1610,7 @@ if test "x$OPT_BROTLI" != "xno"; then
       DIR_BROTLI=`echo $LD_BROTLI | $SED -e 's/^-L//'`
       ;;
     off)
-      dnl no --with-brotli option given, just check default places
+      dnl no --with-brotli option given, check default places
       ;;
     *)
       dnl use the given --with-brotli spot
@@ -1700,7 +1700,7 @@ if test "x$OPT_ZSTD" != "xno"; then
 
       ;;
     off)
-      dnl no --with-zstd option given, just check default places
+      dnl no --with-zstd option given, check default places
       ;;
     *)
       dnl use the given --with-zstd spot
@@ -1846,7 +1846,7 @@ int main(int argc, char **argv)
 {
 #ifdef _WIN32
   /* on Windows, writing to the argv does not hide the argument in
-     process lists so it can just be skipped */
+     process lists so it can be skipped */
   (void)argc;
   (void)argv;
   return 1;
@@ -2437,7 +2437,7 @@ if test "x$OPT_LIBSSH2" != "xno"; then
 
       ;;
     off)
-      dnl no --with-libssh2 option given, just check default places
+      dnl no --with-libssh2 option given, check default places
       ;;
     *)
       dnl use the given --with-libssh2 spot
@@ -2514,7 +2514,7 @@ elif test "x$OPT_LIBSSH" != "xno"; then
 
       ;;
     off)
-      dnl no --with-libssh option given, just check default places
+      dnl no --with-libssh option given, check default places
       ;;
     *)
       dnl use the given --with-libssh spot
@@ -3713,8 +3713,8 @@ if test "$disable_http" = "yes" || test "$USE_NGTCP" = "1"; then
 fi
 
 AC_ARG_WITH(quiche,
-AS_HELP_STRING([--with-quiche=PATH],[Enable quiche usage])
-AS_HELP_STRING([--without-quiche],[Disable quiche usage]),
+AS_HELP_STRING([--with-quiche=PATH],[Enable quiche usage (experimental)])
+AS_HELP_STRING([--without-quiche],[Disable quiche usage (experimental)]),
   [OPT_QUICHE=$withval])
 case "$OPT_QUICHE" in
   no)
@@ -3775,7 +3775,7 @@ if test "$want_quiche" != "no"; then
     AC_CHECK_LIB(quiche, quiche_conn_send_ack_eliciting,
       [
         AC_CHECK_HEADERS(quiche.h,
-          experimental="$experimental HTTP3"
+          experimental="$experimental Quiche"
           AC_MSG_NOTICE([HTTP3 support is experimental])
           curl_h3_msg="enabled (quiche)"
           AC_DEFINE(USE_QUICHE, 1, [if quiche is in use])

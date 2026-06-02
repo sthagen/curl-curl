@@ -626,6 +626,51 @@ static const struct testcase get_parts_list[] = {
 };
 
 static const struct urltestcase get_url_list[] = {
+  /* IPvFuture format */
+  {"http://[v1.fe80::abcd]/", "", 0, 0, CURLUE_BAD_IPV6},
+
+  /* trailing dot on valid host */
+  {"http://example.com./", "http://example.com./", 0, 0, CURLUE_OK},
+
+  /* the exact upper valid port boundary */
+  {"http://host:65535/", "http://host:65535/", 0, 0, CURLUE_OK},
+
+  /* Internationalized path (not host). */
+  {"https://example.com/r\xc3\xa4ksm\xc3\xb6rg\xc3\xa5s",
+   "https://example.com/r%C3%A4ksm%C3%B6rg%C3%A5s",
+   CURLU_URLENCODE, 0, CURLUE_OK},
+
+  /* weird fragments */
+  {"http://host/#a#b", "http://host/#a#b", 0, 0, CURLUE_OK},
+
+  /* Empty query parameter values */
+  {"http://host/?a=", "http://host/?a=", 0, 0, CURLUE_OK},
+  {"http://host/?a=&b=", "http://host/?a=&b=", 0, 0, CURLUE_OK},
+
+  /* Percent-encoded userinfo */
+  {"https://user%20name@example.com/", "https://user%20name@example.com/",
+   0, 0, CURLUE_OK},
+  {"https://user:pa%3Ass@example.com/", "https://user:pa%3Ass@example.com/",
+   0, 0, CURLUE_OK},
+
+  /* malformed unbracketed IPv6 */
+  {"https://fe80:8080::1/", "", 0, 0, CURLUE_BAD_PORT_NUMBER},
+  {"https://::1/", "", 0, 0, CURLUE_BAD_PORT_NUMBER},
+
+  /* Empty host with standard schemes */
+  {"http:///", "", 0, 0, CURLUE_NO_HOST},
+  {"https://?q=1", "", 0, 0, CURLUE_NO_HOST},
+
+  /* Empty path segment normalization */
+  {"http://example.com//", "http://example.com//", 0, 0, CURLUE_OK},
+  {"http://example.com///foo", "http://example.com///foo", 0, 0, CURLUE_OK},
+
+  /* Empty user and password combinations */
+  {"http://@example.com/", "http://@example.com/", 0, 0, CURLUE_OK},
+  {"http://user:@example.com/", "http://user:@example.com/", 0, 0, CURLUE_OK},
+  {"http://:password@example.com/", "http://:password@example.com/",
+   0, 0, CURLUE_OK},
+
   {"https://127.1.0x", "https://127.1.0x/", 0, 0, CURLUE_OK},
   {"https://127.0x", "https://127.0x/", 0, 0, CURLUE_OK},
   {"https://127.0x.1", "https://127.0x.1/", 0, 0, CURLUE_OK},
@@ -706,6 +751,7 @@ static const struct urltestcase get_url_list[] = {
   {"https://0xffffffff", "https://255.255.255.255/", 0, 0, CURLUE_OK},
   {"https://1.0x1000000", "https://1.0x1000000/", 0, 0, CURLUE_OK},
   {"https://0x7f.1", "https://127.0.0.1/", 0, 0, CURLUE_OK},
+  {"https://0X7F.1", "https://127.0.0.1/", 0, 0, CURLUE_OK},
   {"https://1.2.3.256.com", "https://1.2.3.256.com/", 0, 0, CURLUE_OK},
   {"https://10.com", "https://10.com/", 0, 0, CURLUE_OK},
   {"https://1.2.com", "https://1.2.com/", 0, 0, CURLUE_OK},
@@ -765,10 +811,12 @@ static const struct urltestcase get_url_list[] = {
   {"https://16843009", "https://1.1.1.1/", 0, 0, CURLUE_OK},
   {"https://0177.1", "https://127.0.0.1/", 0, 0, CURLUE_OK},
   {"https://0111.02.0x3", "https://73.2.0.3/", 0, 0, CURLUE_OK},
+  {"https://0111.02.0X3", "https://73.2.0.3/", 0, 0, CURLUE_OK},
   {"https://0111.02.0x3.", "https://73.2.0.3/", 0, 0, CURLUE_OK},
   {"https://0111.02.030", "https://73.2.0.24/", 0, 0, CURLUE_OK},
   {"https://0111.02.030.", "https://73.2.0.24/", 0, 0, CURLUE_OK},
   {"https://0xff.0xff.0377.255", "https://255.255.255.255/", 0, 0, CURLUE_OK},
+  {"https://0XFF.0XFF.0377.255", "https://255.255.255.255/", 0, 0, CURLUE_OK},
   {"https://1.0xffffff", "https://1.255.255.255/", 0, 0, CURLUE_OK},
   /* IPv4 numerical overflows or syntax errors will not normalize */
   {"https://a127.0.0.1", "https://a127.0.0.1/", 0, 0, CURLUE_OK},
@@ -1356,6 +1404,33 @@ static const struct redircase set_url_list[] = {
    "", /* blank redirect */
    "https://example.com/",
    0, 0, CURLUE_OK },
+  {"file:///test?test#test",
+   "", "file:///test?test",
+   0, 0, CURLUE_OK},
+  {"https://example.com/path?query#frag",
+   "", "https://example.com/path?query",
+   0, 0, CURLUE_OK},
+  {"ftp://example.com/dir/file#anchor",
+   "", "ftp://example.com/dir/file",
+   0, 0, CURLUE_OK},
+  {"http://example.com/path#frag",
+   "", "http://example.com/path",
+   0, 0, CURLUE_OK},
+  {"http://example.com/#frag",
+   "", "http://example.com/",
+   0, 0, CURLUE_OK},
+  {"http://user:pass@example.com/path?query#frag",
+   "", "http://user:pass@example.com/path?query",
+   0, 0, CURLUE_OK},
+  {"http://example.com:8080/path?query#frag",
+   "", "http://example.com:8080/path?query",
+   0, 0, CURLUE_OK},
+  {"https://user:pass@example.com:8443/path?query#frag",
+   "", "https://user:pass@example.com:8443/path?query",
+   0, 0, CURLUE_OK},
+  {"http://[::1]/path#frag",
+   "", "http://[::1]/path",
+   0, 0, CURLUE_OK},
   {"http://firstplace.example.com/want/1314",
    "//somewhere.example.com/reply/1314",
    "http://somewhere.example.com/reply/1314",
@@ -1581,7 +1656,6 @@ static int setget_parts(bool has_utf8)
       else
         rc = CURLUE_OK;
       if(!rc) {
-        char *url = NULL;
         CURLUcode uc = updateurl(urlp, setget_parts_list[i].set,
                                  setget_parts_list[i].setflags);
 
@@ -1599,7 +1673,6 @@ static int setget_parts(bool has_utf8)
                         setget_parts_list[i].getflags))
             error++;        /* add */
         }
-        curl_free(url);
       }
       else if(rc != CURLUE_OK) {
         curl_mfprintf(stderr, "Set parts\nin: %s\nreturned %d (expected %d)\n",

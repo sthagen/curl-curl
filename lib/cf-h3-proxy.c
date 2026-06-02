@@ -1404,7 +1404,7 @@ static void cb_ngtcp2_rand(uint8_t *dest, size_t destlen,
   result = Curl_rand(NULL, dest, destlen);
   if(result) {
     /* cb_rand is only used for non-cryptographic context. If Curl_rand
-       failed, just fill 0 and call it *random*. */
+       failed, fill 0 and call it *random*. */
     memset(dest, 0, destlen);
   }
 }
@@ -3374,24 +3374,6 @@ static void cf_h3_proxy_destroy(struct Curl_cfilter *cf,
   }
 }
 
-static void cf_h3_proxy_close(struct Curl_cfilter *cf, struct Curl_easy *data)
-{
-  struct cf_h3_proxy_ctx *ctx = cf->ctx;
-
-  if(ctx) {
-    if(ctx->ngtcp2_ctx) {
-      cf_ngtcp2_proxy_close(cf, data);
-      cf_ngtcp2_proxy_ctx_free(ctx->ngtcp2_ctx);
-      ctx->ngtcp2_ctx = NULL;
-    }
-    cf_h3_proxy_ctx_clear(ctx);
-    cf->connected = FALSE;
-  }
-
-  if(cf->next)
-    cf->next->cft->do_close(cf->next, data);
-}
-
 static CURLcode cf_h3_proxy_shutdown(struct Curl_cfilter *cf,
                                      struct Curl_easy *data, bool *done)
 {
@@ -3404,7 +3386,6 @@ struct Curl_cftype Curl_cft_h3_proxy = {
   CURL_LOG_LVL_NONE,
   cf_h3_proxy_destroy,
   cf_h3_proxy_connect,
-  cf_h3_proxy_close,
   cf_h3_proxy_shutdown,
   cf_h3_proxy_adjust_pollset,
   cf_h3_proxy_data_pending,
@@ -3448,17 +3429,6 @@ CURLcode Curl_cf_h3_proxy_create(struct Curl_cfilter **pcf,
     goto out;
   cf->next->conn = cf->conn;
   cf->next->sockindex = cf->sockindex;
-
-  if(ctx->udp_tunnel) {
-    struct Curl_cfilter *cf_caps = NULL;
-    result = Curl_cf_capsule_create(&cf_caps, data, conn);
-    if(result)
-      goto out;
-    cf_caps->conn = conn;
-    cf_caps->sockindex = cf->sockindex;
-    cf_caps->next = cf;
-    cf = cf_caps;
-  }
 
 out:
   *pcf = (!result) ? cf : NULL;

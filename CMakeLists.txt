@@ -1167,7 +1167,7 @@ if(USE_NGTCP2)
   list(APPEND CURL_LIBS CURL::nghttp3)
 endif()
 
-option(USE_QUICHE "Use quiche library for HTTP/3 support" OFF)
+option(USE_QUICHE "Use quiche library for HTTP/3 support (experimental)" OFF)
 if(USE_QUICHE)
   if(USE_NGTCP2)
     message(FATAL_ERROR "Only one HTTP/3 backend can be selected")
@@ -2180,7 +2180,7 @@ if(NOT CURL_DISABLE_INSTALL)
       set(_explicit_libs "")
       get_target_property(_imported "${_lib}" IMPORTED)
       if(NOT _imported)
-        # Reading the LOCATION property on non-imported target does error out.
+        # Reading the LOCATION property on non-imported target errors out.
         # Assume the user does not need this information in the .pc file.
         continue()
       endif()

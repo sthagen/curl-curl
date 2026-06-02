@@ -1127,7 +1127,7 @@ class CurlClient:
         else:
             force_resolve = self._force_resolv
 
-        args = [self._curl, "-s", "--path-as-is"]
+        args = [self._curl, "--disable", "-s", "--path-as-is"]
         if 'CURL_TEST_EVENT' in os.environ:
             args.append('--test-event')
 
@@ -1239,7 +1239,7 @@ class CurlClient:
 
     def _perf_collapse(self, perf: PerfProfile, file_err):
         if not os.path.exists(perf.file):
-            raise Exception(f'dtrace output file does not exist: {perf.file}')
+            raise Exception(f'perf output file does not exist: {perf.file}')
         fg_collapse = os.path.join(self._fg_dir, 'stackcollapse-perf.pl')
         if not os.path.exists(fg_collapse):
             raise Exception(f'FlameGraph script not found: {fg_collapse}')
