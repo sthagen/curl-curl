@@ -473,7 +473,7 @@ static CURLcode recvmmsg_packets(struct Curl_cfilter *cf,
     memset(&mmsg, 0, sizeof(mmsg));
     for(i = 0; i < n; ++i) {
       msg_iov[i].iov_base = bufs[i];
-      msg_iov[i].iov_len = (int)sizeof(bufs[i]);
+      msg_iov[i].iov_len = sizeof(bufs[i]);
       mmsg[i].msg_hdr.msg_iov = &msg_iov[i];
       mmsg[i].msg_hdr.msg_iovlen = 1;
       mmsg[i].msg_hdr.msg_name = &remote_addr[i];
@@ -508,8 +508,10 @@ static CURLcode recvmmsg_packets(struct Curl_cfilter *cf,
     VERBOSE(++calls);
     for(i = 0; i < mcount; ++i) {
       /* A zero-length UDP packet is no QUIC packet. Ignore. */
-      if(!mmsg[i].msg_len)
+      if(!mmsg[i].msg_len) {
+        ++pkts;
         continue;
+      }
       total_nread += mmsg[i].msg_len;
 
       gso_size = vquic_msghdr_get_udp_gro(&mmsg[i].msg_hdr);
@@ -559,7 +561,7 @@ static CURLcode recvmsg_packets(struct Curl_cfilter *cf,
      * operating systems out there that mess with `msg_iov.iov_len`. */
     memset(&msg, 0, sizeof(msg));
     msg_iov.iov_base = buf;
-    msg_iov.iov_len = (int)sizeof(buf);
+    msg_iov.iov_len = sizeof(buf);
     msg.msg_iov = &msg_iov;
     msg.msg_iovlen = 1;
     msg.msg_control = msg_ctrl;
@@ -593,8 +595,10 @@ static CURLcode recvmsg_packets(struct Curl_cfilter *cf,
     ++calls;
 
     /* A 0-length UDP packet is no QUIC packet */
-    if(!nread)
+    if(!nread) {
+      ++pkts;
       continue;
+    }
 
     gso_size = vquic_msghdr_get_udp_gro(&msg);
     if(gso_size == 0)

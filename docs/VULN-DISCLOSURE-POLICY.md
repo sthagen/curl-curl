@@ -36,6 +36,13 @@ announcement.
   [HackerOne](https://hackerone.com/curl). Issues filed there reach a handful
   of selected and trusted people.
 
+- When communicating in the curl project, please explain your issues or
+  improvements briefly and clearly in your own human voice. Do not lazily
+  paste massive, AI-generated explanations; as a contributor doing this
+  infrequently, it is your responsibility to invest a few extra minutes into
+  making your message digestible. The maintainers review submissions
+  constantly, and clear writing reduces their daily burden and friction.
+
 - The curl project cannot handle vulnerability reports sent to us over email.
   We lose track of the reports. We cannot easily disclose them. Please do not
   send us reports over email.
@@ -150,7 +157,7 @@ made public.
 # Severity levels
 
 The curl project's security team rates security problems using four severity
-levels depending how serious we consider the problem to be. We use **Low**,
+levels depending on how serious we consider the problem to be. We use **Low**,
 **Medium**, **High** and **Critical**. We refrain from using numerical scoring
 of vulnerabilities.
 
@@ -446,7 +453,7 @@ for all internal communication.
 Existing vulnerability disclosure process are followed for any embargoes
 and fixes.
 
-Where possible, public communication are provided:
+Where possible, public communications are provided:
 * regular communication from communication lead (for example daily update)
 * asynchronous communication from incident lead
 
