@@ -29,7 +29,7 @@ static CURLcode test_unit1675(const char *arg)
 {
   UNITTEST_BEGIN_SIMPLE
 
-    /* Test ipv4_normalize */
+  /* Test ipv4_normalize */
   {
     struct dynbuf host;
     int fails = 0;
@@ -111,6 +111,7 @@ static CURLcode test_unit1675(const char *arg)
       int rc;
       curlx_dyn_reset(&host);
       if(curlx_dyn_add(&host, tests[i].in)) {
+        curlx_dyn_free(&host);
         return CURLE_OUT_OF_MEMORY;
       }
       rc = ipv4_normalize(&host);
@@ -123,13 +124,11 @@ static CURLcode test_unit1675(const char *arg)
           fails++;
         }
       }
-      else {
-        if(rc == HOST_IPV4) {
-          curl_mfprintf(stderr, "ipv4_normalize('%s') succeeded unexpectedly:"
-                        " got '%s'\n",
-                        tests[i].in, curlx_dyn_ptr(&host));
-          fails++;
-        }
+      else if(rc == HOST_IPV4) {
+        curl_mfprintf(stderr, "ipv4_normalize('%s') succeeded unexpectedly:"
+                      " got '%s'\n",
+                      tests[i].in, curlx_dyn_ptr(&host));
+        fails++;
       }
     }
     curlx_dyn_free(&host);
@@ -238,12 +237,10 @@ static CURLcode test_unit1675(const char *arg)
           }
         }
       }
-      else {
-        if(!uc) {
-          curl_mfprintf(stderr, "ipv6_parse('%s') succeeded unexpectedly\n",
-                        tests[i].in);
-          fails++;
-        }
+      else if(!uc) {
+        curl_mfprintf(stderr, "ipv6_parse('%s') succeeded unexpectedly\n",
+                      tests[i].in);
+        fails++;
       }
       curlx_free(u.host);
       curlx_free(u.zoneid);
@@ -382,6 +379,65 @@ loop_end:
     abort_if(fails, "same_origin tests failed");
   }
 #endif /* !CURL_DISABLE_HTTP */
+
+  /* Test parse_hostname_login */
+  {
+    struct Curl_URL u;
+    int fails = 0;
+    unsigned int i;
+    struct test {
+      CURLUcode uc;
+      const char *in;
+      const char *scheme;
+      unsigned int flags;
+      const char *user;
+      const char *password;
+      const char *options;
+      size_t offset;
+    };
+    const struct test tests[] = {
+      { CURLUE_OK, "foo:bar@host", NULL, 0, "foo", "bar", "o", 8 },
+      { CURLUE_OK, "foo:bar;abc@host", "imap", 0, "foo", "bar", "abc", 12 },
+      { CURLUE_OK, "foo:bar;abc@host", NULL, 0, "foo", "bar;abc", "o", 12 },
+      { CURLUE_USER_NOT_ALLOWED, "foo:bar@host", NULL, CURLU_DISALLOW_USER,
+        NULL, NULL, NULL, 0 },
+      { CURLUE_OK, "host", NULL, 0, NULL, NULL, NULL, 0 },
+    };
+
+    for(i = 0; i < CURL_ARRAYSIZE(tests); i++) {
+      CURLUcode uc;
+      size_t offset = 0;
+      memset(&u, 0, sizeof(u));
+      u.scheme = CURL_UNCONST(tests[i].scheme);
+      u.user = curlx_strdup("u");
+      u.password = curlx_strdup("p");
+      u.options = curlx_strdup("o");
+      uc = parse_hostname_login(&u, tests[i].in, strlen(tests[i].in),
+                                tests[i].flags, &offset);
+      if(uc != tests[i].uc ||
+         !!u.user != !!tests[i].user ||
+         (u.user && tests[i].user &&
+          strcmp(u.user, tests[i].user)) ||
+         !!u.password != !!tests[i].password ||
+         (u.password && tests[i].password &&
+          strcmp(u.password, tests[i].password)) ||
+         !!u.options != !!tests[i].options ||
+         (u.options && tests[i].options &&
+          strcmp(u.options, tests[i].options)) ||
+         offset != tests[i].offset) {
+        curl_mfprintf(stderr, "%d: parse_hostname_login('%s') host failed:"
+                      " expected '%d/%s/%s/%s/%zu', got '%d/%s/%s/%s/%zu'\n",
+                      i, tests[i].in, (int)tests[i].uc, tests[i].user,
+                      tests[i].password, tests[i].options, tests[i].offset,
+                      (int)uc, u.user, u.password, u.options, offset);
+        fails++;
+      }
+      curlx_safefree(u.user);
+      curlx_safefree(u.password);
+      curlx_safefree(u.options);
+    }
+    abort_if(fails, "parse_hostname_login tests failed");
+  }
 
   UNITTEST_END_SIMPLE
 }

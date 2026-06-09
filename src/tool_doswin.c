@@ -678,7 +678,7 @@ static void init_terminal(void)
     return;
 
   if((TerminalSettings.dwOutputMode & ENABLE_VIRTUAL_TERMINAL_PROCESSING))
-    tool_term_has_bold = true;
+    tool_term_has_bold = TRUE;
   else {
     /* The signal handler is set before attempting to change the console mode
        because otherwise a signal would not be caught after the change but
@@ -688,7 +688,7 @@ static void init_terminal(void)
       if(SetConsoleMode(TerminalSettings.hStdOut,
                         (TerminalSettings.dwOutputMode |
                          ENABLE_VIRTUAL_TERMINAL_PROCESSING))) {
-        tool_term_has_bold = true;
+        tool_term_has_bold = TRUE;
         atexit(restore_terminal);
       }
       else {
@@ -770,10 +770,10 @@ curl_socket_t win32_stdin_read_thread(void)
   static curl_socket_t socket_r = CURL_SOCKET_BAD;
 
   if(socket_r != CURL_SOCKET_BAD) {
-    assert(stdin_thread != NULL);
+    assert(stdin_thread);
     return socket_r;
   }
-  assert(stdin_thread == NULL);
+  assert(!stdin_thread);
 
   do {
     curl_socklen_t socksize = 0;

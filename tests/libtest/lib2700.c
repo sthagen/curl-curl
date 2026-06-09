@@ -39,7 +39,7 @@ static const char *descr_flags(int flags)
     return "pong";
   if(flags & CURLWS_CLOSE)
     return "close";
-  assert(false);
+  assert(FALSE);
   return "";
 }
 
@@ -92,7 +92,7 @@ retry:
   }
 
   assert(nread == 0);
-  assert(meta != NULL);
+  assert(meta);
   assert(meta->flags);
   assert(meta->offset == 0);
 
@@ -163,7 +163,7 @@ retry:
   }
 
   assert(nread <= sizeof(buffer));
-  assert(meta != NULL);
+  assert(meta);
   assert(meta->flags == flags);
   assert(meta->offset == *offset);
   assert(meta->bytesleft == (*bytesleft - (curl_off_t)nread));
@@ -200,7 +200,7 @@ static CURLcode recv_frame(CURL *curl, bool *stop)
   }
 
   if(flags & CURLWS_CLOSE)
-    *stop = true;
+    *stop = TRUE;
 
   curl_mfprintf(stdout, "\n");
 
@@ -212,7 +212,7 @@ static CURLcode test_lib2700(const char *URL)
 {
 #ifndef CURL_DISABLE_WEBSOCKETS
   CURLcode result = CURLE_OK;
-  bool stop = false;
+  bool stop = FALSE;
   CURL *curl;
 
   global_init(CURL_GLOBAL_ALL);

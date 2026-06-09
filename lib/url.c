@@ -442,7 +442,7 @@ static void easy_meta_freeentry(void *p)
   /* Always FALSE. Cannot use a 0 assert here since compilers
    * are not in agreement if they then want a NORETURN attribute or
    * not. *sigh* */
-  DEBUGASSERT(p == NULL);
+  DEBUGASSERT(!p);
 }
 
 /**
@@ -670,6 +670,19 @@ CURLcode Curl_conn_upkeep(struct Curl_easy *data,
   conn->keepalive = *Curl_pgrs_now(data);
   return result;
 }
+
+#ifdef USE_SSH
+static bool ssh_config_matches(struct connectdata *one,
+                               struct connectdata *two)
+{
+  struct ssh_conn *sshc1, *sshc2;
+
+  sshc1 = Curl_conn_meta_get(one, CURL_META_SSH_CONN);
+  sshc2 = Curl_conn_meta_get(two, CURL_META_SSH_CONN);
+  return sshc1 && sshc2 && Curl_safecmp(sshc1->rsa, sshc2->rsa) &&
+         Curl_safecmp(sshc1->rsa_pub, sshc2->rsa_pub);
+}
+#endif
 
 struct url_conn_match {
   struct connectdata *found;
@@ -927,6 +940,12 @@ static bool url_match_proto_config(struct connectdata *conn,
   if(!url_match_http_version(conn, m))
     return FALSE;
 
+#ifdef USE_SSH
+  if(get_protocol_family(m->needle->scheme) & PROTO_FAMILY_SSH) {
+    if(!ssh_config_matches(m->needle, conn))
+      return FALSE;
+  }
+#endif
 #ifndef CURL_DISABLE_FTP
   else if(get_protocol_family(m->needle->scheme) & PROTO_FAMILY_FTP) {
     if(!ftp_conns_match(m->needle, conn))
@@ -2572,7 +2591,7 @@ static void conn_meta_freeentry(void *p)
   /* Always FALSE. Cannot use a 0 assert here since compilers
    * are not in agreement if they then want a NORETURN attribute or
    * not. *sigh* */
-  DEBUGASSERT(p == NULL);
+  DEBUGASSERT(!p);
 }
 
 static CURLcode url_create_needle(struct Curl_easy *data,

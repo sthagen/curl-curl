@@ -253,12 +253,18 @@ CURLUcode Curl_junkscan(const char *url, size_t *urllen, bool allowspace)
  * Parse the login details (username, password and options) from the URL and
  * strip them out of the hostname
  *
+ * @unittest 1675
  */
-static CURLUcode parse_hostname_login(struct Curl_URL *u,
-                                      const char *login,
-                                      size_t len,
-                                      unsigned int flags,
-                                      size_t *offset) /* to the hostname */
+UNITTEST CURLUcode parse_hostname_login(struct Curl_URL *u,
+                                        const char *login,
+                                        size_t len,
+                                        unsigned int flags,
+                                        size_t *hostname_offset);
+UNITTEST CURLUcode parse_hostname_login(struct Curl_URL *u,
+                                        const char *login,
+                                        size_t len,
+                                        unsigned int flags,
+                                        size_t *hostname_offset)
 {
   CURLUcode ures = CURLUE_OK;
   CURLcode result;
@@ -278,7 +284,7 @@ static CURLUcode parse_hostname_login(struct Curl_URL *u,
 
   DEBUGASSERT(login);
 
-  *offset = 0;
+  *hostname_offset = 0;
   ptr = memchr(login, '@', len);
   if(!ptr)
     goto out;
@@ -326,7 +332,7 @@ static CURLUcode parse_hostname_login(struct Curl_URL *u,
   }
 
   /* the hostname starts at this offset */
-  *offset = ptr - login;
+  *hostname_offset = ptr - login;
   return CURLUE_OK;
 
 out:
@@ -334,9 +340,9 @@ out:
   curlx_free(userp);
   curlx_free(passwdp);
   curlx_free(optionsp);
-  u->user = NULL;
-  u->password = NULL;
-  u->options = NULL;
+  curlx_safefree(u->user);
+  curlx_safefree(u->password);
+  curlx_safefree(u->options);
 
   return ures;
 }
@@ -503,7 +509,6 @@ static CURLUcode hostname_check(struct Curl_URL *u, char *hostname,
  *
  * @unittest 1675
  */
-
 UNITTEST int ipv4_normalize(struct dynbuf *host);
 UNITTEST int ipv4_normalize(struct dynbuf *host)
 {
@@ -652,20 +657,24 @@ static CURLUcode parse_authority(struct Curl_URL *u,
    */
   uc = parse_hostname_login(u, auth, authlen, flags, &offset);
   if(uc)
-    goto out;
+    return uc;
 
   result = curlx_dyn_addn(host, auth + offset, authlen - offset);
   if(result) {
     uc = cc2cu(result);
-    goto out;
+    return uc;
   }
 
   uc = parse_port(u, host, has_scheme);
   if(uc)
-    goto out;
+    return uc;
 
   if(!curlx_dyn_len(host))
-    return CURLUE_NO_HOST;
+    uc = CURLUE_NO_HOST;
+  else
+    uc = urldecode_host(host);
+  if(uc)
+    return uc;
 
   switch(ipv4_normalize(host)) {
   case HOST_IPV4:
@@ -674,9 +683,7 @@ static CURLUcode parse_authority(struct Curl_URL *u,
     uc = ipv6_parse(u, curlx_dyn_ptr(host), curlx_dyn_len(host));
     break;
   case HOST_NAME:
-    uc = urldecode_host(host);
-    if(!uc)
-      uc = hostname_check(u, curlx_dyn_ptr(host), curlx_dyn_len(host));
+    uc = hostname_check(u, curlx_dyn_ptr(host), curlx_dyn_len(host));
     break;
   case HOST_ERROR:
     uc = CURLUE_OUT_OF_MEMORY;
@@ -686,7 +693,6 @@ static CURLUcode parse_authority(struct Curl_URL *u,
     break;
   }
 
-out:
   return uc;
 }
 
@@ -1033,7 +1039,7 @@ static CURLUcode handle_fragment(CURLU *u, const char *fragment,
   CURLUcode ures;
   u->fragment_present = TRUE;
   if(fraglen > 1) {
-    /* skip the leading '#' in the copy but include the terminating null */
+    /* skip the leading '#' in the copy but include the null-terminator */
     if(flags & CURLU_URLENCODE) {
       struct dynbuf enc;
       curlx_dyn_init(&enc, CURL_MAX_INPUT_LENGTH);
@@ -1165,8 +1171,7 @@ static CURLUcode parseurl(const char *url, CURLU *u, unsigned int flags)
     /* this pathlen also contains the query and the fragment */
     pathlen = urllen - (path - url);
     if(hostlen) {
-      ures = parse_authority(u, hostp, hostlen, flags, &host,
-                             u->scheme != NULL);
+      ures = parse_authority(u, hostp, hostlen, flags, &host, !!u->scheme);
       if(!ures && (flags & CURLU_GUESS_SCHEME) && !u->scheme)
         ures = guess_scheme(u, &host);
     }

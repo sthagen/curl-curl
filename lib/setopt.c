@@ -399,22 +399,6 @@ static CURLcode setopt_RTSP_REQUEST(struct Curl_easy *data, long arg)
 }
 #endif /* !CURL_DISABLE_RTSP */
 
-#ifdef USE_SSL
-static void set_ssl_options(struct ssl_config_data *ssl,
-                            struct ssl_primary_config *config,
-                            long arg)
-{
-  config->ssl_options = (unsigned char)(arg & 0xff);
-  ssl->enable_beast = !!(arg & CURLSSLOPT_ALLOW_BEAST);
-  ssl->no_revoke = !!(arg & CURLSSLOPT_NO_REVOKE);
-  ssl->no_partialchain = !!(arg & CURLSSLOPT_NO_PARTIALCHAIN);
-  ssl->revoke_best_effort = !!(arg & CURLSSLOPT_REVOKE_BEST_EFFORT);
-  ssl->native_ca_store = !!(arg & CURLSSLOPT_NATIVE_CA);
-  ssl->auto_client_cert = !!(arg & CURLSSLOPT_AUTO_CLIENT_CERT);
-  ssl->earlydata = !!(arg & CURLSSLOPT_EARLYDATA);
-}
-#endif
-
 static CURLcode setopt_long_bool(struct Curl_easy *data, CURLoption option,
                                  long arg)
 {
@@ -994,11 +978,11 @@ static CURLcode setopt_long_ssl(struct Curl_easy *data, CURLoption option,
       s->use_ssl = (unsigned char)arg;
     break;
   case CURLOPT_SSL_OPTIONS:
-    set_ssl_options(&s->ssl, &s->ssl.primary, arg);
+    s->ssl.primary.ssl_options = (unsigned char)(arg & 0xff);
     break;
 #ifndef CURL_DISABLE_PROXY
   case CURLOPT_PROXY_SSL_OPTIONS:
-    set_ssl_options(&s->proxy_ssl, &s->proxy_ssl.primary, arg);
+    s->proxy_ssl.primary.ssl_options = (unsigned char)(arg & 0xff);
     break;
 #endif
   case CURLOPT_SSL_ENABLE_NPN:
@@ -1782,8 +1766,9 @@ static CURLcode setopt_cptr_proxy(struct Curl_easy *data, CURLoption option,
      * Set CA info SSL connection for proxy. Specify filename of the
      * CA certificate
      */
-    s->proxy_ssl.custom_cafile = TRUE;
-    return Curl_setstropt(&s->str[STRING_SSL_CAFILE_PROXY], ptr);
+    result = Curl_setstropt(&s->str[STRING_SSL_CAFILE_PROXY], ptr);
+    s->proxy_ssl.custom_cafile = !!s->str[STRING_SSL_CAFILE_PROXY];
+    return result;
   case CURLOPT_PROXY_CRLFILE:
     /*
      * Set CRL file info for SSL connection for proxy. Specify filename of the
@@ -1807,8 +1792,9 @@ static CURLcode setopt_cptr_proxy(struct Curl_easy *data, CURLoption option,
 #ifdef USE_SSL
     if(Curl_ssl_supports(data, SSLSUPP_CA_PATH)) {
       /* This does not work on Windows. */
-      s->proxy_ssl.custom_capath = TRUE;
-      return Curl_setstropt(&s->str[STRING_SSL_CAPATH_PROXY], ptr);
+      result = Curl_setstropt(&s->str[STRING_SSL_CAPATH_PROXY], ptr);
+      s->proxy_ssl.custom_capath = !!s->str[STRING_SSL_CAPATH_PROXY];
+      return result;
     }
 #endif
     return CURLE_NOT_BUILT_IN;
@@ -1915,8 +1901,9 @@ static CURLcode setopt_cptr(struct Curl_easy *data, CURLoption option,
     /*
      * Set CA info for SSL connection. Specify filename of the CA certificate
      */
-    s->ssl.custom_cafile = TRUE;
-    return Curl_setstropt(&s->str[STRING_SSL_CAFILE], ptr);
+    result = Curl_setstropt(&s->str[STRING_SSL_CAFILE], ptr);
+    s->ssl.custom_cafile = !!s->str[STRING_SSL_CAFILE];
+    return result;
   case CURLOPT_CAPATH:
     /*
      * Set CA path info for SSL connection. Specify directory name of the CA
@@ -1925,8 +1912,9 @@ static CURLcode setopt_cptr(struct Curl_easy *data, CURLoption option,
 #ifdef USE_SSL
     if(Curl_ssl_supports(data, SSLSUPP_CA_PATH)) {
       /* This does not work on Windows. */
-      s->ssl.custom_capath = TRUE;
-      return Curl_setstropt(&s->str[STRING_SSL_CAPATH], ptr);
+      result = Curl_setstropt(&s->str[STRING_SSL_CAPATH], ptr);
+      s->ssl.custom_capath = !!s->str[STRING_SSL_CAPATH];
+      return result;
     }
 #endif
     return CURLE_NOT_BUILT_IN;
@@ -2845,8 +2833,9 @@ static CURLcode setopt_blob(struct Curl_easy *data, CURLoption option,
      */
 #ifdef USE_SSL
     if(Curl_ssl_supports(data, SSLSUPP_CAINFO_BLOB)) {
-      s->proxy_ssl.custom_cablob = TRUE;
-      return Curl_setblobopt(&s->blobs[BLOB_CAINFO_PROXY], blob);
+      CURLcode result = Curl_setblobopt(&s->blobs[BLOB_CAINFO_PROXY], blob);
+      s->proxy_ssl.custom_cablob = !!s->blobs[BLOB_CAINFO_PROXY];
+      return result;
     }
 #endif
     return CURLE_NOT_BUILT_IN;
@@ -2870,8 +2859,9 @@ static CURLcode setopt_blob(struct Curl_easy *data, CURLoption option,
      */
 #ifdef USE_SSL
     if(Curl_ssl_supports(data, SSLSUPP_CAINFO_BLOB)) {
-      s->ssl.custom_cablob = TRUE;
-      return Curl_setblobopt(&s->blobs[BLOB_CAINFO], blob);
+      CURLcode result = Curl_setblobopt(&s->blobs[BLOB_CAINFO], blob);
+      s->ssl.custom_cablob = !!s->blobs[BLOB_CAINFO];
+      return result;
     }
 #endif
     return CURLE_NOT_BUILT_IN;

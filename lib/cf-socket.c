@@ -667,7 +667,7 @@ static CURLcode bindlocal(struct Curl_easy *data, struct connectdata *conn,
        * We now have the numerical IP address in the 'myhost' buffer
        */
       host = myhost;
-      infof(data, "Local Interface %s is ip %s using address family %i",
+      infof(data, "Local Interface %s is ip %s using address family %d",
             iface, host, af);
       done = 1;
       break;
@@ -693,7 +693,7 @@ static CURLcode bindlocal(struct Curl_easy *data, struct connectdata *conn,
         int h_af = h->addr->ai_family;
         /* convert the resolved address, sizeof myhost >= INET_ADDRSTRLEN */
         Curl_printable_address(h->addr, myhost, sizeof(myhost));
-        infof(data, "Name '%s' family %i resolved to '%s' family %i",
+        infof(data, "Name '%s' family %d resolved to '%s' family %d",
               host, af, myhost, h_af);
         Curl_dns_entry_unlink(data, &h); /* this will NULL, potential free h */
         if(af != h_af) {
@@ -1319,6 +1319,7 @@ static CURLcode cf_tcp_connect(struct Curl_cfilter *cf,
     CURL_TRC_CF(data, cf, "local address %s port %d...",
                 ctx->ip.local_ip, ctx->ip.local_port);
     if(rc == -1) {
+      ctx->error = error;
       result = socket_connect_result(data, ctx->ip.remote_ip, error);
       goto out;
     }
@@ -2175,10 +2176,10 @@ static CURLcode cf_tcp_accept_connect(struct Curl_cfilter *cf,
     int error = 0;
 
     /* activate callback for setting socket options */
-    Curl_set_in_callback(data, true);
+    Curl_set_in_callback(data, TRUE);
     error = data->set.fsockopt(data->set.sockopt_client,
                                ctx->sock, CURLSOCKTYPE_ACCEPT);
-    Curl_set_in_callback(data, false);
+    Curl_set_in_callback(data, FALSE);
 
     if(error)
       return CURLE_ABORTED_BY_CALLBACK;
