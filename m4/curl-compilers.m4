@@ -948,7 +948,7 @@ AC_DEFUN([CURL_SET_COMPILER_WARNING_OPTS], [
 
           dnl clang 19 or later
           if test "$compiler_num" -ge "1901"; then
-            tmp_CFLAGS="$tmp_CFLAGS -Wno-format-signedness"
+            CURL_ADD_COMPILER_WARNINGS([tmp_CFLAGS], [format-signedness])
           fi
 
           dnl clang 20 or later
@@ -1115,6 +1115,11 @@ AC_DEFUN([CURL_SET_COMPILER_WARNING_OPTS], [
             tmp_CFLAGS="$tmp_CFLAGS -ftree-vrp"
           fi
 
+          dnl Only gcc 4.4 or later
+          if test "$compiler_num" -ge "404"; then
+            CURL_ADD_COMPILER_WARNINGS([tmp_CFLAGS], [logical-op])
+          fi
+
           dnl Only gcc 4.5 or later
           if test "$compiler_num" -ge "405"; then
             CURL_ADD_COMPILER_WARNINGS([tmp_CFLAGS], [jump-misses-init])
@@ -1144,7 +1149,7 @@ AC_DEFUN([CURL_SET_COMPILER_WARNING_OPTS], [
           dnl Only gcc 5 or later
           if test "$compiler_num" -ge "500"; then
             tmp_CFLAGS="$tmp_CFLAGS -Warray-bounds=2"
-            tmp_CFLAGS="$tmp_CFLAGS -Wno-format-signedness"
+            CURL_ADD_COMPILER_WARNINGS([tmp_CFLAGS], [format-signedness])
           fi
 
           dnl Only gcc 6 or later

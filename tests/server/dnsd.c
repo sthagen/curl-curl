@@ -23,15 +23,13 @@
  ***************************************************************************/
 #include "first.h"
 
+#ifndef __AMIGA__
+
 static int dnsd_wrotepidfile = 0;
 static int dnsd_wroteportfile = 0;
 
 #ifdef HAVE_SYS_SELECT_H
 #include <sys/select.h>
-#endif
-
-#ifdef __AMIGA__
-#error building dnsd on AMIGA os is unsupported
 #endif
 
 static uint16_t get16bit(const unsigned char **pkt, size_t *size)
@@ -492,7 +490,7 @@ create_resp(int qid, const struct sockaddr *addr, curl_socklen_t addrlen,
       const unsigned char *store = ipv4_pref;
       if(add_answer(&resp->body, store, sizeof(ipv4_pref), QTYPE_A))
         goto error;
-      logmsg("[%d] response A (%x) '%s'", qid, QTYPE_A,
+      logmsg("[%d] response A (%x) '%s'", qid, (unsigned int)QTYPE_A,
              curlx_inet_ntop(AF_INET, store, addrbuf, sizeof(addrbuf)));
     }
     if(!ancount_a)
@@ -503,7 +501,7 @@ create_resp(int qid, const struct sockaddr *addr, curl_socklen_t addrlen,
       const unsigned char *store = ipv6_pref;
       if(add_answer(&resp->body, store, sizeof(ipv6_pref), QTYPE_AAAA))
         goto error;
-      logmsg("[%d] response AAAA (%x) '%s'", qid, QTYPE_AAAA,
+      logmsg("[%d] response AAAA (%x) '%s'", qid, (unsigned int)QTYPE_AAAA,
              curlx_inet_ntop(AF_INET6, store, addrbuf, sizeof(addrbuf)));
     }
     if(!ancount_aaaa)
@@ -516,8 +514,8 @@ create_resp(int qid, const struct sockaddr *addr, curl_socklen_t addrlen,
                httpsrr.dlen);
         goto error;
       }
-      logmsg("[%d] response HTTPS (%x), %zu bytes", qid, QTYPE_HTTPS,
-             httpsrr.dlen);
+      logmsg("[%d] response HTTPS (%x), %zu bytes", qid,
+             (unsigned int)QTYPE_HTTPS, httpsrr.dlen);
     }
     else
       logmsg("[%d] response HTTPS, no record", qid);
@@ -1063,3 +1061,12 @@ dnsd_cleanup:
   logmsg("========> dnsd quits");
   return result;
 }
+#else
+static int test_dnsd(int argc, const char **argv)
+{
+  (void)argc;
+  (void)argv;
+  fprintf(stderr, "dnsd on AmigaOS is unsupported\n");
+  return 1;
+}
+#endif

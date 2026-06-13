@@ -63,7 +63,7 @@ static bool is_chain_in_order(struct curl_certinfo *cert_info)
       if(last_issuer) {
         /* If the last certificate's issuer matches the current certificate's
          * subject, then the chain is in order */
-        if(strcmp(last_issuer, subject) != 0) {
+        if(strcmp(last_issuer, subject)) {
           curl_mfprintf(stderr,
                         "cert %d issuer does not match cert %d subject\n",
                         cert - 1, cert);
@@ -78,13 +78,6 @@ static bool is_chain_in_order(struct curl_certinfo *cert_info)
 
   curl_mprintf("certificate chain is in order\n");
   return TRUE;
-}
-
-static size_t wrfu(char *ptr, size_t size, size_t nmemb, void *stream)
-{
-  (void)stream;
-  (void)ptr;
-  return size * nmemb;
 }
 
 static CURLcode test_lib3102(const char *URL)
@@ -111,7 +104,7 @@ static CURLcode test_lib3102(const char *URL)
   test_setopt(curl, CURLOPT_CERTINFO, 1L);
 
   /* Ignore output */
-  test_setopt(curl, CURLOPT_WRITEFUNCTION, wrfu);
+  test_setopt(curl, CURLOPT_WRITEFUNCTION, tutil_throwaway_cb);
 
   /* No peer verify */
   test_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);

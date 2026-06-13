@@ -133,7 +133,7 @@ CURLcode Curl_auth_create_digest_md5_message(struct Curl_easy *data,
     return CURLE_OUT_OF_MEMORY;
 
   /* Generate our SPN */
-  spn = Curl_auth_build_spn(service, data->conn->origin->hostname, NULL);
+  spn = Curl_auth_build_spn(service, data->state.origin->hostname, NULL);
   if(!spn) {
     curlx_free(output_token);
     return CURLE_OUT_OF_MEMORY;
@@ -456,7 +456,8 @@ CURLcode Curl_auth_create_digest_http_message(struct Curl_easy *data,
     if(status == SEC_E_OK)
       output_token_len = chlg_buf[4].cbBuffer;
     else { /* delete the context so a new one can be made */
-      infof(data, "digest_sspi: MakeSignature failed, error 0x%08lx", status);
+      infof(data, "digest_sspi: MakeSignature failed, error 0x%08lx",
+            (unsigned long)status);
       Curl_pSecFn->DeleteSecurityContext(digest->http_context);
       curlx_safefree(digest->http_context);
     }
@@ -630,6 +631,7 @@ void Curl_auth_digest_cleanup(struct digestdata *digest)
 
   /* Free the copy of user/passwd used to make the identity for http_context */
   Curl_creds_unlink(&digest->creds);
+  Curl_peer_unlink(&digest->origin);
 }
 
 #endif /* USE_WINDOWS_SSPI && !CURL_DISABLE_DIGEST_AUTH */

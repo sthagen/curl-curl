@@ -25,8 +25,6 @@
 
 #if defined(HAVE_GETRLIMIT) && defined(HAVE_SETRLIMIT)
 
-#include "testutil.h"
-
 #define T518_SAFETY_MARGIN 16
 
 #define NUM_OPEN   (FD_SETSIZE + 10)
@@ -99,7 +97,7 @@ static int t518_test_rlimit(int keep_open)
 
   /* get initial open file limits */
 
-  if(getrlimit(RLIMIT_NOFILE, &rl) != 0) {
+  if(getrlimit(RLIMIT_NOFILE, &rl)) {
     t518_store_errmsg("getrlimit() failed", errno);
     curl_mfprintf(stderr, "%s\n", t518_msgbuff);
     return -1;
@@ -135,7 +133,7 @@ static int t518_test_rlimit(int keep_open)
        (rl.rlim_cur < OPEN_MAX)) {
       curl_mfprintf(stderr, "raising soft limit up to OPEN_MAX\n");
       rl.rlim_cur = OPEN_MAX;
-      if(setrlimit(RLIMIT_NOFILE, &rl) != 0) {
+      if(setrlimit(RLIMIT_NOFILE, &rl)) {
         /* on failure do not abort, only issue a warning */
         t518_store_errmsg("setrlimit() failed", errno);
         curl_mfprintf(stderr, "%s\n", t518_msgbuff);
@@ -146,7 +144,7 @@ static int t518_test_rlimit(int keep_open)
 
     curl_mfprintf(stderr, "raising soft limit up to hard limit\n");
     rl.rlim_cur = rl.rlim_max;
-    if(setrlimit(RLIMIT_NOFILE, &rl) != 0) {
+    if(setrlimit(RLIMIT_NOFILE, &rl)) {
       /* on failure do not abort, only issue a warning */
       t518_store_errmsg("setrlimit() failed", errno);
       curl_mfprintf(stderr, "%s\n", t518_msgbuff);
@@ -155,7 +153,7 @@ static int t518_test_rlimit(int keep_open)
 
     /* get current open file limits */
 
-    if(getrlimit(RLIMIT_NOFILE, &rl) != 0) {
+    if(getrlimit(RLIMIT_NOFILE, &rl)) {
       t518_store_errmsg("getrlimit() failed", errno);
       curl_mfprintf(stderr, "%s\n", t518_msgbuff);
       return -3;

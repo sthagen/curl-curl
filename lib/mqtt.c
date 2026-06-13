@@ -424,7 +424,7 @@ static CURLcode mqtt_verify_connack(struct Curl_easy *data)
 
   if(ptr[0] != 0x00 || ptr[1] != 0x00) {
     failf(data, "Expected %02x%02x but got %02x%02x",
-          0x00, 0x00, ptr[0], ptr[1]);
+          0x00U, 0x00U, (unsigned char)ptr[0], (unsigned char)ptr[1]);
     curlx_dyn_reset(&mq->recvbuf);
     return CURLE_WEIRD_SERVER_REPLY;
   }
@@ -602,9 +602,9 @@ fail:
   return result;
 }
 
-/* return 0 on success, non-zero on error */
-static int mqtt_decode_len(size_t *lenp, const unsigned char *buf,
-                           size_t buflen)
+/* return FALSE on success, TRUE on error */
+static bool mqtt_decode_len(size_t *lenp, const unsigned char *buf,
+                            size_t buflen)
 {
   size_t len = 0;
   size_t mult = 1;
@@ -613,14 +613,17 @@ static int mqtt_decode_len(size_t *lenp, const unsigned char *buf,
 
   for(i = 0; (i < buflen) && (encoded & 128); i++) {
     if(i == 4)
-      return 1; /* bad size */
+      return TRUE; /* bad size */
     encoded = buf[i];
     len += (encoded & 127) * mult;
     mult *= 128;
   }
+  if(encoded & 128)
+    /* truncated size */
+    return TRUE;
 
   *lenp = len;
-  return 0;
+  return FALSE;
 }
 
 #if defined(DEBUGBUILD) && defined(CURLVERBOSE)
@@ -771,7 +774,7 @@ static CURLcode mqtt_do(struct Curl_easy *data, bool *done)
 
   result = mqtt_connect(data);
   if(result) {
-    failf(data, "Error %d sending MQTT CONNECT request", result);
+    failf(data, "Error %d sending MQTT CONNECT request", (int)result);
     return result;
   }
   mqstate(data, MQTT_FIRST, MQTT_CONNACK);

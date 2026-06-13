@@ -95,7 +95,7 @@ static ssize_t gtls_push(void *s, const void *buf, size_t blen)
   DEBUGASSERT(data);
   result = Curl_conn_cf_send(cf->next, data, buf, blen, FALSE, &nwritten);
   CURL_TRC_CF(data, cf, "gtls_push(len=%zu) -> %d, %zu",
-              blen, result, nwritten);
+              blen, (int)result, nwritten);
   backend->gtls.io_result = result;
   if(result) {
     /* !checksrc! disable ERRNOVAR 1 */
@@ -128,7 +128,8 @@ static ssize_t gtls_pull(void *s, void *buf, size_t blen)
   }
 
   result = Curl_conn_cf_recv(cf->next, data, buf, blen, &nread);
-  CURL_TRC_CF(data, cf, "gtls_pull(len=%zu) -> %d, %zu", blen, result, nread);
+  CURL_TRC_CF(data, cf, "gtls_pull(len=%zu) -> %d, %zu", blen, (int)result,
+              nread);
   backend->gtls.io_result = result;
   if(result) {
     /* !checksrc! disable ERRNOVAR 1 */
@@ -204,12 +205,12 @@ static gnutls_datum_t load_file(const char *file)
   f = curlx_fopen(file, "rb");
   if(!f)
     return loaded_file;
-  if(fseek(f, 0, SEEK_END) != 0)
+  if(fseek(f, 0, SEEK_END))
     goto out;
   filelen = ftell(f);
   if(filelen < 0 || filelen > CURL_MAX_INPUT_LENGTH)
     goto out;
-  if(fseek(f, 0, SEEK_SET) != 0)
+  if(fseek(f, 0, SEEK_SET))
     goto out;
   ptr = curlx_malloc((size_t)filelen);
   if(!ptr)
@@ -1366,11 +1367,11 @@ static void gtls_msg_verify_result(struct Curl_easy *data,
     if(needs_verified) {
       failf(data, "SSL: certificate subject name (%s) does not match "
             "target hostname '%s'", certname,
-            peer->dest->user_hostname);
+            peer->origin->user_hostname);
     }
     else
       infof(data, "  common name: %s (does not match '%s')",
-            certname, peer->dest->user_hostname);
+            certname, peer->origin->user_hostname);
   }
   else
     infof(data, "  common name: %s (matched)", certname);
@@ -1848,7 +1849,7 @@ CURLcode Curl_gtls_verifyserver(struct Curl_cfilter *cf,
      IP addresses) */
   rc = (int)gnutls_x509_crt_check_hostname(x509_cert,
                                            peer->sni ? peer->sni :
-                                           peer->dest->hostname);
+                                           peer->origin->hostname);
   result = (!rc && config->verifyhost) ?
     CURLE_PEER_FAILED_VERIFICATION : CURLE_OK;
   gtls_msg_verify_result(data, peer, x509_cert, rc, config->verifyhost);
@@ -2047,7 +2048,8 @@ out:
   }
   *done = ((connssl->state == ssl_connection_complete) ||
            (connssl->state == ssl_connection_deferred));
-  CURL_TRC_CF(data, cf, "gtls_connect_common() -> %d, done=%d", result, *done);
+  CURL_TRC_CF(data, cf, "gtls_connect_common() -> %d, done=%d", (int)result,
+              *done);
   return result;
 }
 
@@ -2122,7 +2124,7 @@ static CURLcode gtls_send(struct Curl_cfilter *cf,
 
 out:
   CURL_TRC_CF(data, cf, "gtls_send(len=%zu) -> %d, %zu",
-              blen, result, *pnwritten);
+              blen, (int)result, *pnwritten);
   return result;
 }
 

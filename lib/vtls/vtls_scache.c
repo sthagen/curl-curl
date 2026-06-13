@@ -177,11 +177,59 @@ static bool cf_ssl_peer_key_is_global(const char *peer_key)
          (peer_key[len - 2] == ':');
 }
 
-CURLcode Curl_ssl_peer_key_build(struct ssl_primary_config *ssl,
-                                 const struct ssl_peer *peer,
-                                 const struct Curl_peer *via_peer,
-                                 const char *tls_id,
-                                 char **ppeer_key)
+static CURLcode ssl_peer_key_add_transport(struct dynbuf *buf,
+                                           uint8_t transport)
+{
+  switch(transport) {
+  case TRNSPRT_TCP:
+    return CURLE_OK;
+  case TRNSPRT_UDP:
+    return curlx_dyn_add(buf, ":UDP");
+  case TRNSPRT_QUIC:
+    return curlx_dyn_add(buf, ":QUIC");
+  case TRNSPRT_UNIX:
+    return curlx_dyn_add(buf, ":UNIX");
+  default:
+    return curlx_dyn_addf(buf, ":TRNSPRT-%d", transport);
+  }
+}
+
+static CURLcode ssl_peer_key_add_vrfy(struct dynbuf *buf,
+                                      struct ssl_primary_config *ssl,
+                                      const struct ssl_peer *peer)
+{
+  CURLcode result;
+
+  if(!ssl->verifypeer) {
+    result = curlx_dyn_add(buf, ":NO-VRFY-PEER");
+    if(result)
+      return result;
+  }
+  if(!ssl->verifyhost) {
+    result = curlx_dyn_add(buf, ":NO-VRFY-HOST");
+    if(result)
+      return result;
+  }
+  if(ssl->verifystatus) {
+    result = curlx_dyn_add(buf, ":VRFY-STATUS");
+    if(result)
+      return result;
+  }
+  if((!ssl->verifypeer || !ssl->verifyhost) &&
+     peer->peer && !Curl_peer_equal(peer->origin, peer->peer)) {
+    result = curlx_dyn_addf(buf, ":CHOST-%s:CPORT-%u",
+                            peer->peer->hostname,
+                            peer->peer->port);
+    if(result)
+      return result;
+  }
+  return CURLE_OK;
+}
+
+static CURLcode ssl_peer_key_build(struct ssl_primary_config *ssl,
+                                   const struct ssl_peer *peer,
+                                   const char *tls_id,
+                                   char **ppeer_key)
 {
   struct dynbuf buf;
   size_t key_len;
@@ -192,54 +240,15 @@ CURLcode Curl_ssl_peer_key_build(struct ssl_primary_config *ssl,
   curlx_dyn_init(&buf, 10 * 1024);
 
   result = curlx_dyn_addf(&buf, "%s:%d",
-                          peer->dest->hostname, peer->dest->port);
+                          peer->origin->hostname, peer->origin->port);
   if(result)
     goto out;
-
-  switch(peer->transport) {
-  case TRNSPRT_TCP:
-    break;
-  case TRNSPRT_UDP:
-    result = curlx_dyn_add(&buf, ":UDP");
-    break;
-  case TRNSPRT_QUIC:
-    result = curlx_dyn_add(&buf, ":QUIC");
-    break;
-  case TRNSPRT_UNIX:
-    result = curlx_dyn_add(&buf, ":UNIX");
-    break;
-  default:
-    result = curlx_dyn_addf(&buf, ":TRNSPRT-%d", peer->transport);
-    break;
-  }
+  result = ssl_peer_key_add_transport(&buf, peer->transport);
   if(result)
     goto out;
-
-  if(!ssl->verifypeer) {
-    result = curlx_dyn_add(&buf, ":NO-VRFY-PEER");
-    if(result)
-      goto out;
-  }
-  if(!ssl->verifyhost) {
-    result = curlx_dyn_add(&buf, ":NO-VRFY-HOST");
-    if(result)
-      goto out;
-  }
-  if(ssl->verifystatus) {
-    result = curlx_dyn_add(&buf, ":VRFY-STATUS");
-    if(result)
-      goto out;
-  }
-  if(!ssl->verifypeer || !ssl->verifyhost) {
-    if(via_peer) {
-      result = curlx_dyn_addf(&buf, ":CHOST-%s:CPORT-%u",
-                              via_peer->hostname,
-                              via_peer->port);
-      if(result)
-        goto out;
-    }
-  }
-
+  result = ssl_peer_key_add_vrfy(&buf, ssl, peer);
+  if(result)
+    goto out;
   if(ssl->version || ssl->version_max) {
     result = curlx_dyn_addf(&buf, ":TLSVER-%d-%u", ssl->version,
                             (ssl->version_max >> 16));
@@ -342,14 +351,12 @@ out:
   return result;
 }
 
-CURLcode Curl_ssl_peer_key_make(struct Curl_cfilter *cf,
-                                const struct ssl_peer *peer,
+CURLcode Curl_ssl_peer_key_make(const struct ssl_peer *peer,
+                                struct ssl_primary_config *sslc,
                                 const char *tls_id,
                                 char **ppeer_key)
 {
-  struct ssl_primary_config *ssl = Curl_ssl_cf_get_primary_config(cf);
-  return Curl_ssl_peer_key_build(ssl, peer, cf->conn->via_peer, tls_id,
-                                 ppeer_key);
+  return ssl_peer_key_build(sslc, peer, tls_id, ppeer_key);
 }
 
 struct Curl_ssl_scache {
@@ -895,7 +902,7 @@ static CURLcode cf_scache_add_session(struct Curl_cfilter *cf,
 
   result = cf_ssl_add_peer(data, scache, ssl_peer_key, conn_config, &peer);
   if(result || !peer) {
-    CURL_TRC_SSLS(data, "unable to add scache peer: %d", result);
+    CURL_TRC_SSLS(data, "unable to add scache peer: %d", (int)result);
     Curl_ssl_session_destroy(s);
     goto out;
   }
@@ -905,13 +912,13 @@ static CURLcode cf_scache_add_session(struct Curl_cfilter *cf,
 out:
   if(result) {
     failf(data, "[SCACHE] failed to add session for %s, error=%d",
-          ssl_peer_key, result);
+          ssl_peer_key, (int)result);
   }
   else
     CURL_TRC_SSLS(data, "added session for %s [proto=0x%x, "
                   "valid_secs=%" FMT_OFF_T ", alpn=%s, earlydata=%zu, "
-                  "quic_tp=%s], peer has %zu sessions now",
-                  ssl_peer_key, s->ietf_tls_id, s->valid_until - now,
+                  "quic_tp=%s], peer has %zu sessions now", ssl_peer_key,
+                  (unsigned int)s->ietf_tls_id, s->valid_until - now,
                   s->alpn, s->earlydata_max, s->quic_tp ? "yes" : "no",
                   peer ? Curl_llist_count(&peer->sessions) : 0);
   return result;
@@ -983,7 +990,7 @@ CURLcode Curl_ssl_scache_take(struct Curl_cfilter *cf,
     *ps = s;
     CURL_TRC_SSLS(data, "took session for %s [proto=0x%x, "
                   "alpn=%s, earlydata=%zu, quic_tp=%s], %zu sessions remain",
-                  ssl_peer_key, s->ietf_tls_id, s->alpn,
+                  ssl_peer_key, (unsigned int)s->ietf_tls_id, s->alpn,
                   s->earlydata_max, s->quic_tp ? "yes" : "no",
                   Curl_llist_count(&peer->sessions));
   }
@@ -1015,7 +1022,7 @@ CURLcode Curl_ssl_scache_add_obj(struct Curl_cfilter *cf,
 
   result = cf_ssl_add_peer(data, scache, ssl_peer_key, conn_config, &peer);
   if(result || !peer) {
-    CURL_TRC_SSLS(data, "unable to add scache peer: %d", result);
+    CURL_TRC_SSLS(data, "unable to add scache peer: %d", (int)result);
     goto out;
   }
 

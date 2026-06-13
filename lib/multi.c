@@ -1204,7 +1204,8 @@ CURLMcode Curl_multi_pollset(struct Curl_easy *data,
       break;
 
     default:
-      failf(data, "multi_getsock: unexpected multi state %d", data->mstate);
+      failf(data, "multi_getsock: unexpected multi state %d",
+            (int)data->mstate);
       DEBUGASSERT(0);
       break;
     }
@@ -1213,7 +1214,7 @@ CURLMcode Curl_multi_pollset(struct Curl_easy *data,
   if(result) {
     if(result == CURLE_OUT_OF_MEMORY)
       return CURLM_OUT_OF_MEMORY;
-    failf(data, "error determining pollset: %d", result);
+    failf(data, "error determining pollset: %d", (int)result);
     return CURLM_INTERNAL_ERROR;
   }
 
@@ -2192,8 +2193,6 @@ static CURLMcode multistate_do(struct Curl_easy *data,
     /* Perform the protocol's DO action */
     result = multi_do(data, &dophase_done);
 
-    /* When multi_do() returns failure, data->conn might be NULL! */
-
     if(!result) {
       if(!dophase_done) {
 #ifndef CURL_DISABLE_FTP
@@ -2505,7 +2504,7 @@ static CURLMcode multistate_connecting(struct Curl_easy *data,
   }
   if(!Curl_xfer_recv_is_paused(data)) {
     *result = Curl_conn_connect(data, FIRSTSOCKET, FALSE, &connected);
-    if(connected && !(*result)) {
+    if(connected && !*result) {
       if(!data->conn->bits.reuse &&
          Curl_conn_is_multiplex(data->conn, FIRSTSOCKET)) {
         /* new connection, can multiplex, wake pending handles */
@@ -2516,7 +2515,7 @@ static CURLMcode multistate_connecting(struct Curl_easy *data,
     }
     else if(*result) {
       /* failure detected */
-      CURL_TRC_M(data, "connect failed -> %d", *result);
+      CURL_TRC_M(data, "connect failed -> %d", (int)*result);
       multi_posttransfer(data);
       multi_done(data, *result, TRUE);
       *stream_error = TRUE;
@@ -2532,7 +2531,7 @@ static CURLMcode multistate_protoconnect(struct Curl_easy *data,
 {
   bool protocol_connected = FALSE;
 
-  if(!(*result) && data->conn->bits.reuse) {
+  if(!*result && data->conn->bits.reuse) {
     /* ftp seems to hang when protoconnect on reused connection since we
      * handle PROTOCONNECT in general inside the filters, it seems wrong to
      * restart this on a reused connection.
@@ -2540,14 +2539,14 @@ static CURLMcode multistate_protoconnect(struct Curl_easy *data,
     multistate(data, MSTATE_DO);
     return CURLM_CALL_MULTI_PERFORM;
   }
-  if(!(*result))
+  if(!*result)
     *result = protocol_connect(data, &protocol_connected);
-  if(!(*result) && !protocol_connected) {
+  if(!*result && !protocol_connected) {
     /* switch to waiting state */
     multistate(data, MSTATE_PROTOCONNECTING);
     return CURLM_CALL_MULTI_PERFORM;
   }
-  else if(!(*result)) {
+  else if(!*result) {
     /* protocol connect has completed, go WAITDO or DO */
     multistate(data, MSTATE_DO);
     return CURLM_CALL_MULTI_PERFORM;
@@ -2568,7 +2567,7 @@ static CURLMcode multistate_protoconnecting(struct Curl_easy *data,
 
   /* protocol-specific connect phase */
   *result = protocol_connecting(data, &protocol_connected);
-  if(!(*result) && protocol_connected) {
+  if(!*result && protocol_connected) {
     /* after the connect has completed, go WAITDO or DO */
     multistate(data, MSTATE_DO);
     return CURLM_CALL_MULTI_PERFORM;
@@ -2591,7 +2590,7 @@ static CURLMcode multistate_doing(struct Curl_easy *data,
   /* we continue DOING until the DO phase is complete */
   DEBUGASSERT(data->conn);
   *result = protocol_doing(data, &dophase_done);
-  if(!(*result)) {
+  if(!*result) {
     if(dophase_done) {
       /* after DO, go DO_DONE or DO_MORE */
       multistate(data, data->conn->bits.do_more ?
@@ -2620,7 +2619,7 @@ static CURLMcode multistate_doing_more(struct Curl_easy *data,
   DEBUGASSERT(data->conn);
   *result = multi_do_more(data, &control);
 
-  if(!(*result)) {
+  if(!*result) {
     if(control != DOMORE_INCOMPLETE) {
       /* if DONE, advance to DO_DONE
          if GOBACK, go back to DOING */
@@ -4074,11 +4073,12 @@ CURLcode Curl_multi_xfer_sockbuf_borrow(struct Curl_easy *data,
                                         size_t blen, char **pbuf)
 {
   DEBUGASSERT(data);
-  DEBUGASSERT(data->multi);
   *pbuf = NULL;
   if(!data->multi) {
-    failf(data, "transfer has no multi handle");
-    return CURLE_FAILED_INIT;
+    /* When a SHARE gets destroyed and has a connection pool, we get
+     * call with share->admin which does not have a multi handle. */
+    *pbuf = curlx_malloc(blen);
+    return *pbuf ? CURLE_OK : CURLE_OUT_OF_MEMORY;
   }
   if(data->multi->xfer_sockbuf_borrowed) {
     failf(data, "attempt to borrow xfer_sockbuf when already borrowed");
@@ -4107,11 +4107,16 @@ CURLcode Curl_multi_xfer_sockbuf_borrow(struct Curl_easy *data,
 
 void Curl_multi_xfer_sockbuf_release(struct Curl_easy *data, char *buf)
 {
-  (void)buf;
   DEBUGASSERT(data);
-  DEBUGASSERT(data->multi);
-  DEBUGASSERT(!buf || data->multi->xfer_sockbuf == buf);
-  data->multi->xfer_sockbuf_borrowed = FALSE;
+  if(!data->multi) {
+    /* When a SHARE gets destroyed and has a connection pool, we get
+     * call with share->admin which does not have a multi handle. */
+    curlx_free(buf);
+  }
+  else {
+    DEBUGASSERT(!buf || data->multi->xfer_sockbuf == buf);
+    data->multi->xfer_sockbuf_borrowed = FALSE;
+  }
 }
 
 static void multi_xfer_bufs_free(struct Curl_multi *multi)

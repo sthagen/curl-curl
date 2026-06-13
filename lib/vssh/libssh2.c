@@ -662,14 +662,14 @@ static CURLcode ssh_force_knownhost_key_type(struct Curl_easy *data,
             if(!curlx_str_number(&p, &port, 0xffff) &&
                (kh_name_end && (port == conn->origin->port))) {
               kh_name_size = strlen(store->name) - 1 - strlen(kh_name_end);
-              if(strncmp(store->name + 1,
-                         conn->origin->hostname, kh_name_size) == 0) {
+              if(!strncmp(store->name + 1, conn->origin->hostname,
+                          kh_name_size)) {
                 found = TRUE;
                 break;
               }
             }
           }
-          else if(strcmp(store->name, conn->origin->hostname) == 0) {
+          else if(!strcmp(store->name, conn->origin->hostname)) {
             found = TRUE;
             break;
           }
@@ -3183,7 +3183,7 @@ static CURLcode ssh_statemachine(struct Curl_easy *data,
     result = CURLE_OK;
   }
   CURL_TRC_SSH(data, "[%s] statemachine() -> %d, block=%d",
-               Curl_ssh_statename(sshc->state), result, *block);
+               Curl_ssh_statename(sshc->state), (int)result, *block);
 
   return result;
 }
@@ -3209,7 +3209,7 @@ static CURLcode ssh_pollset(struct Curl_easy *data,
     if(waitfor & REQ_IO_SEND)
       flags |= CURL_POLL_OUT;
     DEBUGASSERT(flags);
-    CURL_TRC_SSH(data, "pollset, flags=%x", flags);
+    CURL_TRC_SSH(data, "pollset, flags=%x", (unsigned int)flags);
     return Curl_pollset_change(data, ps, sock, flags, 0);
   }
   /* While we still have a session, we listen incoming data. */
@@ -3844,7 +3844,7 @@ static CURLcode sftp_disconnect(struct Curl_easy *data,
       CURL_TRC_SSH(data, "DISCONNECT starts now");
       myssh_to(data, sshc, SSH_SFTP_SHUTDOWN);
       result = ssh_block_statemach(data, sshc, sshp, TRUE);
-      CURL_TRC_SSH(data, "DISCONNECT is done -> %d", result);
+      CURL_TRC_SSH(data, "DISCONNECT is done -> %d", (int)result);
     }
     sshc_cleanup(sshc, data, TRUE);
   }

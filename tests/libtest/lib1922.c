@@ -23,13 +23,6 @@
  ***************************************************************************/
 #include "first.h"
 
-static size_t test_lib1922_discard_write(char *ptr, size_t size, size_t nmemb,
-  void *ud)
-{
-  (void)ptr; (void)ud;
-  return size * nmemb;
-}
-
 static CURLcode test_lib1922(const char *URL)
 {
   CURLcode result = CURLE_OK;
@@ -71,7 +64,7 @@ static CURLcode test_lib1922(const char *URL)
   global_init(CURL_GLOBAL_ALL);
   easy_init(curl);
 
-  easy_setopt(curl, CURLOPT_WRITEFUNCTION, test_lib1922_discard_write);
+  easy_setopt(curl, CURLOPT_WRITEFUNCTION, tutil_throwaway_cb);
   easy_setopt(curl, CURLOPT_RESOLVE, resolve);
   easy_setopt(curl, CURLOPT_URL, direct_url);
   easy_setopt(curl, CURLOPT_HSTS_CTRL, CURLHSTS_ENABLE);
@@ -82,10 +75,10 @@ static CURLcode test_lib1922(const char *URL)
   result = curl_easy_perform(curl);
   if(result) {
     curl_mfprintf(stderr, "First perform failed: %d (%s)\n",
-                  result, curl_easy_strerror(result));
+                  (int)result, curl_easy_strerror(result));
     goto test_cleanup;
   }
-  curl_mprintf("First request: HTTPS cache populated\n");
+  curl_mprintf("First request: HSTS cache populated\n");
 
   dup = curl_easy_duphandle(curl);
   if(!dup) {
@@ -104,7 +97,7 @@ static CURLcode test_lib1922(const char *URL)
   result = curl_easy_perform(dup);
   if(result != CURLE_COULDNT_CONNECT) {
     curl_mfprintf(stderr, "Dup perform unexpected result: %d (%s)\n",
-                  result, curl_easy_strerror(result));
+                  (int)result, curl_easy_strerror(result));
     goto test_cleanup;
   }
 

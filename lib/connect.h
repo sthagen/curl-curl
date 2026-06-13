@@ -72,9 +72,6 @@ bool Curl_shutdown_started(struct Curl_easy *data, int sockindex);
 curl_socket_t Curl_getconnectinfo(struct Curl_easy *data,
                                   struct connectdata **connp);
 
-bool Curl_addr2string(struct sockaddr *sa, curl_socklen_t salen,
-                      char *addr, uint16_t *port);
-
 /*
  * Curl_conncontrol() marks the end of a connection/stream. The 'ctrl'
  * argument specifies if it is the end of a connection or a stream.
@@ -125,6 +122,10 @@ CURLcode Curl_conn_setup(struct Curl_easy *data,
 
 /* Set conn to allow multiplexing. */
 void Curl_conn_set_multiplex(struct connectdata *conn);
+
+/* Get the origin peer at sockindex. */
+struct Curl_peer *Curl_conn_get_origin(struct connectdata *conn,
+                                       int sockindex);
 
 /* Get the peer the connection actually connects to at sockindex.
  * Often the same as "origin", but can be redirected via "connect-to"

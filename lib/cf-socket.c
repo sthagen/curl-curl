@@ -26,6 +26,9 @@
 #ifdef HAVE_NETINET_IN_H
 #include <netinet/in.h> /* <netinet/tcp.h> may need it */
 #endif
+#ifdef HAVE_SYS_UN_H
+#include <sys/un.h> /* for sockaddr_un */
+#endif
 #ifdef HAVE_LINUX_TCP_H
 #include <linux/tcp.h>
 #elif defined(HAVE_NETINET_TCP_H)
@@ -64,11 +67,13 @@
 #include "curl_addrinfo.h"
 #include "select.h"
 #include "multiif.h"
+#include "curlx/inet_ntop.h"
 #include "curlx/inet_pton.h"
 #include "progress.h"
 #include "conncache.h"
 #include "multihandle.h"
 #include "rand.h"
+#include "sockaddr.h"
 #include "curlx/strdup.h"
 #include "system_win32.h"
 #include "curlx/nonblock.h"
@@ -77,6 +82,63 @@
 #include "curlx/strerr.h"
 #include "curlx/strparse.h"
 
+
+/* retrieves ip address and port from a sockaddr structure. note it calls
+ * curlx_inet_ntop which sets errno on fail, not SOCKERRNO.
+ * @unittest 1607
+ */
+UNITTEST bool sockaddr2string(struct sockaddr *sa, curl_socklen_t salen,
+                              char *addr, uint16_t *port);
+UNITTEST bool sockaddr2string(struct sockaddr *sa, curl_socklen_t salen,
+                              char *addr, uint16_t *port)
+{
+  struct sockaddr_in *si = NULL;
+#ifdef USE_IPV6
+  struct sockaddr_in6 *si6 = NULL;
+#endif
+#ifdef USE_UNIX_SOCKETS
+  struct sockaddr_un *su = NULL;
+#else
+  (void)salen;
+#endif
+
+  switch(sa->sa_family) {
+  case AF_INET:
+    si = (struct sockaddr_in *)(void *)sa;
+    if(curlx_inet_ntop(sa->sa_family, &si->sin_addr, addr, MAX_IPADR_LEN)) {
+      *port = ntohs(si->sin_port);
+      return TRUE;
+    }
+    break;
+#ifdef USE_IPV6
+  case AF_INET6:
+    si6 = (struct sockaddr_in6 *)(void *)sa;
+    if(curlx_inet_ntop(sa->sa_family, &si6->sin6_addr, addr, MAX_IPADR_LEN)) {
+      *port = ntohs(si6->sin6_port);
+      return TRUE;
+    }
+    break;
+#endif
+#ifdef USE_UNIX_SOCKETS
+  case AF_UNIX:
+    if(salen > (curl_socklen_t)sizeof(CURL_SA_FAMILY_T)) {
+      su = (struct sockaddr_un *)sa;
+      curl_msnprintf(addr, MAX_IPADR_LEN, "%s", su->sun_path);
+    }
+    else
+      addr[0] = 0; /* socket with no name */
+    *port = 0;
+    return TRUE;
+#endif
+  default:
+    break;
+  }
+
+  addr[0] = '\0';
+  *port = 0;
+  errno = SOCKEAFNOSUPPORT;
+  return FALSE;
+}
 
 static void tcpnodelay(struct Curl_cfilter *cf,
                        struct Curl_easy *data,
@@ -877,36 +939,23 @@ static bool verifyconnect(curl_socket_t sockfd, int *error)
 static CURLcode socket_connect_result(struct Curl_easy *data,
                                       const char *ipaddress, int error)
 {
-  switch(error) {
-  case SOCKEINPROGRESS:
-  case SOCKEWOULDBLOCK:
-#ifdef EAGAIN
-#if (EAGAIN) != (SOCKEWOULDBLOCK)
-    /* On some platforms EAGAIN and EWOULDBLOCK are the
-     * same value, and on others they are different, hence
-     * the odd #if
-     */
-  case EAGAIN:
-#endif
-#endif
+  if(error == SOCKEINPROGRESS || SOCK_EAGAIN(error))
     return CURLE_OK;
 
-  default:
-    /* unknown error, fallthrough and try another address! */
-    {
-      VERBOSE(char buffer[STRERROR_LEN]);
-      infof(data, "Immediate connect fail for %s: %s", ipaddress,
-            curlx_strerror(error, buffer, sizeof(buffer)));
-      NOVERBOSE((void)ipaddress);
-    }
-    data->state.os_errno = error;
-    /* connect failed */
-    return CURLE_COULDNT_CONNECT;
+  /* unknown error, fallthrough and try another address! */
+  {
+    VERBOSE(char buffer[STRERROR_LEN]);
+    infof(data, "Immediate connect fail for %s: %s", ipaddress,
+          curlx_strerror(error, buffer, sizeof(buffer)));
+    NOVERBOSE((void)ipaddress);
   }
+  data->state.os_errno = error;
+  /* connect failed */
+  return CURLE_COULDNT_CONNECT;
 }
 
 struct cf_socket_ctx {
-  uint8_t transport;
+  struct Curl_peer *peer;
   struct Curl_sockaddr_ex addr;      /* address to connect to */
   curl_socket_t sock;                /* current attempt socket */
   struct ip_quadruple ip;            /* The IP quadruple 2x(addr+port) */
@@ -924,6 +973,7 @@ struct cf_socket_ctx {
   int rblock_percent;                /* percent of reads doing EAGAIN */
   size_t recv_max;                   /* max enforced read size */
 #endif
+  uint8_t transport;
   BIT(got_first_byte);               /* if first byte was received */
   BIT(listening);                    /* socket is listening */
   BIT(accepted);                     /* socket was accepted, not connected */
@@ -932,10 +982,12 @@ struct cf_socket_ctx {
 };
 
 static CURLcode cf_socket_ctx_init(struct cf_socket_ctx *ctx,
+                                   struct Curl_peer *peer,
                                    struct Curl_sockaddr_ex *addr,
                                    uint8_t transport)
 {
   memset(ctx, 0, sizeof(*ctx));
+  Curl_peer_link(&ctx->peer, peer);
   ctx->sock = CURL_SOCKET_BAD;
   ctx->transport = transport;
   ctx->addr = *addr;
@@ -972,6 +1024,14 @@ static CURLcode cf_socket_ctx_init(struct cf_socket_ctx *ctx,
   return CURLE_OK;
 }
 
+static void cf_socket_ctx_free(struct cf_socket_ctx *ctx)
+{
+  if(ctx) {
+    Curl_peer_unlink(&ctx->peer);
+    curlx_free(ctx);
+  }
+}
+
 static CURLcode cf_socket_shutdown(struct Curl_cfilter *cf,
                                    struct Curl_easy *data,
                                    bool *done)
@@ -1006,7 +1066,7 @@ static void cf_socket_destroy(struct Curl_cfilter *cf, struct Curl_easy *data)
         cf->conn->sock[cf->sockindex] = CURL_SOCKET_BAD;
       socket_close(data, cf->conn, !ctx->accepted, ctx->sock);
     }
-    curlx_free(ctx);
+    cf_socket_ctx_free(ctx);
   }
 }
 
@@ -1031,8 +1091,8 @@ static void set_local_ip(struct Curl_cfilter *cf,
       infof(data, "getsockname() failed with errno %d: %s",
             error, curlx_strerror(error, buffer, sizeof(buffer)));
     }
-    else if(!Curl_addr2string((struct sockaddr *)&ssloc, slen,
-                              ctx->ip.local_ip, &ctx->ip.local_port)) {
+    else if(!sockaddr2string((struct sockaddr *)&ssloc, slen,
+                             ctx->ip.local_ip, &ctx->ip.local_port)) {
       infof(data, "ssloc inet_ntop() failed with errno %d: %s",
             errno, curlx_strerror(errno, buffer, sizeof(buffer)));
     }
@@ -1049,9 +1109,9 @@ static CURLcode set_remote_ip(struct Curl_cfilter *cf,
 
   /* store remote address and port used in this connection attempt */
   ctx->ip.transport = ctx->transport;
-  if(!Curl_addr2string(&ctx->addr.curl_sa_addr,
-                       (curl_socklen_t)ctx->addr.addrlen,
-                       ctx->ip.remote_ip, &ctx->ip.remote_port)) {
+  if(!sockaddr2string(&ctx->addr.curl_sa_addr,
+                      (curl_socklen_t)ctx->addr.addrlen,
+                      ctx->ip.remote_ip, &ctx->ip.remote_port)) {
     char buffer[STRERROR_LEN];
 
     ctx->error = errno;
@@ -1227,7 +1287,7 @@ out:
     cf->connected = TRUE;
   }
   CURL_TRC_CF(data, cf, "cf_socket_open() -> %d, fd=%" FMT_SOCKET_T,
-              result, ctx->sock);
+              (int)result, ctx->sock);
   return result;
 }
 
@@ -1487,22 +1547,12 @@ static CURLcode cf_socket_send(struct Curl_cfilter *cf, struct Curl_easy *data,
 
   if(!curlx_sztouz(rv, pnwritten)) {
     int sockerr = SOCKERRNO;
-
-    if(
-#ifdef USE_WINSOCK
-      /* This is how Windows does it */
-      (SOCKEWOULDBLOCK == sockerr)
-#else
-      /* errno may be EWOULDBLOCK or on some systems EAGAIN when it returned
-         due to its inability to send off data without blocking. We therefore
-         treat both error codes the same here */
-      (SOCKEWOULDBLOCK == sockerr) ||
-      (EAGAIN == sockerr) || (SOCKEINTR == sockerr) ||
-      (SOCKEINPROGRESS == sockerr)
+    if(SOCK_EAGAIN(sockerr)
+#ifndef USE_WINSOCK
+       || (sockerr == SOCKEINTR) || (sockerr == SOCKEINPROGRESS)
 #endif
       ) {
-      /* EWOULDBLOCK */
-      result = CURLE_AGAIN;
+      result = CURLE_AGAIN;  /* EWOULDBLOCK */
     }
     else {
       char buffer[STRERROR_LEN];
@@ -1519,7 +1569,7 @@ static CURLcode cf_socket_send(struct Curl_cfilter *cf, struct Curl_easy *data,
 #endif
 
   CURL_TRC_CF(data, cf, "send(len=%zu) -> %d, %zu",
-              orig_len, result, *pnwritten);
+              orig_len, (int)result, *pnwritten);
   cf->conn->sock[cf->sockindex] = fdsave;
   return result;
 }
@@ -1553,21 +1603,12 @@ static CURLcode cf_socket_recv(struct Curl_cfilter *cf, struct Curl_easy *data,
 
   if(!curlx_sztouz(rv, pnread)) {
     int sockerr = SOCKERRNO;
-
-    if(
-#ifdef USE_WINSOCK
-      /* This is how Windows does it */
-      (SOCKEWOULDBLOCK == sockerr)
-#else
-      /* errno may be EWOULDBLOCK or on some systems EAGAIN when it returned
-         due to its inability to send off data without blocking. We therefore
-         treat both error codes the same here */
-      (SOCKEWOULDBLOCK == sockerr) ||
-      (EAGAIN == sockerr) || (SOCKEINTR == sockerr)
+    if(SOCK_EAGAIN(sockerr)
+#ifndef USE_WINSOCK
+       || (sockerr == SOCKEINTR)
 #endif
       ) {
-      /* EWOULDBLOCK */
-      result = CURLE_AGAIN;
+      result = CURLE_AGAIN;  /* EWOULDBLOCK */
     }
     else {
       char buffer[STRERROR_LEN];
@@ -1578,7 +1619,7 @@ static CURLcode cf_socket_recv(struct Curl_cfilter *cf, struct Curl_easy *data,
     }
   }
 
-  CURL_TRC_CF(data, cf, "recv(len=%zu) -> %d, %zu", len, result, *pnread);
+  CURL_TRC_CF(data, cf, "recv(len=%zu) -> %d, %zu", len, (int)result, *pnread);
   if(!result && !ctx->got_first_byte) {
     ctx->first_byte_at = *Curl_pgrs_now(data);
     ctx->got_first_byte = TRUE;
@@ -1593,8 +1634,6 @@ static void cf_socket_update_data(struct Curl_cfilter *cf,
   if(cf->connected && (cf->sockindex == FIRSTSOCKET)) {
     struct cf_socket_ctx *ctx = cf->ctx;
     data->info.primary = ctx->ip;
-    /* not sure if this is redundant... */
-    data->info.conn_remote_port = cf->conn->origin->port;
   }
 }
 
@@ -1754,19 +1793,24 @@ struct Curl_cftype Curl_cft_tcp = {
 
 CURLcode Curl_cf_tcp_create(struct Curl_cfilter **pcf,
                             struct Curl_easy *data,
+                            struct Curl_peer *origin,
+                            struct Curl_peer *peer,
+                            uint8_t transport_peer,
                             struct connectdata *conn,
                             struct Curl_sockaddr_ex *addr,
-                            uint8_t transport_in,
-                            uint8_t transport_out)
+                            struct Curl_peer *tunnel_peer,
+                            uint8_t tunnel_transport)
 {
   struct cf_socket_ctx *ctx = NULL;
   struct Curl_cfilter *cf = NULL;
   CURLcode result;
 
   (void)data;
+  (void)origin;
   (void)conn;
-  (void)transport_in;
-  DEBUGASSERT(transport_out == TRNSPRT_TCP);
+  (void)tunnel_peer;
+  (void)tunnel_transport;
+  DEBUGASSERT(transport_peer == TRNSPRT_TCP);
   if(!addr) {
     result = CURLE_BAD_FUNCTION_ARGUMENT;
     goto out;
@@ -1778,7 +1822,7 @@ CURLcode Curl_cf_tcp_create(struct Curl_cfilter **pcf,
     goto out;
   }
 
-  result = cf_socket_ctx_init(ctx, addr, transport_out);
+  result = cf_socket_ctx_init(ctx, peer, addr, transport_peer);
   if(result)
     goto out;
 
@@ -1788,7 +1832,7 @@ out:
   *pcf = (!result) ? cf : NULL;
   if(result) {
     curlx_safefree(cf);
-    curlx_safefree(ctx);
+    cf_socket_ctx_free(ctx);
   }
 
   return result;
@@ -1883,7 +1927,8 @@ static CURLcode cf_udp_connect(struct Curl_cfilter *cf,
   if(ctx->sock == CURL_SOCKET_BAD) {
     result = cf_socket_open(cf, data);
     if(result) {
-      CURL_TRC_CF(data, cf, "cf_udp_connect(), open failed -> %d", result);
+      CURL_TRC_CF(data, cf, "cf_udp_connect(), open failed -> %d",
+                  (int)result);
       goto out;
     }
 
@@ -1921,26 +1966,31 @@ struct Curl_cftype Curl_cft_udp = {
 
 CURLcode Curl_cf_udp_create(struct Curl_cfilter **pcf,
                             struct Curl_easy *data,
+                            struct Curl_peer *origin,
+                            struct Curl_peer *peer,
+                            uint8_t transport_peer,
                             struct connectdata *conn,
                             struct Curl_sockaddr_ex *addr,
-                            uint8_t transport_in,
-                            uint8_t transport_out)
+                            struct Curl_peer *tunnel_peer,
+                            uint8_t tunnel_transport)
 {
   struct cf_socket_ctx *ctx = NULL;
   struct Curl_cfilter *cf = NULL;
   CURLcode result;
 
   (void)data;
+  (void)origin;
   (void)conn;
-  (void)transport_in;
-  DEBUGASSERT(transport_out == TRNSPRT_UDP || transport_out == TRNSPRT_QUIC);
+  (void)tunnel_peer;
+  (void)tunnel_transport;
+  DEBUGASSERT(transport_peer == TRNSPRT_UDP || transport_peer == TRNSPRT_QUIC);
   ctx = curlx_calloc(1, sizeof(*ctx));
   if(!ctx) {
     result = CURLE_OUT_OF_MEMORY;
     goto out;
   }
 
-  result = cf_socket_ctx_init(ctx, addr, transport_out);
+  result = cf_socket_ctx_init(ctx, peer, addr, transport_peer);
   if(result)
     goto out;
 
@@ -1950,7 +2000,7 @@ out:
   *pcf = (!result) ? cf : NULL;
   if(result) {
     curlx_safefree(cf);
-    curlx_safefree(ctx);
+    cf_socket_ctx_free(ctx);
   }
 
   return result;
@@ -1975,27 +2025,32 @@ struct Curl_cftype Curl_cft_unix = {
 };
 
 CURLcode Curl_cf_unix_create(struct Curl_cfilter **pcf,
-                             struct Curl_easy *data,
-                             struct connectdata *conn,
-                             struct Curl_sockaddr_ex *addr,
-                             uint8_t transport_in,
-                             uint8_t transport_out)
+                            struct Curl_easy *data,
+                            struct Curl_peer *origin,
+                            struct Curl_peer *peer,
+                            uint8_t transport_peer,
+                            struct connectdata *conn,
+                            struct Curl_sockaddr_ex *addr,
+                            struct Curl_peer *tunnel_peer,
+                            uint8_t tunnel_transport)
 {
   struct cf_socket_ctx *ctx = NULL;
   struct Curl_cfilter *cf = NULL;
   CURLcode result;
 
   (void)data;
+  (void)origin;
   (void)conn;
-  (void)transport_in;
-  DEBUGASSERT(transport_out == TRNSPRT_UNIX);
+  (void)tunnel_peer;
+  (void)tunnel_transport;
+  DEBUGASSERT(transport_peer == TRNSPRT_UNIX);
   ctx = curlx_calloc(1, sizeof(*ctx));
   if(!ctx) {
     result = CURLE_OUT_OF_MEMORY;
     goto out;
   }
 
-  result = cf_socket_ctx_init(ctx, addr, transport_out);
+  result = cf_socket_ctx_init(ctx, peer, addr, transport_peer);
   if(result)
     goto out;
 
@@ -2005,7 +2060,7 @@ out:
   *pcf = (!result) ? cf : NULL;
   if(result) {
     curlx_safefree(cf);
-    curlx_safefree(ctx);
+    cf_socket_ctx_free(ctx);
   }
 
   return result;
@@ -2058,8 +2113,8 @@ static void cf_tcp_set_accepted_remote_ip(struct Curl_cfilter *cf,
           error, curlx_strerror(error, buffer, sizeof(buffer)));
     return;
   }
-  if(!Curl_addr2string((struct sockaddr *)&ssrem, plen,
-                       ctx->ip.remote_ip, &ctx->ip.remote_port)) {
+  if(!sockaddr2string((struct sockaddr *)&ssrem, plen,
+                      ctx->ip.remote_ip, &ctx->ip.remote_port)) {
     failf(data, "ssrem inet_ntop() failed with errno %d: %s",
           errno, curlx_strerror(errno, buffer, sizeof(buffer)));
     return;
@@ -2106,7 +2161,7 @@ static CURLcode cf_tcp_accept_connect(struct Curl_cfilter *cf,
   CURL_TRC_CF(data, cf, "Checking for incoming on fd=%" FMT_SOCKET_T
               " ip=%s:%d", ctx->sock, ctx->ip.local_ip, ctx->ip.local_port);
   socketstate = SOCKET_READABLE(ctx->sock, 0);
-  CURL_TRC_CF(data, cf, "socket_check -> %x", socketstate);
+  CURL_TRC_CF(data, cf, "socket_check -> %x", (unsigned int)socketstate);
   switch(socketstate) {
   case -1: /* error */
     /* let's die here */

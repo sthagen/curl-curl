@@ -42,6 +42,7 @@
 #include "curlx/fopen.h"
 #include "cfilters.h"
 #include "vquic/cf-ngtcp2.h"
+#include "vquic/cf-ngtcp2-cmn.h"
 #include "vquic/cf-ngtcp2-proxy.h"
 #include "vquic/cf-quiche.h"
 #include "multiif.h"
@@ -164,12 +165,10 @@ static CURLcode do_sendmsg(struct Curl_cfilter *cf,
     ;
 
   if(!curlx_sztouz(rv, psent)) {
-    switch(SOCKERRNO) {
-    case EAGAIN:
-#if EAGAIN != SOCKEWOULDBLOCK
-    case SOCKEWOULDBLOCK:
-#endif
+    int sockerr = SOCKERRNO;
+    if(SOCK_EAGAIN(sockerr))
       return CURLE_AGAIN;
+    switch(sockerr) {
     case SOCKEMSGSIZE:
       /* UDP datagram is too large; caused by PMTUD. Let it be lost. */
       *psent = pktlen;
@@ -178,13 +177,13 @@ static CURLcode do_sendmsg(struct Curl_cfilter *cf,
       if(pktlen > gsolen) {
         /* GSO failure */
         infof(data, "sendmsg() returned %zd (errno %d); disable GSO", rv,
-              SOCKERRNO);
+              sockerr);
         qctx->no_gso = TRUE;
         return send_packet_no_gso(cf, data, qctx, pkt, pktlen, gsolen, psent);
       }
       FALLTHROUGH();
     default:
-      failf(data, "sendmsg() returned %zd (errno %d)", rv, SOCKERRNO);
+      failf(data, "sendmsg() returned %zd (errno %d)", rv, sockerr);
       result = CURLE_SEND_ERROR;
       goto out;
     }
@@ -205,7 +204,7 @@ static CURLcode do_sendmsg(struct Curl_cfilter *cf,
     ;
 
   if(!curlx_sztouz(rv, psent)) {
-    if(SOCKERRNO == EAGAIN || SOCKERRNO == SOCKEWOULDBLOCK) {
+    if(SOCK_EAGAIN(SOCKERRNO)) {
       result = CURLE_AGAIN;
       goto out;
     }
@@ -258,7 +257,7 @@ static CURLcode send_packet_no_gso(struct Curl_cfilter *cf,
 out:
   CURL_TRC_CF(data, cf,
               "vquic_%s(len=%zu, gso=%zu, calls=%zu) -> %d, sent=%zu",
-              VQUIC_SEND_METHOD, pktlen, gsolen, calls, result, *psent);
+              VQUIC_SEND_METHOD, pktlen, gsolen, calls, (int)result, *psent);
   return result;
 }
 
@@ -296,7 +295,7 @@ static CURLcode send_packet_no_gso_cf(struct Curl_cfilter *cf,
 out:
   CURL_TRC_CF(data, cf,
               "vquic_cf_send(len=%zu, gso=%zu, calls=%zu) -> %d, sent=%zu",
-              pktlen, gsolen, calls, result, *psent);
+              pktlen, gsolen, calls, (int)result, *psent);
   return result;
 }
 
@@ -326,7 +325,7 @@ static CURLcode vquic_send_packets(struct Curl_cfilter *cf,
     result = do_sendmsg(cf, data, qctx, pkt, pktlen, gsolen, psent);
     CURL_TRC_CF(data, cf,
                 "vquic_%s(len=%zu, gso=%zu, calls=1) -> %d, sent=%zu",
-                VQUIC_SEND_METHOD, pktlen, gsolen, result, *psent);
+                VQUIC_SEND_METHOD, pktlen, gsolen, (int)result, *psent);
   }
   if(!result)
     qctx->last_io = qctx->last_op;
@@ -486,7 +485,7 @@ static CURLcode recvmmsg_packets(struct Curl_cfilter *cf,
           (SOCKERRNO == SOCKEINTR || SOCKERRNO == SOCKEMSGSIZE))
       ;
     if(mcount == -1) {
-      if(SOCKERRNO == EAGAIN || SOCKERRNO == SOCKEWOULDBLOCK) {
+      if(SOCK_EAGAIN(SOCKERRNO)) {
         CURL_TRC_CF(data, cf, "ingress, recvmmsg -> EAGAIN");
         goto out;
       }
@@ -531,7 +530,7 @@ out:
   if(total_nread || result)
     CURL_TRC_CF(data, cf,
                 "vquic_recvmmsg(len=%zu, packets=%zu, calls=%zu) -> %d",
-                total_nread, pkts, calls, result);
+                total_nread, pkts, calls, (int)result);
   Curl_multi_xfer_sockbuf_release(data, sockbuf);
   return result;
 }
@@ -573,7 +572,7 @@ static CURLcode recvmsg_packets(struct Curl_cfilter *cf,
           (SOCKERRNO == SOCKEINTR || SOCKERRNO == SOCKEMSGSIZE))
       ;
     if(!curlx_sztouz(rc, &nread)) {
-      if(SOCKERRNO == EAGAIN || SOCKERRNO == SOCKEWOULDBLOCK) {
+      if(SOCK_EAGAIN(SOCKERRNO)) {
         goto out;
       }
       if(!cf->connected && SOCKERRNO == SOCKECONNREFUSED) {
@@ -615,7 +614,7 @@ out:
   if(total_nread || result)
     CURL_TRC_CF(data, cf,
                 "vquic_recvmsg(len=%zu, packets=%zu, calls=%zu) -> %d",
-                total_nread, pkts, calls, result);
+                total_nread, pkts, calls, (int)result);
   return result;
 }
 
@@ -643,7 +642,7 @@ static CURLcode recvfrom_packets(struct Curl_cfilter *cf,
           (SOCKERRNO == SOCKEINTR || SOCKERRNO == SOCKEMSGSIZE))
       ;
     if(!curlx_sztouz(rv, &nread)) {
-      if(SOCKERRNO == EAGAIN || SOCKERRNO == SOCKEWOULDBLOCK) {
+      if(SOCK_EAGAIN(SOCKERRNO)) {
         CURL_TRC_CF(data, cf, "ingress, recvfrom -> EAGAIN");
         goto out;
       }
@@ -680,7 +679,7 @@ out:
   if(total_nread || result)
     CURL_TRC_CF(data, cf,
                 "vquic_recvfrom(len=%zu, packets=%zu, calls=%zu) -> %d",
-                total_nread, pkts, calls, result);
+                total_nread, pkts, calls, (int)result);
   return result;
 }
 #endif /* !HAVE_SENDMMSG && !HAVE_SENDMSG */
@@ -760,35 +759,49 @@ CURLcode Curl_qlogdir(struct Curl_easy *data,
   return CURLE_OK;
 }
 
-CURLcode Curl_cf_quic_insert_after(struct Curl_cfilter *cf_at)
+CURLcode Curl_cf_quic_insert_after(struct Curl_cfilter *cf_at,
+                                   struct Curl_peer *origin,
+                                   struct Curl_peer *peer)
 {
 #if defined(USE_NGTCP2) && defined(USE_NGHTTP3)
-  return Curl_cf_ngtcp2_insert_after(cf_at);
+  return Curl_cf_ngtcp2_insert_after(cf_at, origin, peer);
+#elif defined(USE_QUICHE)
+  return Curl_cf_quiche_insert_after(cf_at, origin, peer);
 #else
   (void)cf_at;
+  (void)origin;
+  (void)peer;
   return CURLE_NOT_BUILT_IN;
 #endif
 }
 
 CURLcode Curl_cf_quic_create(struct Curl_cfilter **pcf,
                              struct Curl_easy *data,
+                             struct Curl_peer *origin,
+                             struct Curl_peer *peer,
+                             uint8_t transport_peer,
                              struct connectdata *conn,
                              struct Curl_sockaddr_ex *addr,
-                             uint8_t transport_in,
-                             uint8_t transport_out)
+                             struct Curl_peer *tunnel_peer,
+                             uint8_t tunnel_transport)
 {
-  (void)transport_in;
-  (void)transport_out;
-  DEBUGASSERT(transport_out == TRNSPRT_QUIC);
+  (void)transport_peer;
+  (void)tunnel_transport;
+  (void)tunnel_peer;
+  DEBUGASSERT(transport_peer == TRNSPRT_QUIC);
 #if defined(USE_NGTCP2) && defined(USE_NGHTTP3)
-  return Curl_cf_ngtcp2_create(pcf, data, conn, addr);
+  return Curl_cf_ngtcp2_create(pcf, data, origin, peer, conn, addr);
 #elif defined(USE_QUICHE)
-  return Curl_cf_quiche_create(pcf, data, conn, addr);
+  return Curl_cf_quiche_create(pcf, data, origin, peer, conn, addr);
 #else
   *pcf = NULL;
   (void)data;
+  (void)origin;
+  (void)peer;
   (void)conn;
   (void)addr;
+  (void)tunnel_peer;
+  (void)tunnel_transport;
   return CURLE_NOT_BUILT_IN;
 #endif
 }
@@ -797,35 +810,49 @@ CURLcode Curl_cf_quic_create(struct Curl_cfilter **pcf,
 
 CURLcode Curl_cf_h3_proxy_insert_after(struct Curl_cfilter *cf_at,
                                        struct Curl_easy *data,
-                                       struct Curl_peer *dest,
-                                       bool udp_tunnel)
+                                       struct Curl_peer *origin,
+                                       struct Curl_peer *peer,
+                                       struct Curl_peer *tunnel_peer,
+                                       uint8_t tunnel_transport)
 {
 #if defined(USE_NGTCP2) && defined(USE_NGHTTP3)
-  return Curl_cf_ngtcp2_proxy_insert_after(cf_at, data, dest, udp_tunnel);
+  return Curl_cf_ngtcp2_proxy_insert_after(cf_at, data, origin, peer,
+                                           tunnel_peer, tunnel_transport);
 #else
   (void)cf_at;
+  (void)data;
+  (void)origin;
+  (void)peer;
+  (void)tunnel_peer;
+  (void)tunnel_transport;
   return CURLE_NOT_BUILT_IN;
 #endif
 }
 
 CURLcode Curl_cf_h3_proxy_create(struct Curl_cfilter **pcf,
                                  struct Curl_easy *data,
+                                 struct Curl_peer *origin,
+                                 struct Curl_peer *peer,
+                                 uint8_t transport_peer,
                                  struct connectdata *conn,
                                  struct Curl_sockaddr_ex *addr,
-                                 uint8_t transport_in,
-                                 uint8_t transport_out)
+                                 struct Curl_peer *tunnel_peer,
+                                 uint8_t tunnel_transport)
 {
-  (void)transport_in;
-  (void)transport_out;
-  DEBUGASSERT(transport_out == TRNSPRT_QUIC);
+  DEBUGASSERT(transport_peer == TRNSPRT_QUIC);
 #if defined(USE_NGTCP2) && defined(USE_NGHTTP3)
-  return Curl_cf_ngtcp2_proxy_create(pcf, data, conn, addr,
-                                     transport_in, transport_out);
+  return Curl_cf_ngtcp2_proxy_create(pcf, data, origin, peer, transport_peer,
+                                     conn, addr,
+                                     tunnel_peer, tunnel_transport);
 #else
   *pcf = NULL;
   (void)data;
   (void)conn;
   (void)addr;
+  (void)peer;
+  (void)transport_peer;
+  (void)tunnel_peer;
+  (void)tunnel_transport;
   return CURLE_NOT_BUILT_IN;
 #endif
 }
@@ -845,7 +872,7 @@ CURLcode Curl_conn_may_http3(struct Curl_easy *data,
     return CURLE_URL_MALFORMAT;
   }
 #ifndef CURL_DISABLE_PROXY
-  if(conn->bits.socksproxy) {
+  if(conn->socks_proxy.peer) {
     failf(data, "HTTP/3 is not supported over a SOCKS proxy");
     return CURLE_URL_MALFORMAT;
   }

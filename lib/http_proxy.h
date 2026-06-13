@@ -68,21 +68,15 @@ CURLcode Curl_http_proxy_inspect_tunnel_response(
 
 CURLcode Curl_cf_http_proxy_insert_after(struct Curl_cfilter *cf_at,
                                          struct Curl_easy *data,
-                                         struct Curl_peer *dest,
-                                         uint8_t transport,
+                                         struct Curl_peer *peer,
+                                         struct Curl_peer *tunnel_peer,
+                                         uint8_t tunnel_transport,
                                          uint8_t proxytype);
 
 extern struct Curl_cftype Curl_cft_http_proxy;
 
-#endif /* !CURL_DISABLE_PROXY && !CURL_DISABLE_HTTP */
-
-#define IS_HTTPS_PROXY(t)       \
-  (((t) == CURLPROXY_HTTPS) ||  \
-   ((t) == CURLPROXY_HTTPS2) || \
-   ((t) == CURLPROXY_HTTPS3))
-
-#define IS_QUIC_PROXY(t) ((t) == CURLPROXY_HTTPS3)
-
 uint8_t Curl_http_proxy_transport(uint8_t proxytype);
+
+#endif /* !CURL_DISABLE_PROXY && !CURL_DISABLE_HTTP */
 
 #endif /* HEADER_CURL_HTTP_PROXY_H */

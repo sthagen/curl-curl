@@ -1137,6 +1137,15 @@ typedef unsigned int curl_bit;
 #define SOCKEWOULDBLOCK   EWOULDBLOCK
 #endif
 
+/* The socket error may be EWOULDBLOCK or on some systems EAGAIN when
+   it returned due to its inability to send/read data without blocking.
+   We treat both error codes the same here. */
+#if !defined(USE_WINSOCK) && EAGAIN != SOCKEWOULDBLOCK
+#define SOCK_EAGAIN(e) ((e) == SOCKEWOULDBLOCK || (e) == EAGAIN)
+#else
+#define SOCK_EAGAIN(e) ((e) == SOCKEWOULDBLOCK)
+#endif
+
 /*
  * Macro argv_item_t hides platform details to code using it.
  */
@@ -1641,7 +1650,8 @@ typedef struct sockaddr_un {
 #define curlx_memzero(buf, size)  (void)memset_s(buf, size, 0, size)
 #elif defined(HAVE_MEMSET_EXPLICIT)
 #define curlx_memzero(buf, size)  (void)memset_explicit(buf, 0, size)
-#elif defined(__CYGWIN__) || defined(__NEWLIB__) || \
+#elif defined(__CYGWIN__) || \
+  (defined(__NEWLIB__) && !defined(__CLIB2__)) || \
   (defined(__GLIBC__) && \
     (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 25))) || \
   (defined(__DragonFly__) && __DragonFly_version >= 500600 /* v5.6+ */) || \
