@@ -1034,7 +1034,7 @@ static CURLcode suboption(struct Curl_easy *data, struct TELNET *tn)
       if(bad_option(v->data))
         return CURLE_BAD_FUNCTION_ARGUMENT;
       /* Add the variable if it fits */
-      if(len + tmplen < (int)sizeof(temp) - 6) {
+      if(len + tmplen < sizeof(temp) - 6) {
         const char *s = strchr(v->data, ',');
         if(!s)
           len += curl_msnprintf((char *)&temp[len], sizeof(temp) - len,
@@ -1372,9 +1372,9 @@ static CURLcode telnet_do(struct Curl_easy *data, bool *done)
     case WAIT_OBJECT_0: {
       events.lNetworkEvents = 0;
       if(WSAEnumNetworkEvents(sockfd, event_handle, &events) != 0) {
-        int err = SOCKERRNO;
-        if(err != SOCKEINPROGRESS) {
-          infof(data, "WSAEnumNetworkEvents failed (%d)", err);
+        int sockerr = SOCKERRNO;
+        if(sockerr != SOCKEINPROGRESS) {
+          infof(data, "WSAEnumNetworkEvents failed (%d)", sockerr);
           keepon = FALSE;
           result = CURLE_READ_ERROR;
         }
