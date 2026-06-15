@@ -1,5 +1,5 @@
-#ifndef HEADER_CURL_PROXY_H
-#define HEADER_CURL_PROXY_H
+#ifndef HEADER_CURL_CF_SETUP_H
+#define HEADER_CURL_CF_SETUP_H
 /***************************************************************************
  *                                  _   _ ____  _
  *  Project                     ___| | | |  _ \| |
@@ -25,35 +25,22 @@
  ***************************************************************************/
 #include "curl_setup.h"
 
-#ifndef CURL_DISABLE_PROXY
-
-struct Curl_easy;
+struct Curl_dns_entry;
+struct ip_quadruple;
 struct Curl_peer;
-struct Curl_creds;
-struct connectdata;
+struct Curl_str;
 
-struct proxy_info {
-  struct Curl_peer *peer; /* proxy to this peer */
-  struct Curl_creds *creds; /* use these credentials, maybe NULL */
-  uint8_t proxytype; /* what kind of proxy that is in use */
-};
+CURLcode Curl_cf_setup_add(struct Curl_easy *data,
+                           struct connectdata *conn,
+                           int sockindex,
+                           uint8_t transport,
+                           int ssl_mode);
 
-#define CURL_PROXY_IS_HTTPS(t)  \
-  (((t) == CURLPROXY_HTTPS) ||  \
-   ((t) == CURLPROXY_HTTPS2) || \
-   ((t) == CURLPROXY_HTTPS3))
+CURLcode Curl_cf_setup_insert_after(struct Curl_cfilter *cf_at,
+                                    struct Curl_easy *data,
+                                    uint8_t transport,
+                                    int ssl_mode);
 
-#define CURL_PROXY_IS_HTTP(t)   \
-  (((t) == CURLPROXY_HTTP) ||   \
-   ((t) == CURLPROXY_HTTP_1_0))
+extern struct Curl_cftype Curl_cft_setup;
 
-#define CURL_PROXY_IS_ANY_HTTP(t) \
-  (CURL_PROXY_IS_HTTP(t) ||       \
-   CURL_PROXY_IS_HTTPS(t))
-
-CURLcode Curl_proxy_init_conn(struct Curl_easy *data,
-                              struct connectdata *conn);
-
-#endif /* !CURL_DISABLE_PROXY */
-
-#endif /* HEADER_CURL_PROXY_H */
+#endif /* HEADER_CURL_CF_SETUP_H */

@@ -96,7 +96,7 @@ struct rtspd_httprequest {
 
 #define CMD_AUTH_REQUIRED "auth_required"
 
-/* 'idle' means that it will accept the request fine but never respond
+/* 'idle' means that it accepts the request fine but never responds
    any data. Keep the connection alive. */
 #define CMD_IDLE "idle"
 
@@ -372,7 +372,7 @@ static int rtspd_ProcessRequest(struct rtspd_httprequest *req)
           req->testno = DOCNUMBER_BADCONNECT;
         else if(!strncmp(doc, "test", 4)) {
           /* if the hostname starts with test, the port number used in the
-             CONNECT line will be used as test number! */
+             CONNECT line is used as test number! */
           const char *portp = strchr(doc, ':');
           if(portp && (*(portp + 1) != '\0') && ISDIGIT(*(portp + 1))) {
             pval = portp + 1;
@@ -424,7 +424,7 @@ static int rtspd_ProcessRequest(struct rtspd_httprequest *req)
     if((req->cl == 0) && !CURL_STRNICMP("Content-Length:", line, 15)) {
       /* If we do not ignore content-length, we read it and we read the whole
          request including the body before we return. If we have been told to
-         ignore the content-length, we will return as soon as all headers
+         ignore the content-length, we return as soon as all headers
          have been received */
       curl_off_t clen;
       const char *p = line + strlen("Content-Length:");
@@ -438,7 +438,7 @@ static int rtspd_ProcessRequest(struct rtspd_httprequest *req)
 
       logmsg("Found Content-Length: %zu in the request", (size_t)clen);
       if(req->skip)
-        logmsg("... but will abort after %zu bytes", req->cl);
+        logmsg("... but going to abort after %zu bytes", req->cl);
       break;
     }
     else if(!CURL_STRNICMP("Transfer-Encoding: chunked", line,
@@ -547,7 +547,6 @@ static int rtspd_ProcessRequest(struct rtspd_httprequest *req)
 /* store the entire request in a file */
 static void rtspd_storerequest(const char *reqbuf, size_t totalsize)
 {
-  int res;
   int error = 0;
   char errbuf[STRERROR_LEN];
   size_t written;
@@ -595,8 +594,7 @@ static void rtspd_storerequest(const char *reqbuf, size_t totalsize)
 
 storerequest_cleanup:
 
-  res = curlx_fclose(dump);
-  if(res)
+  if(curlx_fclose(dump))
     logmsg("Error closing file %s error (%d) %s", dumpfile,
            errno, curlx_strerror(errno, errbuf, sizeof(errbuf)));
 }
@@ -730,7 +728,6 @@ static int rtspd_send_doc(curl_socket_t sock, struct rtspd_httprequest *req)
   size_t responsesize;
   int error = 0;
   char errbuf[STRERROR_LEN];
-  int res;
   static char weare[256];
   char responsedump[256];
 
@@ -863,7 +860,7 @@ static int rtspd_send_doc(curl_socket_t sock, struct rtspd_httprequest *req)
   }
 
   /* If the word 'swsclose' is present anywhere in the reply chunk, the
-     connection will be closed after the data has been sent to the requesting
+     connection is closed after the data has been sent to the requesting
      client... */
   if(strstr(buffer, "swsclose") || !count) {
     persistent = FALSE;
@@ -891,7 +888,7 @@ static int rtspd_send_doc(curl_socket_t sock, struct rtspd_httprequest *req)
   responsesize = count;
   do {
     /* Ok, we send no more than 200 bytes at a time, to make sure that
-       larger chunks are split up so that the client will need to do multiple
+       larger chunks are split up so that the client needs to do multiple
        recv() calls to get it and thus we exercise that code better */
     size_t num = count;
     if(num > 200)
@@ -934,8 +931,7 @@ static int rtspd_send_doc(curl_socket_t sock, struct rtspd_httprequest *req)
     req->rtp_buffersize = 0;
   }
 
-  res = curlx_fclose(dump);
-  if(res)
+  if(curlx_fclose(dump))
     logmsg("Error closing file %s error (%d) %s", responsedump,
            errno, curlx_strerror(errno, errbuf, sizeof(errbuf)));
 
@@ -968,12 +964,9 @@ static int rtspd_send_doc(curl_socket_t sock, struct rtspd_httprequest *req)
         if(!strcmp("wait", command)) {
           logmsg("Told to sleep for %d seconds", num);
           quarters = num * 4;
-          while(quarters > 0) {
+          while((quarters > 0) && !got_exit_signal) {
             quarters--;
-            res = curlx_wait_ms(250);
-            if(got_exit_signal)
-              break;
-            if(res) {
+            if(curlx_wait_ms(250)) {
               /* should not happen */
               int sockerr = SOCKERRNO;
               logmsg("curlx_wait_ms() failed with error (%d) %s",
@@ -1203,8 +1196,7 @@ static int test_rtspd(int argc, const char *argv[])
   logmsg("Running %s version on port %d", ipv_inuse, (int)port);
 
   /* start accepting connections */
-  rc = listen(sock, 5);
-  if(rc) {
+  if(listen(sock, 5)) {
     sockerr = SOCKERRNO;
     logmsg("listen() failed with error (%d) %s",
            sockerr, curlx_strerror(sockerr, errbuf, sizeof(errbuf)));
@@ -1212,8 +1204,8 @@ static int test_rtspd(int argc, const char *argv[])
   }
 
   /*
-   * As soon as this server writes its pid file the test harness will
-   * attempt to connect to this server and initiate its verification.
+   * As soon as this server writes its pid file the test harness attempts
+   * to connect to this server and initiate its verification.
    */
 
   wrotepidfile = write_pidfile(pidname);

@@ -29,6 +29,7 @@
 #include "curl_trc.h"
 #include "cfilters.h"
 #include "cf-dns.h"
+#include "cf-setup.h"
 #include "connect.h"
 #include "hostip.h"
 #include "httpsrr.h"
@@ -309,7 +310,7 @@ static enum alpnid cf_hc_get_httpsrr_alpn(struct Curl_cfilter *cf,
   if(Curl_httpsrr_applicable(data, rr) && !rr->no_def_alpn) {
     for(i = 0; i < CURL_ARRAYSIZE(rr->alpns); ++i) {
       enum alpnid alpn_rr = (enum alpnid)rr->alpns[i];
-      if(alpn_rr == not_this_one) /* don't want this one */
+      if(alpn_rr == not_this_one) /* do not want this one */
         continue;
       switch(alpn_rr) {
       case ALPN_h3:

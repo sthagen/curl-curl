@@ -264,7 +264,7 @@ static CURLcode ldap_do(struct Curl_easy *data, bool *done)
   int ldap_proto = LDAP_VERSION3;
   int ldap_ssl = 0;
 #ifdef LDAP_OPT_NETWORK_TIMEOUT
-  struct timeval ldap_timeout = {10, 0}; /* 10 sec connection/search timeout */
+  struct timeval ldap_timeout = { 10, 0 }; /* 10s connection/search timeout */
 #endif
 #ifdef USE_WIN32_LDAP
   TCHAR *host = NULL;
@@ -456,23 +456,17 @@ static CURLcode ldap_do(struct Curl_easy *data, bool *done)
 
     /* Get the DN and write it to the client */
     {
-      char *name;
+      char *name = NULL;
       size_t name_len = 0;
 #ifdef USE_WIN32_LDAP
       TCHAR *dn = ldap_get_dn(server, entryIterator);
-      name = curlx_convert_tchar_to_UTF8(dn);
-      if(!name) {
-        ldap_memfree(dn);
-
-        result = CURLE_OUT_OF_MEMORY;
-
-        goto quit;
-      }
+      if(dn)
+        name = curlx_convert_tchar_to_UTF8(dn);
 #else
       char *dn = name = ldap_get_dn(server, entryIterator);
 #endif
       if(!name)
-        result = CURLE_FAILED_INIT;
+        result = dn ? CURLE_OUT_OF_MEMORY : CURLE_FAILED_INIT;
       else {
         name_len = strlen(name);
         result = Curl_client_write(data, CLIENTWRITE_BODY, "DN: ", 4);

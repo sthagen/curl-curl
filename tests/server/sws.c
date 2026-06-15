@@ -112,14 +112,14 @@ static const char *cmdfile = "log/server.cmd";
 
 #define CMD_AUTH_REQUIRED "auth_required"
 
-/* 'idle' means that it will accept the request fine but never respond
+/* 'idle' means that it accepts the request fine but never responds
    any data. Keep the connection alive. */
 #define CMD_IDLE "idle"
 
 /* 'stream' means to send a never-ending stream of data */
 #define CMD_STREAM "stream"
 
-/* 'connection-monitor' will output when a server/proxy connection gets
+/* 'connection-monitor' outputs when a server/proxy connection gets
    disconnected as for some cases it is important that it gets done at the
    proper point - like with NTLM */
 #define CMD_CONNECTIONMONITOR "connection-monitor"
@@ -585,7 +585,7 @@ static int sws_ProcessRequest(struct sws_httprequest *req)
     if((req->cl == 0) && !CURL_STRNICMP("Content-Length:", line, 15)) {
       /* If we do not ignore content-length, we read it and we read the whole
          request including the body before we return. If we have been told to
-         ignore the content-length, we will return as soon as all headers
+         ignore the content-length, we return as soon as all headers
          have been received */
       curl_off_t clen;
       const char *p = line + strlen("Content-Length:");
@@ -602,7 +602,7 @@ static int sws_ProcessRequest(struct sws_httprequest *req)
 
       logmsg("Found Content-Length: %zu in the request", (size_t)clen);
       if(req->skip)
-        logmsg("... but will abort after %zu bytes", req->cl);
+        logmsg("... but going to abort after %zu bytes", req->cl);
     }
     else if(!CURL_STRNICMP("Transfer-Encoding: chunked", line,
                            strlen("Transfer-Encoding: chunked"))) {
@@ -742,7 +742,6 @@ static int sws_ProcessRequest(struct sws_httprequest *req)
 /* store the entire request in a file */
 static void sws_storerequest(const char *reqbuf, size_t totalsize)
 {
-  int res;
   int error = 0;
   char errbuf[STRERROR_LEN];
   size_t written;
@@ -791,8 +790,7 @@ static void sws_storerequest(const char *reqbuf, size_t totalsize)
 
 storerequest_cleanup:
 
-  res = curlx_fclose(dump);
-  if(res)
+  if(curlx_fclose(dump))
     logmsg("Error closing file %s error (%d) %s", dumpfile,
            errno, curlx_strerror(errno, errbuf, sizeof(errbuf)));
 }
@@ -813,7 +811,6 @@ static int sws_send_doc(curl_socket_t sock, struct sws_httprequest *req)
   size_t responsesize;
   int error = 0;
   char errbuf[STRERROR_LEN];
-  int res;
   static char weare[256];
   char responsedump[256];
 
@@ -940,7 +937,7 @@ static int sws_send_doc(curl_socket_t sock, struct sws_httprequest *req)
   }
 
   /* If the word 'swsclose' is present anywhere in the reply chunk, the
-     connection will be closed after the data has been sent to the requesting
+     connection is closed after the data has been sent to the requesting
      client... */
   if(strstr(buffer, "swsclose") || !count || req->close) {
     persistent = FALSE;
@@ -967,7 +964,7 @@ static int sws_send_doc(curl_socket_t sock, struct sws_httprequest *req)
   responsesize = count;
   do {
     /* Ok, we send no more than N bytes at a time, to make sure that
-       larger chunks are split up so that the client will need to do multiple
+       larger chunks are split up so that the client needs to do multiple
        recv() calls to get it and thus we exercise that code better */
     size_t num = count;
     if(num > 20)
@@ -1007,8 +1004,7 @@ retry:
     }
   } while((count > 0) && !got_exit_signal);
 
-  res = curlx_fclose(dump);
-  if(res)
+  if(curlx_fclose(dump))
     logmsg("Error closing file %s error (%d) %s", responsedump,
            errno, curlx_strerror(errno, errbuf, sizeof(errbuf)));
 
@@ -1045,8 +1041,7 @@ retry:
           quarters = num * 4;
           while((quarters > 0) && !got_exit_signal) {
             quarters--;
-            res = curlx_wait_ms(250);
-            if(res) {
+            if(curlx_wait_ms(250)) {
               /* should not happen */
               int sockerr = SOCKERRNO;
               logmsg("curlx_wait_ms() failed with error (%d) %s",
@@ -1343,7 +1338,8 @@ static curl_socket_t connect_to(const char *ipaddr, unsigned short port)
       FD_SET(serverfd, &output);
       while(1) {
         rc = select((int)serverfd + 1, NULL, &output, NULL, &timeout);
-        if(rc < 0 && SOCKERRNO != SOCKEINTR)
+        sockerr = SOCKERRNO;
+        if(rc < 0 && sockerr != SOCKEINTR)
           goto error;
         else if(rc > 0) {
           curl_socklen_t errSize = sizeof(sockerr);
@@ -1391,7 +1387,7 @@ success:
  * either end.
  *
  * When doing FTP through a CONNECT proxy, we expect that the data connection
- * will be setup while the first connect is still being kept up. Therefore we
+ * is setup while the first connect is still being kept up. Therefore we
  * must accept a new connection and deal with it appropriately.
  */
 
@@ -2101,7 +2097,7 @@ static int test_sws(int argc, const char *argv[])
       }
     }
     else if(!strcmp("--connect", argv[arg])) {
-      /* The connect host IP number that the proxy will connect to no matter
+      /* The connect host IP number that the proxy connects to no matter
          what the client asks for, but also use this as a hint that we run as
          a proxy and do a few different internal choices */
       arg++;
@@ -2260,8 +2256,7 @@ static int test_sws(int argc, const char *argv[])
          protocol_type, socket_type, location_str);
 
   /* start accepting connections */
-  rc = listen(sock, 50);
-  if(rc) {
+  if(listen(sock, 50)) {
     sockerr = SOCKERRNO;
     logmsg("listen() failed with error (%d) %s",
            sockerr, curlx_strerror(sockerr, errbuf, sizeof(errbuf)));
@@ -2274,8 +2269,8 @@ static int test_sws(int argc, const char *argv[])
 #endif
 
   /*
-   * As soon as this server writes its pid file the test harness will
-   * attempt to connect to this server and initiate its verification.
+   * As soon as this server writes its pid file the test harness attempts
+   * to connect to this server and initiate its verification.
    */
 
   wrotepidfile = write_pidfile(pidname);
@@ -2328,15 +2323,16 @@ static int test_sws(int argc, const char *argv[])
     if(got_exit_signal)
       goto sws_cleanup;
 
+    sockerr = 0;
     do {
       rc = select((int)maxfd + 1, &input, &output, NULL, &timeout);
-    } while(rc < 0 && SOCKERRNO == SOCKEINTR && !got_exit_signal);
+    } while(rc < 0 && ((sockerr = SOCKERRNO) == SOCKEINTR &&
+            !got_exit_signal));
 
     if(got_exit_signal)
       goto sws_cleanup;
 
     if(rc < 0) {
-      sockerr = SOCKERRNO;
       logmsg("select() failed with error (%d) %s",
              sockerr, curlx_strerror(sockerr, errbuf, sizeof(errbuf)));
       goto sws_cleanup;
@@ -2414,12 +2410,12 @@ static int test_sws(int argc, const char *argv[])
              * 2) the socket is still open, and
              * 3) (stale) data is still available (or about to be available)
              *    on that socket
-             * In that case, this loop will run once more and treat that stale
+             * In that case, this loop runs once more and treat that stale
              * data (in service_connection()) as the first data received on
              * this new HTTP request and report "** Unusual request" (skipall
              * would have otherwise caused that data to be ignored). Normally,
-             * that socket will be closed by the client and there will not be
-             * any stale data to cause this, but stranger things have happened
+             * that socket is closed by the client and there is no stale data
+             * to cause this, but stranger things have happened
              * (see issue #11678).
              */
             init_httprequest(req);
@@ -2442,11 +2438,10 @@ sws_cleanup:
     sclose(sock);
 
 #ifdef USE_UNIX_SOCKETS
-  if(unlink_socket && socket_domain == AF_UNIX && unix_socket) {
-    rc = unlink(unix_socket);
-    logmsg("unlink(%s) = %d (%s)", unix_socket,
-           rc, curlx_strerror(rc, errbuf, sizeof(errbuf)));
-  }
+  if(unlink_socket && socket_domain == AF_UNIX && unix_socket &&
+     unlink(unix_socket))
+    logmsg("unlink(%s): %d (%s)", unix_socket,
+           errno, curlx_strerror(errno, errbuf, sizeof(errbuf)));
 #endif
 
   free(req);

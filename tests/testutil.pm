@@ -195,7 +195,7 @@ sub subnewlines {
     }
     else {
         if(($$thing =~ /^\n\z/) && $prevupdate) {
-            # if there is a blank link after a line we update, we hope it is
+            # if there is a blank line after a line we update, we hope it is
             # the empty line following headers
             $$thing =~ s/\x0a/\x0d\x0a/;
         }
@@ -223,10 +223,10 @@ sub runclient {
 #
 sub runclientoutput {
     my ($cmd) = @_;
-    return `$cmd 2>$dev_null`;
+    return qx($cmd 2>$dev_null);
 
 # This is one way to test curl on a remote machine
-#    my @out = `ssh $CLIENTIP cd \'$pwd\' \\; \'$cmd\'`;
+#    my @out = qx(ssh $CLIENTIP cd \'$pwd\' \\; \'$cmd\');
 #    sleep 2;    # time to allow the NFS server to be updated
 #    return @out;
 }

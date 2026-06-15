@@ -280,16 +280,17 @@ static CURLcode send_packet_no_gso_cf(struct Curl_cfilter *cf,
     len = CURLMIN(gsolen, (size_t)(end - p));
     result = Curl_conn_cf_send(cf->next, data, p, len, FALSE, &sent);
     /* Report forward progress even if we return CURLE_AGAIN later. */
-    *psent += sent;
     VERBOSE(++calls);
     /* Preserve lower-filter errors (including CURLE_AGAIN). */
     if(result)
       goto out;
-    if(sent < len) {
-      /* We need whole datagrams here. Partial accept means blocked. */
-      result = CURLE_AGAIN;
+
+    if(sent != len) {
+      /* We can only send the complete datagram, not parts. */
+      result = CURLE_SEND_ERROR;
       goto out;
     }
+    *psent += sent;
   }
 
 out:
@@ -867,7 +868,7 @@ CURLcode Curl_conn_may_http3(struct Curl_easy *data,
     failf(data, "HTTP/3 cannot be used over UNIX domain sockets");
     return CURLE_QUIC_CONNECT_ERROR;
   }
-  if(!(conn->scheme->flags & PROTOPT_SSL)) {
+  if(!(data->state.origin->scheme->flags & PROTOPT_SSL)) {
     failf(data, "HTTP/3 requested for non-HTTPS URL");
     return CURLE_URL_MALFORMAT;
   }

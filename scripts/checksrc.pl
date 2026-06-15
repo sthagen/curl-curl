@@ -202,6 +202,7 @@ my %warnings = (
     'TYPEDEFSTRUCT'         => 'typedefed struct',
     'UNUSEDIGNORE'          => 'a warning ignore was not used',
     'USESAFEFREE'           => 'replace curlx_free() + NULL assignment with curlx_safefree()',
+    'VOIDEXCL'              => '(void)! is not something we like',
     );
 
 sub readskiplist {
@@ -1165,6 +1166,12 @@ sub scanfile {
                       "space after exclamation mark");
         }
 
+        if($nostr =~ /(.*)\(void\)\!/) {
+            checkwarn("VOIDEXCL",
+                      $line, length($1)+1, $file, $ol,
+                      "exclamation after (void) is weird");
+        }
+
         if($nostr =~ /(.*)\b(EACCES|EADDRINUSE|EADDRNOTAVAIL|EAFNOSUPPORT|EBADF|ECONNREFUSED|ECONNRESET|EINPROGRESS|EINTR|EINVAL|EISCONN|EMSGSIZE|ENOMEM|ETIMEDOUT|EWOULDBLOCK)\b/) {
             checkwarn("ERRNOVAR",
                       $line, length($1), $file, $ol,
@@ -1226,12 +1233,12 @@ sub scanfile {
         @copyright = sort {$$b{year} cmp $$a{year}} @copyright;
 
         # if the file is modified, assume commit year this year
-        if(`git status -s -- "$file"` =~ /^ [MARCU]/) {
+        if(qx(git status -s -- "$file") =~ /^ [MARCU]/) {
             $commityear = (localtime(time))[5] + 1900;
         }
         else {
             # min-parents=1 to ignore wrong initial commit in truncated repos
-            my $grl = `git rev-list --max-count=1 --min-parents=1 --timestamp HEAD -- "$file"`;
+            my $grl = qx(git rev-list --max-count=1 --min-parents=1 --timestamp HEAD -- "$file");
             if($grl) {
                 chomp $grl;
                 $commityear = (localtime((split(/ /, $grl))[0]))[5] + 1900;

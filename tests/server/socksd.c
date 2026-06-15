@@ -213,7 +213,6 @@ static void socksd_getconfig(void)
 static curl_socket_t socksconnect(unsigned short connectport,
                                   const char *connectaddr)
 {
-  int rc;
   srvr_sockaddr_union_t me;
   curl_socket_t sock = socket(AF_INET, SOCK_STREAM, 0);
   if(sock == CURL_SOCKET_BAD)
@@ -224,9 +223,7 @@ static curl_socket_t socksconnect(unsigned short connectport,
   me.sa4.sin_addr.s_addr = INADDR_ANY;
   curlx_inet_pton(AF_INET, connectaddr, &me.sa4.sin_addr);
 
-  rc = connect(sock, &me.sa, sizeof(me.sa4));
-
-  if(rc) {
+  if(connect(sock, &me.sa, sizeof(me.sa4))) {
     char errbuf[STRERROR_LEN];
     int sockerr = SOCKERRNO;
     logmsg("Failed connecting to %s:%hu (%d) %s", connectaddr, connectport,
@@ -917,11 +914,10 @@ socks5_cleanup:
     sclose(sock);
 
 #ifdef USE_UNIX_SOCKETS
-  if(unlink_socket && socket_domain == AF_UNIX && unix_socket) {
-    int error = unlink(unix_socket);
-    logmsg("unlink(%s) = %d (%s)", unix_socket,
-           error, curlx_strerror(error, errbuf, sizeof(errbuf)));
-  }
+  if(unlink_socket && socket_domain == AF_UNIX && unix_socket &&
+     unlink(unix_socket))
+    logmsg("unlink(%s): %d (%s)", unix_socket,
+           errno, curlx_strerror(errno, errbuf, sizeof(errbuf)));
 #endif
 
   if(wrotepidfile)
