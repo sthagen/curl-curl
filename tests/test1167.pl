@@ -72,7 +72,7 @@ sub scanenums {
     my ($file) = @_;
     my $skipit = 0;
 
-    open H_IN, "-|", "$Cpreprocessor -DCURL_DISABLE_DEPRECATION $i$file" ||
+    open(H_IN, "-|", "$Cpreprocessor -DCURL_DISABLE_DEPRECATION $i$file") or
         die "Cannot preprocess $file";
     while(<H_IN>) {
         my ($line, $linenum) = ($_, $.);
@@ -113,7 +113,7 @@ sub scanenums {
             }
         }
     }
-    close H_IN || die "Error preprocessing $file";
+    close H_IN or die "Error preprocessing $file";
 }
 
 sub scanheader {
@@ -134,7 +134,7 @@ sub scanheader {
     close H;
 }
 
-opendir(my $dh, $incdir) || die "Cannot opendir $incdir: $!";
+opendir(my $dh, $incdir) or die "Cannot opendir $incdir: $!";
 my @hfiles = grep { /\.h$/ } readdir($dh);
 closedir $dh;
 

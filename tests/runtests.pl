@@ -182,7 +182,6 @@ my %runnersrunning;    # tests currently running by runner ID
 #
 my $short;
 my $no_debuginfod;
-my $keepoutfiles; # keep stdout and stderr files after tests
 my $postmortem;   # display detailed info about failed tests
 my $run_disabled; # run the specific tests even if listed in DISABLED
 my $scrambleorder;
@@ -356,8 +355,7 @@ sub cleardir {
     my $file;
 
     # Get all files
-    opendir(my $dh, $dir) ||
-        return 0; # cannot open dir
+    opendir(my $dh, $dir) or return 0; # cannot open dir
     while($file = readdir($dh)) {
         # Do not clear the $PIDDIR or $LOCKDIR since those need to live beyond
         # one test
@@ -392,7 +390,7 @@ sub showdiff {
     my $file1 = "$logdir/check-generated";
     my $file2 = "$logdir/check-expected";
 
-    open(my $temp, ">", $file1) || die "Failure writing diff file";
+    open(my $temp, ">", $file1) or die "Failure writing diff file";
     for(@$firstref) {
         my $l = $_;
         $l =~ s/\r/[CR]/g;
@@ -401,9 +399,9 @@ sub showdiff {
         print $temp $l;
         print $temp "\n";
     }
-    close($temp) || die "Failure writing diff file";
+    close($temp) or die "Failure writing diff file";
 
-    open($temp, ">", $file2) || die "Failure writing diff file";
+    open($temp, ">", $file2) or die "Failure writing diff file";
     for(@$secondref) {
         my $l = $_;
         $l =~ s/\r/[CR]/g;
@@ -412,7 +410,7 @@ sub showdiff {
         print $temp $l;
         print $temp "\n";
     }
-    close($temp) || die "Failure writing diff file";
+    close($temp) or die "Failure writing diff file";
     my @out = qx(diff -u $file2 $file1 2>$dev_null);
 
     if(!$out[0]) {
@@ -561,7 +559,7 @@ sub checksystemfeatures {
             $CURLVERSION = $1;
             $CURLVERNUM = $CURLVERSION;
             $CURLVERNUM =~ s/^([0-9.]+)(.*)/$1/; # leading dots and numbers
-            $curl =~ s/^(.*)(libcurl.*)/$1/g || die "Failure determining curl binary version";
+            $curl =~ s/^(.*)(libcurl.*)/$1/g or die "Failure determining curl binary version";
 
             $libcurl = $2;
             if($curl =~ /win32|Windows|windows|mingw(32|64)/) {
@@ -1294,7 +1292,7 @@ sub singletest_check {
 
     my $loadfile = $hash{'loadfile'};
     if($loadfile) {
-        open(my $tmp, "<", $loadfile) || die "Cannot open file $loadfile: $!";
+        open(my $tmp, "<", $loadfile) or die "Cannot open file $loadfile: $!";
         @validstdout = <$tmp>;
         close($tmp);
 
@@ -2347,7 +2345,7 @@ sub createrunners {
 #
 sub pickrunner {
     my ($testnum) = @_;
-    scalar(@runnersidle) || die "No runners available";
+    scalar(@runnersidle) or die "No runners available";
 
     return pop @runnersidle;
 }
@@ -2541,10 +2539,6 @@ while(@ARGV) {
             $jobs = $1;
         }
     }
-    elsif($ARGV[0] eq "-k") {
-        # keep stdout and stderr files after tests
-        $keepoutfiles = 1;
-    }
     elsif($ARGV[0] eq "-r") {
         # run time statistics needs Time::HiRes
         if($Time::HiRes::VERSION) {
@@ -2597,7 +2591,6 @@ Usage: runtests.pl [options] [test selection(s)]
   -gw      run the test case with gdb as a windowed application
   -h       this help text
   -j[N]    spawn this number of processes to run tests (default 0)
-  -k       keep stdout and stderr files present after tests
   -L path  require an additional perl library file to replace certain functions
   -l       list all test case names/descriptions
   -m=[seconds] set timeout for curl commands in tests
@@ -2675,10 +2668,10 @@ if(!$randseed) {
     # seed of the month. December 2019 becomes 201912
     $randseed = ($year + 1900) * 100 + $mon + 1;
     print "Using curl: $CURL\n";
-    open(my $curlvh, "-|", exerunner() . shell_quote($CURL) . " --version 2>$dev_null") ||
+    open(my $curlvh, "-|", exerunner() . shell_quote($CURL) . " --version 2>$dev_null") or
         die "could not get curl version!";
     my @c = <$curlvh>;
-    close($curlvh) || die "could not get curl version!";
+    close($curlvh) or die "could not get curl version!";
     # use the first line of output and get the md5 out of it
     my $str = md5($c[0]);
     $randseed += unpack('S', $str);  # unsigned 16-bit value
@@ -2855,7 +2848,7 @@ sub disabledtests {
 
 if($TESTCASES eq "all") {
     # Get all commands and find out their test numbers
-    opendir(DIR, $TESTDIR) || die "cannot opendir $TESTDIR: $!";
+    opendir(DIR, $TESTDIR) or die "cannot opendir $TESTDIR: $!";
     my @cmds = grep { /^test([0-9]+)$/ && -f "$TESTDIR/$_" } readdir(DIR);
     closedir(DIR);
 
@@ -2958,8 +2951,7 @@ sub displaylogcontent {
 sub displaylogs {
     my ($runnerid, $testnum) = @_;
     my $logdir = getrunnerlogdir($runnerid);
-    opendir(DIR, $logdir) ||
-        die "cannot open dir: $!";
+    opendir(DIR, $logdir) or die "cannot open dir: $!";
     my @logs = readdir(DIR);
     closedir(DIR);
 
@@ -3155,7 +3147,7 @@ while(1) {
                 $endwaitcnt = 0;
                 # This runner is ready to be serviced
                 my $testnum = $runnersrunning{$ridready};
-                defined $testnum ||  die "Internal error: test for runner $ridready unknown";
+                defined $testnum or die "Internal error: test for runner $ridready unknown";
                 delete $runnersrunning{$ridready};
                 my ($error, $again) = singletest($ridready, $testnum, $countforrunner{$ridready}, $totaltests);
                 if($again) {

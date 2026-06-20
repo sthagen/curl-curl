@@ -37,7 +37,7 @@ env:
   # renovate: datasource=github-tags depName=awslabs/aws-lc versioning=semver registryUrl=https://github.com
   AWSLC_VERSION: 5.0.0
   # renovate: datasource=github-tags depName=google/boringssl versioning=semver registryUrl=https://github.com
-  BORINGSSL_VERSION: 0.20260526.0
+  BORINGSSL_VERSION: 0.20260616.0
   # renovate: datasource=github-releases depName=pizlonator/fil-c versioning=semver-coerced registryUrl=https://github.com
   FIL_C_VERSION: 0.679
   # renovate: datasource=github-tags depName=libressl/portable versioning=semver registryUrl=https://github.com
@@ -215,14 +215,16 @@ jobs:
             configure: --with-openssl --enable-debug --disable-unity
 
           - name: 'openssl libssh2 sync-resolver valgrind 1 +analyzer'
-            image: ubuntu-24.04-arm
-            install_packages: libidn2-dev libssh2-1-dev libnghttp2-dev libldap-dev valgrind
+            image: ubuntu-26.04-arm
+            install_packages: gcc-16 libidn2-dev libssh2-1-dev libnghttp2-dev libldap-dev valgrind
+            CC: gcc-16
             tflags: '--min=965 1 to 1000'
             generate: -DENABLE_DEBUG=ON -DENABLE_THREADED_RESOLVER=OFF -DCURL_GCC_ANALYZER=ON -DCURL_ENABLE_NTLM=ON
 
           - name: 'openssl libssh2 sync-resolver valgrind 2'
-            image: ubuntu-24.04-arm
-            install_packages: libidn2-dev libssh2-1-dev libnghttp2-dev libldap-dev valgrind
+            image: ubuntu-26.04-arm
+            install_packages: gcc-16 libidn2-dev libssh2-1-dev libnghttp2-dev libldap-dev valgrind
+            CC: gcc-16
             tflags: '--min=920 1001 to 9999'
             generate: -DENABLE_DEBUG=ON -DENABLE_THREADED_RESOLVER=OFF -DCURL_ENABLE_NTLM=ON
 
@@ -317,10 +319,11 @@ jobs:
             configure: --without-ssl --enable-debug --disable-http --disable-smtp --disable-imap --disable-unity
 
           - name: 'clang-tidy'
-            install_packages: clang-20 clang-tidy-20 libssl-dev libidn2-dev libssh2-1-dev libnghttp2-dev libldap-dev libkrb5-dev libgnutls28-dev
+            image: ubuntu-26.04
+            install_packages: clang-22 clang-tidy-22 libssl-dev libidn2-dev libssh2-1-dev libnghttp2-dev libldap-dev libkrb5-dev libgnutls28-dev
             install_steps: skiprun mbedtls-latest-intel rustls wolfssl-opensslextra-intel
             install_steps_brew: openssl@4 gsasl
-            CC: clang-20
+            CC: clang-22
             CFLAGS: -Wunused-macros
             LDFLAGS: >-
               -Wl,-rpath,/home/runner/wolfssl-opensslextra/lib
@@ -339,13 +342,14 @@ jobs:
               -DCURL_USE_WOLFSSL=ON -DCURL_USE_GNUTLS=ON -DCURL_USE_MBEDTLS=ON -DCURL_USE_RUSTLS=ON
               -DCURL_USE_GSASL=ON
               -DUSE_ECH=ON -DCURL_USE_GSSAPI=ON -DUSE_SSLS_EXPORT=ON
-              -DCURL_CLANG_TIDY=ON -DCLANG_TIDY=/usr/bin/clang-tidy-20
+              -DCURL_CLANG_TIDY=ON -DCLANG_TIDY=/usr/bin/clang-tidy-22
 
           - name: 'clang-tidy H3 c-ares !examples'
-            install_packages: clang-20 clang-tidy-20 libidn2-dev libssh-dev libnghttp2-dev
+            image: ubuntu-26.04
+            install_packages: clang-22 clang-tidy-22 libidn2-dev libssh-dev libnghttp2-dev
             install_steps: skiprun
             install_steps_brew: libngtcp2 libnghttp3 c-ares
-            CC: clang-20
+            CC: clang-22
             CFLAGS: -Wunused-macros
             LDFLAGS: >-
               -Wl,-rpath,/home/linuxbrew/.linuxbrew/opt/openssl/lib
@@ -361,13 +365,14 @@ jobs:
               -DCURL_USE_OPENSSL=ON -DOPENSSL_ROOT_DIR=/home/linuxbrew/.linuxbrew/opt/openssl -DUSE_NGTCP2=ON
               -DCURL_USE_LIBSSH2=OFF -DCURL_USE_LIBSSH=ON -DUSE_HTTPSRR=ON -DENABLE_ARES=ON -DUSE_PROXY_HTTP3=ON
               -DCURL_DISABLE_VERBOSE_STRINGS=ON
-              -DCURL_CLANG_TIDY=ON -DCLANG_TIDY=/usr/bin/clang-tidy-20
+              -DCURL_CLANG_TIDY=ON -DCLANG_TIDY=/usr/bin/clang-tidy-22
 
           - name: 'address-sanitizer'
-            install_packages: clang-20 libssh-dev libidn2-dev libnghttp2-dev libubsan1 libasan8 libtsan2
+            image: ubuntu-26.04
+            install_packages: clang-22 libssh-dev libidn2-dev libnghttp2-dev libubsan1 libasan8 libtsan2
             install_steps: pytest randcurl
             install_steps_brew: openssl@4
-            CC: clang-20
+            CC: clang-22
             CFLAGS: >-
               -fsanitize=address,bounds,leak,signed-integer-overflow,undefined
               -fno-sanitize-recover=address,bounds,leak,signed-integer-overflow,undefined
@@ -380,10 +385,11 @@ jobs:
             generate: -DENABLE_DEBUG=ON -DCURL_USE_OPENSSL=ON -DOPENSSL_ROOT_DIR=/home/linuxbrew/.linuxbrew/opt/openssl@4 -DUSE_ECH=ON -DCURL_USE_LIBSSH=ON
 
           - name: 'address-sanitizer H3 c-ares'
-            install_packages: clang-20 libubsan1 libasan8 libtsan2
+            image: ubuntu-26.04
+            install_packages: clang-22 libubsan1 libasan8 libtsan2
             install_steps: pytest
             install_steps_brew: openssl libssh2 libngtcp2 libnghttp3 c-ares
-            CC: clang-20
+            CC: clang-22
             CFLAGS: >-
               -fsanitize=address,bounds,leak,signed-integer-overflow,undefined
               -fno-sanitize-recover=address,bounds,leak,signed-integer-overflow,undefined
@@ -403,17 +409,19 @@ jobs:
               -DUSE_SSLS_EXPORT=ON -DENABLE_ARES=ON -DUSE_PROXY_HTTP3=ON
 
           - name: 'thread-sanitizer'
-            install_packages: clang-20 libtsan2
+            image: ubuntu-26.04
+            install_packages: clang-22 libtsan2
             install_steps: pytest openssl-tsan
-            CC: clang-20
+            CC: clang-22
             CFLAGS: -fsanitize=thread -g
             LDFLAGS: -fsanitize=thread
             generate: -DOPENSSL_ROOT_DIR=/home/runner/openssl -DUSE_ECH=ON -DENABLE_DEBUG=ON
 
           - name: 'memory-sanitizer'
-            install_packages: clang-20
+            image: ubuntu-26.04
+            install_packages: clang-22
             install_steps: randcurl
-            CC: clang-20
+            CC: clang-22
             CFLAGS: -fsanitize=memory -Wformat -Werror=format-security -Werror=array-bounds -g
             LDFLAGS: -fsanitize=memory
             LIBS: -ldl
@@ -455,7 +463,7 @@ jobs:
     steps:
       - name: 'install prereqs'
         if: ${{ matrix.build.container == null && !contains(matrix.build.name, 'i686') }}
-        timeout-minutes: 2
+        timeout-minutes: 3
         env:
           INSTALL_PACKAGES_BREW: '${{ matrix.build.install_steps_brew }}'
           INSTALL_PACKAGES: >-
@@ -474,12 +482,6 @@ jobs:
             ${MATRIX_INSTALL_PACKAGES}
           if [ -n "${INSTALL_PACKAGES_BREW}" ]; then
             /home/linuxbrew/.linuxbrew/bin/brew install ${INSTALL_PACKAGES_BREW}
-          fi
-          # Workaround for ubuntu-24.04-arm images having 0777 for /home/runner,
-          # which breaks the test sshd server used in pytest.
-          if [[ "$(uname -m)" = *'aarch64'* ]]; then
-            ls -l /home
-            chmod 0755 /home/runner
           fi
 
       - name: 'install prereqs (i686)'
@@ -829,11 +831,12 @@ jobs:
 
       - name: 'install Intel compilers'
         if: ${{ contains(matrix.build.install_steps, 'intelc') }}
-        timeout-minutes: 2
+        timeout-minutes: 4
         run: |
           curl --disable --fail --silent --show-error --connect-timeout 15 --max-time 120 --retry 6 --retry-connrefused \
             --compressed https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | \
             sudo tee /etc/apt/trusted.gpg.d/intel-sw.asc >/dev/null
+          sudo find /etc/apt/sources.list.d -type f -not -name 'ubuntu.sources' -delete -print
           sudo sed -i 's/priority:1/priority:9/' /etc/apt/apt-mirrors.txt; cat /etc/apt/apt-mirrors.txt
           sudo add-apt-repository 'deb https://apt.repos.intel.com/oneapi all main'
           sudo apt-get -o Dpkg::Use-Pty=0 install intel-oneapi-compiler-dpcpp-cpp-and-cpp-classic
@@ -863,7 +866,7 @@ jobs:
           if [ "${MATRIX_BUILD}" = 'cmake' ]; then
             cmake -B bld -G Ninja \
               -DCMAKE_INSTALL_PREFIX="$HOME"/curl-install \
-              -DCMAKE_C_COMPILER_TARGET="$(uname -m)-pc-linux-gnu" -DBUILD_STATIC_LIBS=ON \
+              -DCMAKE_C_COMPILER_TARGET="$(uname -m)-unknown-linux-gnu" -DBUILD_STATIC_LIBS=ON \
               -DCMAKE_UNITY_BUILD=ON -DCURL_WERROR=ON \
               ${MATRIX_GENERATE}
           else

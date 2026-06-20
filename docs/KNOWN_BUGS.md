@@ -48,6 +48,10 @@ Certain Windows installations may be missing CA roots.
 [curl issue 20897](https://github.com/curl/curl/issues/20897)
 [curl issue 12303](https://github.com/curl/curl/issues/12303)
 
+## ECH not working through Proxy Tunnels
+
+[curl issue 22043](https://github.com/curl/curl/issues/22043)
+
 # Email protocols
 
 ## IMAP `SEARCH ALL` truncated response
@@ -487,32 +491,6 @@ detect if a port is already in use, so it tries the first port, uses that and
 then subsequently fails anyway if that was actually in use.
 
 [curl issue 8112](https://github.com/curl/curl/issues/8112)
-
-# CMake
-
-## cmake outputs: no version information available
-
-Something in the SONAME generation seems to be wrong in the cmake build.
-
-[curl issue 11158](https://github.com/curl/curl/issues/11158)
-
-## generated `.pc` file contains strange entries
-
-The `Libs.private` field of the generated `.pc` file contains `-lgcc -lgcc_s
--lc -lgcc -lgcc_s`.
-
-See [curl issue 6167](https://github.com/curl/curl/issues/6167)
-
-## CMake build with MIT Kerberos does not work
-
-Minimum CMake version was bumped in curl 7.71.0 (#5358) Since CMake 3.2
-try_compile started respecting the `CMAKE_EXE_FLAGS`. The code dealing with
-MIT Kerberos detection sets few variables to potentially weird mix of space,
-and ;-separated flags. It had to blow up at some point. All the CMake checks
-that involve compilation are doomed from that point, the configured tree
-cannot be built.
-
-[curl issue 6904](https://github.com/curl/curl/issues/6904)
 
 # HTTP/2
 

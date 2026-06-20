@@ -3445,7 +3445,6 @@ static CURLcode ossl_init_ech(struct ossl_ctx *octx,
   size_t ech_config_len = 0;
   char *outername = data->set.str[STRING_ECH_PUBLIC];
   int trying_ech_now = 0;
-  CURLcode result = CURLE_OK;
 
   if(!CURLECH_ENABLED(data))
     return CURLE_OK;
@@ -3462,6 +3461,7 @@ static CURLcode ossl_init_ech(struct ossl_ctx *octx,
 #ifdef HAVE_BORINGSSL_LIKE
     /* have to do base64 decode here for BoringSSL */
     const char *b64 = data->set.str[STRING_ECH_CONFIG];
+    CURLcode result;
 
     if(!b64) {
       infof(data, "ECH: ECHConfig from command line empty");
@@ -3502,7 +3502,7 @@ static CURLcode ossl_init_ech(struct ossl_ctx *octx,
   }
   else {
     const struct Curl_https_rrinfo *rinfo =
-      Curl_conn_dns_get_https(data, cf->sockindex);
+      Curl_conn_dns_get_https(data, cf->sockindex, peer->origin);
 
     if(rinfo && rinfo->echconfiglist) {
       const unsigned char *ecl = rinfo->echconfiglist;
@@ -3533,14 +3533,14 @@ static CURLcode ossl_init_ech(struct ossl_ctx *octx,
   }
 #else
   if(trying_ech_now && outername) {
+    int ret;
     infof(data, "ECH: inner: '%s', outer: '%s'",
           peer->origin->hostname ? peer->origin->hostname : "NULL", outername);
-    result = SSL_ech_set1_server_names(octx->ssl,
-                                       peer->origin->hostname, outername,
-                                       0 /* do send outer */);
-    if(result != 1) {
-      infof(data, "ECH: rv failed to set server name(s) %d [ERROR]",
-            (int)result);
+    ret = SSL_ech_set1_server_names(octx->ssl,
+                                    peer->origin->hostname, outername,
+                                    0 /* do send outer */);
+    if(ret != 1) {
+      infof(data, "ECH: rv failed to set server name(s) %d [ERROR]", ret);
       return CURLE_SSL_CONNECT_ERROR;
     }
   }
@@ -4970,7 +4970,8 @@ static CURLcode ossl_connect(struct Curl_cfilter *cf,
 
   if(ssl_connect_1 == connssl->connecting_state) {
     if(Curl_ossl_need_httpsrr(data) &&
-       !Curl_conn_dns_resolved_https(data, cf->sockindex)) {
+       !Curl_conn_dns_resolved_https(data, cf->sockindex,
+                                     connssl->peer.peer)) {
       CURL_TRC_CF(data, cf, "need HTTPS-RR, delaying connect");
       return CURLE_OK;
     }

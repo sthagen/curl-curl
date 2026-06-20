@@ -29,6 +29,7 @@
 #include "cookie.h"
 #include "psl.h"
 #include "curl_trc.h"
+#include "transfer.h"
 #include "slist.h"
 #include "curl_share.h"
 #include "strcase.h"
@@ -758,10 +759,12 @@ static CURLcode parse_netscape(struct Cookie *co,
       if(!co->name)
         return CURLE_OUT_OF_MEMORY;
       else {
-        /* For Netscape file format cookies we check prefix on the name */
-        if(curl_strnequal("__Secure-", co->name, 9))
+        /* For Netscape file format cookies we check prefix on the name.
+           These prefixes are matched case sensitively, same as on the
+           header path and as the 6265bis document specifies. */
+        if(!strncmp("__Secure-", co->name, 9))
           co->prefix_secure = TRUE;
-        else if(curl_strnequal("__Host-", co->name, 7))
+        else if(!strncmp("__Host-", co->name, 7))
           co->prefix_host = TRUE;
       }
       break;
@@ -783,6 +786,14 @@ static CURLcode parse_netscape(struct Cookie *co,
 
   if(fields != 7)
     /* we did not find the sufficient number of fields */
+    return CURLE_OK;
+
+  /* Reject control octets in the name or value, matching the filtering done
+     for cookies set over HTTP. A cookie loaded from a file is later sent in
+     request headers, so the same bytes that make a server reject a request
+     must not slip in through the file. */
+  if(invalid_octets(co->name, strlen(co->name)) ||
+     invalid_octets(co->value, strlen(co->value)))
     return CURLE_OK;
 
   *okay = TRUE;
@@ -1268,9 +1279,9 @@ static int cookie_sort_ct(const void *p1, const void *p2)
   return (c2->creationtime > c1->creationtime) ? 1 : -1;
 }
 
-bool Curl_secure_context(const struct connectdata *conn, const char *host)
+bool Curl_secure_context(struct Curl_easy *data, const char *host)
 {
-  return conn->scheme->protocol & (CURLPROTO_HTTPS | CURLPROTO_WSS) ||
+  return Curl_xfer_is_secure(data) ||
     curl_strequal("localhost", host) ||
     !strcmp(host, "127.0.0.1") ||
     !strcmp(host, "::1");
@@ -1280,15 +1291,13 @@ bool Curl_secure_context(const struct connectdata *conn, const char *host)
  * Curl_cookie_getlist
  *
  * For a given host and path, return a linked list of cookies that the client
- * should send to the server if used now. The secure boolean informs the cookie
- * if a secure connection is achieved or not.
+ * should send to the server if used now.
  *
  * It shall only return cookies that have not expired.
  *
  * 'okay' is TRUE when there is a list returned.
  */
 CURLcode Curl_cookie_getlist(struct Curl_easy *data,
-                             const struct connectdata *conn,
                              bool *okay,
                              const char *host,
                              struct Curl_llist *list)
@@ -1297,7 +1306,7 @@ CURLcode Curl_cookie_getlist(struct Curl_easy *data,
   const bool is_ip = Curl_host_is_ipnum(host);
   const size_t myhash = cookiehash(host);
   struct Curl_llist_node *n;
-  const bool secure = Curl_secure_context(conn, host);
+  const bool secure = Curl_secure_context(data, host);
   struct CookieInfo *ci = data->cookies;
   const char *path = data->state.up.path;
   CURLcode result = CURLE_OK;

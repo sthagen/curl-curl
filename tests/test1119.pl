@@ -66,7 +66,7 @@ my %rem;
 # included by it, which *should* be all headers
 sub scanenum {
     my ($file) = @_;
-    open my $h_in, "-|", "$Cpreprocessor $i$file" || die "Cannot preprocess $file";
+    open my $h_in, "-|", "$Cpreprocessor $i$file" or die "Cannot preprocess $file";
     while(<$h_in>) {
         if(/enum\s+(\S+\s+)?{/ .. /}/) {
             s/^\s+//;
@@ -76,7 +76,7 @@ sub scanenum {
             push @syms, $_;
         }
     }
-    close $h_in || die "Error preprocessing $file";
+    close $h_in or die "Error preprocessing $file";
 }
 
 sub scanheader {
@@ -92,8 +92,7 @@ sub scanheader {
 
 sub scanallheaders {
     my $d = "$root/include/curl";
-    opendir(my $dh, $d) ||
-        die "Cannot opendir: $!";
+    opendir(my $dh, $d) or die "Cannot opendir: $!";
     my @headers = grep { /.h\z/ } readdir($dh);
     closedir $dh;
     foreach my $h (@headers) {
@@ -130,8 +129,7 @@ sub checkmanpage {
 
 sub scanman_md_dir {
     my ($d) = @_;
-    opendir(my $dh, $d) ||
-        die "Cannot opendir: $!";
+    opendir(my $dh, $d) or die "Cannot opendir: $!";
     my @mans = grep { /.md\z/ } readdir($dh);
     closedir $dh;
     for my $m (@mans) {

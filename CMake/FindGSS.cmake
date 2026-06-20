@@ -25,14 +25,13 @@
 #
 # Input variables:
 #
-# - `GSS_ROOT_DIR`: Absolute path to the root installation of GSS. (also supported as environment)
+# - `GSS_ROOT_DIR`:  Absolute path to the root installation of GSS. (also supported as environment)
 #
 # Defines:
 #
-# - `GSS_FOUND`:    System has a GSS library.
-# - `GSS_VERSION`:  This is set to version advertised by pkg-config or read from manifest.
-#                   In case the library is found but no version info available it is set to "unknown"
-# - `CURL::gss`:    GSS library target.
+# - `GSS_FOUND`:     System has GSS.
+# - `GSS_VERSION`:   Version of GSS.
+# - `CURL::gss`:     GSS library target.
 #   - `INTERFACE_CURL_GSS_FLAVOR`: Custom property. "GNU" or "MIT" if detected.
 
 set(_gnu_modname "gss")
@@ -51,7 +50,7 @@ set(_gss_LIBRARY_DIRS "")
 if(NOT GSS_ROOT_DIR AND NOT "$ENV{GSS_ROOT_DIR}")
   if(CURL_USE_PKGCONFIG)
     find_package(PkgConfig QUIET)
-    pkg_search_module(_gss ${_gnu_modname} ${_mit_modname})
+    pkg_search_module(_gss ${_mit_modname} ${_gnu_modname})
     list(APPEND _gss_root_hints "${_gss_PREFIX}")
     set(_gss_version "${_gss_VERSION}")
   endif()
@@ -193,12 +192,10 @@ if(NOT _gss_FOUND)  # Not found by pkg-config. Let us take more traditional appr
     message(FATAL_ERROR "GNU or MIT GSS is required")
   endif()
 else()
-  # _gss_MODULE_NAME set since CMake 3.16.
-  # _pkg_check_modules_pkg_name is undocumented and used as a fallback for CMake <3.16 versions.
-  if(_gss_MODULE_NAME STREQUAL _gnu_modname OR _pkg_check_modules_pkg_name STREQUAL _gnu_modname)
+  if(_gss_MODULE_NAME STREQUAL _gnu_modname)
     set(_gss_flavor "GNU")
     set(_gss_pc_requires ${_gnu_modname})
-  elseif(_gss_MODULE_NAME STREQUAL _mit_modname OR _pkg_check_modules_pkg_name STREQUAL _mit_modname)
+  elseif(_gss_MODULE_NAME STREQUAL _mit_modname)
     set(_gss_flavor "MIT")
     set(_gss_pc_requires ${_mit_modname})
   else()
@@ -210,7 +207,7 @@ endif()
 set(GSS_VERSION ${_gss_version})
 
 if(NOT GSS_VERSION)
-  if(_gss_flavor STREQUAL "MIT")
+  if(_gss_flavor STREQUAL "MIT" AND WIN32)
     if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.24)
       cmake_host_system_information(RESULT _mit_version QUERY WINDOWS_REGISTRY
         "HKLM/SOFTWARE/MIT/Kerberos/SDK/CurrentVersion" VALUE "VersionString")
@@ -218,12 +215,8 @@ if(NOT GSS_VERSION)
       get_filename_component(_mit_version
         "[HKEY_LOCAL_MACHINE\\SOFTWARE\\MIT\\Kerberos\\SDK\\CurrentVersion;VersionString]" NAME CACHE)
     endif()
-    if(WIN32 AND _mit_version)
-      set(GSS_VERSION "${_mit_version}")
-    else()
-      set(GSS_VERSION "MIT Unknown")
-    endif()
-  else()  # GNU
+    set(GSS_VERSION "${_mit_version}")
+  elseif(_gss_flavor STREQUAL "GNU")
     if(_gss_INCLUDE_DIRS AND EXISTS "${_gss_INCLUDE_DIRS}/gss.h")
       set(_version_regex "#[\t ]*define[\t ]+GSS_VERSION[\t ]+\"([^\"]*)\"")
       file(STRINGS "${_gss_INCLUDE_DIRS}/gss.h" _version_str REGEX "${_version_regex}")
