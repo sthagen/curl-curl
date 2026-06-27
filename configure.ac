@@ -4097,7 +4097,8 @@ case $host_os in
     CURL_RUN_IFELSE(
       [
       #include <time.h>
-      int main(void) {
+      int main(void)
+      {
         time_t t = -1;
         return t < 0;
       }
@@ -4192,8 +4193,6 @@ if test "$curl_cv_native_windows" != "yes"; then
     realpath \
     sched_yield \
   ])
-  CURL_CHECK_FUNC_INET_NTOP
-  CURL_CHECK_FUNC_INET_PTON
   CURL_CHECK_FUNC_STRCASECMP
   CURL_CHECK_FUNC_STRCMPI
   CURL_CHECK_FUNC_STRICMP
@@ -5155,7 +5154,7 @@ fi
 AC_SUBST(LIBCURL_PC_REQUIRES)
 AC_SUBST(LIBCURL_PC_LIBS)
 
-rm $compilersh
+rm "$compilersh"
 
 dnl
 dnl For keeping supported features and protocols also in pkg-config file

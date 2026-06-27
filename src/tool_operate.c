@@ -178,7 +178,6 @@ static curl_off_t VmsSpecialSize(const char *name,
   case FAB$C_VAR:
   case FAB$C_VFC:
     return vms_realfilesize(name, stat_buf);
-    break;
   default:
     return stat_buf->st_size;
   }
@@ -1768,7 +1767,8 @@ static int cb_socket(CURL *easy, curl_socket_t s, int action,
     }
     break;
   default:
-    abort();
+    DEBUGASSERT(0);
+    return -1;
   }
 
   return 0;

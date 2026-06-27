@@ -3704,7 +3704,7 @@ static CURLMcode multi_addtimeout(struct Curl_easy *data,
      this is the first timeout on the list */
 
   Curl_llist_insert_next(timeoutlist, prev, node, &node->list);
-  CURL_TRC_TIMER(data, eid, "set for %" FMT_TIMEDIFF_T "ns",
+  CURL_TRC_TIMER(data, eid, "set for %" FMT_TIMEDIFF_T "us",
                  curlx_ptimediff_us(&node->time, Curl_pgrs_now(data)));
   return CURLM_OK;
 }
@@ -3906,15 +3906,16 @@ static void process_pending_handles(struct Curl_multi *multi)
   }
 }
 
-void Curl_set_in_callback(struct Curl_easy *data, bool value)
+/* 'value' used to be a boolean but can now also contain more info */
+void Curl_set_in_callback(struct Curl_easy *data, uint8_t value)
 {
   if(data && data->multi)
     data->multi->in_callback = value;
 }
 
-bool Curl_is_in_callback(struct Curl_easy *data)
+uint8_t Curl_is_in_callback(struct Curl_easy *data)
 {
-  return data && data->multi && data->multi->in_callback;
+  return (data && data->multi) ? data->multi->in_callback : IN_CALLBACK_NO;
 }
 
 unsigned int Curl_multi_max_concurrent_streams(struct Curl_multi *multi)

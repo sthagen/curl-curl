@@ -53,6 +53,10 @@
 
 /* scheme is not URL encoded, the longest libcurl supported ones are... */
 #define MAX_SCHEME_LEN 40
+#define MAX_ZONEID_LEN 16
+
+/* characters not allowed in hostnames */
+#define HOSTNAME_INVALID_CHARS " \r\n\t/:#?!@{}[]\\$\'\"^`*<>=;,+&()%|"
 
 /*
  * If USE_IPV6 is disabled, we still want to parse IPv6 addresses, so make
@@ -425,13 +429,13 @@ UNITTEST CURLUcode ipv6_parse(struct Curl_URL *u, char *hostname,
     hlen = len;
     if(hostname[len] == '%') {
       /* this could now be '%[zone id]' */
-      char zoneid[16];
+      char zoneid[MAX_ZONEID_LEN];
       int i = 0;
       char *h = &hostname[len + 1];
       /* pass '25' if present and is a URL encoded percent sign */
       if(!strncmp(h, "25", 2) && h[2] && (h[2] != ']'))
         h += 2;
-      while(*h && (*h != ']') && (i < 15))
+      while(*h && (*h != ']') && (i < (MAX_ZONEID_LEN - 1)))
         zoneid[i++] = *h++;
       if(!i || (']' != *h))
         return CURLUE_BAD_IPV6;
@@ -474,7 +478,7 @@ static CURLUcode hostname_check(struct Curl_URL *u, char *hostname,
     return ipv6_parse(u, hostname, hlen);
   else {
     /* letters from the second string are not ok */
-    len = strcspn(hostname, " \r\n\t/:#?!@{}[]\\$\'\"^`*<>=;,+&()%|");
+    len = strcspn(hostname, HOSTNAME_INVALID_CHARS);
     if(hlen != len)
       /* hostname with bad content */
       return CURLUE_BAD_HOSTNAME;
@@ -580,7 +584,7 @@ UNITTEST int ipv4_normalize(struct dynbuf *host)
       return HOST_NAME;
     curlx_dyn_reset(host);
     result = curlx_dyn_addf(host, "%u.%u.%u.%u",
-                            (parts[0]),
+                            parts[0],
                             ((parts[1] >> 16) & 0xff),
                             ((parts[1] >> 8) & 0xff),
                             (parts[1] & 0xff));
@@ -590,8 +594,8 @@ UNITTEST int ipv4_normalize(struct dynbuf *host)
       return HOST_NAME;
     curlx_dyn_reset(host);
     result = curlx_dyn_addf(host, "%u.%u.%u.%u",
-                            (parts[0]),
-                            (parts[1]),
+                            parts[0],
+                            parts[1],
                             ((parts[2] >> 8) & 0xff),
                             (parts[2] & 0xff));
     break;
@@ -601,10 +605,10 @@ UNITTEST int ipv4_normalize(struct dynbuf *host)
       return HOST_NAME;
     curlx_dyn_reset(host);
     result = curlx_dyn_addf(host, "%u.%u.%u.%u",
-                            (parts[0]),
-                            (parts[1]),
-                            (parts[2]),
-                            (parts[3]));
+                            parts[0],
+                            parts[1],
+                            parts[2],
+                            parts[3]);
     break;
   }
   if(result)
@@ -1760,7 +1764,7 @@ static CURLUcode set_url(CURLU *u, const char *url, size_t part_size,
   /* if the old URL is incomplete (we cannot get an absolute URL in
      'oldurl'), replace the existing with the new.
      Always include "scheme://" to make the URL "complete" */
-  uc = curl_url_get(u, CURLUPART_URL, &oldurl, flags& ~CURLU_NO_GUESS_SCHEME);
+  uc = curl_url_get(u, CURLUPART_URL, &oldurl, flags & ~CURLU_NO_GUESS_SCHEME);
   if(uc == CURLUE_OUT_OF_MEMORY)
     return uc;
   else if(uc)
@@ -1957,7 +1961,7 @@ static CURLUcode url_sethost(CURLU *u, struct dynbuf *encp,
       bad = TRUE;
     curlx_free(decoded);
   }
-  else if(hostname_check(u, (char *)CURL_UNCONST(newp), n))
+  else if(hostname_check(u, newp, n))
     bad = TRUE;
   if(bad) {
     curlx_dyn_free(encp);
@@ -2103,4 +2107,21 @@ bool Curl_url_same_origin(CURLU *base, CURLU *href)
   else if(href->port_present) /* no host in href, then there must be no port */
     return FALSE;
   return TRUE;
+}
+
+CURLUcode Curl_url_get_port(CURLU *u, uint16_t *pport)
+{
+  if(u->port_present) {
+    *pport = u->portnum;
+    return CURLUE_OK;
+  }
+  else if(u->scheme) {
+    const struct Curl_scheme *s = Curl_get_scheme(u->scheme);
+    if(s && s->defport) {
+      *pport = s->defport;
+      return CURLUE_OK;
+    }
+  }
+  *pport = 0;
+  return CURLUE_NO_PORT;
 }

@@ -51,7 +51,7 @@ static void trc_write(struct Curl_easy *data, curl_infotype type,
 {
   if(data->set.verbose) {
     if(data->set.fdebug) {
-      bool inCallback = Curl_is_in_callback(data);
+      uint8_t inCallback = Curl_is_in_callback(data);
       Curl_set_in_callback(data, TRUE);
       (void)(*data->set.fdebug)(data, type, CURL_UNCONST(ptr), size,
                                 data->set.debugdata);
@@ -133,7 +133,7 @@ void Curl_debug(struct Curl_easy *data, curl_infotype type,
     char buf[TRC_LINE_MAX];
     size_t len;
     if(data->set.fdebug) {
-      bool inCallback = Curl_is_in_callback(data);
+      uint8_t inCallback = Curl_is_in_callback(data);
 
       if(CURL_TRC_IDS(data) && (size < TRC_LINE_MAX)) {
         len = trc_print_ids(data, buf, TRC_LINE_MAX);
@@ -345,7 +345,7 @@ void Curl_trc_easy_timers(struct Curl_easy *data)
       while(e) {
         struct time_node *n = Curl_node_elem(e);
         e = Curl_node_next(e);
-        CURL_TRC_TIMER(data, n->eid, "expires in %" FMT_TIMEDIFF_T "ns",
+        CURL_TRC_TIMER(data, n->eid, "expires in %" FMT_TIMEDIFF_T "us",
                        curlx_ptimediff_us(&n->time, pnow));
       }
     }

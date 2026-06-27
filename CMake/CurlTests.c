@@ -48,7 +48,7 @@ int main(void)
 {
   /* O_NONBLOCK source test */
   int flags = 0;
-  if(0 != fcntl(0, F_SETFL, flags | O_NONBLOCK))
+  if(fcntl(0, F_SETFL, flags | O_NONBLOCK))
     return 1;
   return 0;
 }
@@ -65,7 +65,7 @@ int main(void)
 #include <netdb.h>
 int main(void)
 {
-  const char *address = "example.com";
+  const char *address = "localhost";
   struct hostent h;
   int rc = 0;
 #if   defined(HAVE_GETHOSTBYNAME_R_3) || \
@@ -118,7 +118,6 @@ int main(void)
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
-#include <float.h>
 int main(void)
 {
   return 0;
@@ -162,7 +161,7 @@ int main(void)
 int main(void)
 {
   /* IoctlSocket source code */
-  if(0 != IoctlSocket(0, 0, 0))
+  if(IoctlSocket(0, 0, 0))
     return 1;
   return 0;
 }
@@ -177,7 +176,7 @@ int main(void)
 {
   /* IoctlSocket source code */
   long flags = 0;
-  if(0 != IoctlSocket(0, FIONBIO, &flags))
+  if(IoctlSocket(0, FIONBIO, &flags))
     return 1;
   (void)flags;
   return 0;
@@ -191,7 +190,7 @@ int main(void)
 int main(void)
 {
   unsigned long flags = 0;
-  if(0 != ioctlsocket(0, FIONBIO, &flags))
+  if(ioctlsocket(0, FIONBIO, &flags))
     return 1;
   (void)flags;
   return 0;
@@ -218,7 +217,7 @@ int main(void)
 int main(void)
 {
   int flags = 0;
-  if(0 != ioctl(0, FIONBIO, &flags))
+  if(ioctl(0, FIONBIO, &flags))
     return 1;
   (void)flags;
   return 0;
@@ -226,7 +225,7 @@ int main(void)
 #endif
 
 #ifdef HAVE_IOCTL_SIOCGIFADDR
-/* headers for FIONBIO test */
+/* headers for SIOCGIFADDR test */
 #ifdef HAVE_SYS_TYPES_H
 #  include <sys/types.h>
 #endif
@@ -246,7 +245,7 @@ int main(void)
 int main(void)
 {
   struct ifreq ifr;
-  if(0 != ioctl(0, SIOCGIFADDR, &ifr))
+  if(ioctl(0, SIOCGIFADDR, &ifr))
     return 1;
   (void)ifr;
   return 0;
@@ -265,7 +264,7 @@ int main(void)
 #endif
 int main(void)
 {
-  if(0 != setsockopt(0, SOL_SOCKET, SO_NONBLOCK, 0, 0))
+  if(setsockopt(0, SOL_SOCKET, SO_NONBLOCK, 0, 0))
     return 1;
   return 0;
 }

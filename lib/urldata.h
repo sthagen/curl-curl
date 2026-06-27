@@ -37,7 +37,7 @@
 
 #define DEFAULT_CONNCACHE_SIZE 5
 
-/* length of longest IPv6 address string including the trailing null */
+/* length of longest IPv6 address string including the null-terminator */
 #define MAX_IPADR_LEN sizeof("ffff:ffff:ffff:ffff:ffff:ffff:255.255.255.255")
 
 /* Max string input length is a precaution against abuse and to detect junk
@@ -305,6 +305,7 @@ struct connectdata {
   char *options; /* options string, allocated */
   struct curltime created; /* creation time */
   struct curltime lastused; /* when returned to the connection pool as idle */
+  struct curltime lastchecked; /* when last checked alive status */
 
   /* A connection can have one or two sockets and connection filters.
    * The protocol using the 2nd one is FTP for CONTROL+DATA sockets */
@@ -559,11 +560,6 @@ struct time_node {
 
 /* individual pieces of the URL */
 struct urlpieces {
-  char *scheme;
-  char *hostname;
-  char *port;
-  char *user;
-  char *password;
   char *options;
   char *path;
   char *query;

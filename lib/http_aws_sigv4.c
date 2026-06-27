@@ -52,7 +52,7 @@
 
 #define TIMESTAMP_SIZE 17
 
-/* hex-encoded with trailing null */
+/* hex-encoded with null-terminator */
 #define SHA256_HEX_LENGTH ((2 * CURL_SHA256_DIGEST_LENGTH) + 1)
 
 #define MAX_QUERY_COMPONENTS 128
@@ -401,11 +401,8 @@ static CURLcode make_headers(struct Curl_easy *data,
   if(!Curl_checkheaders(data, STRCONST("Host"))) {
     char *fullhost;
 
-    if(data->state.aptr.host) {
-      /* remove /r/n as the separator for canonical request must be '\n' */
-      size_t pos = strcspn(data->state.aptr.host, "\n\r");
-      fullhost = curlx_memdup0(data->state.aptr.host, pos);
-    }
+    if(data->state.aptr.host)
+      fullhost = curlx_strdup(data->state.aptr.host);
     else
       fullhost = curl_maprintf("host:%s", hostname);
 

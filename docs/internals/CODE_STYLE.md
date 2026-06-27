@@ -348,6 +348,7 @@ This is the full list of functions generally banned.
     _wfopen
     _wfreopen
     _wopen
+    abort
     accept
     accept4
     access
@@ -370,6 +371,8 @@ This is the full list of functions generally banned.
     getaddrinfo
     gets
     gmtime
+    inet_ntop
+    inet_pton
     llseek
     LoadLibrary
     LoadLibraryA

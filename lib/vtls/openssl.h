@@ -33,7 +33,7 @@
  * <winldap.h>, <iphlpapi.h>, or something else, <wincrypt.h> does this:
  *   #define X509_NAME  ((LPCSTR)7)
  *
- * In AWC-LC/BoringSSL's <openssl/base.h> there is:
+ * In AWS-LC/BoringSSL's <openssl/base.h> there is:
  *  typedef struct X509_name_st X509_NAME;
  *  etc.
  *
@@ -98,6 +98,14 @@
 #undef HAVE_OPENSSL_EARLYDATA
 #if defined(TLS1_3_VERSION) && !defined(HAVE_BORINGSSL_LIKE)
 #define HAVE_OPENSSL_EARLYDATA
+#endif
+
+#ifdef LIBRESSL_VERSION_NUMBER
+typedef long ctx_option_t;
+#elif defined(HAVE_BORINGSSL_LIKE)
+typedef uint32_t ctx_option_t;
+#else
+typedef uint64_t ctx_option_t;
 #endif
 
 struct alpn_spec;
